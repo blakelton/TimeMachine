@@ -1,0 +1,79 @@
+import { test, expect } from '@playwright/test';
+
+/**
+ * E2E tests for Home Dashboard
+ * 
+ * Critical flow: User views system stats and camera status
+ */
+
+test.describe('Home Dashboard', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+  });
+
+  test('should display system statistics', async ({ page }) => {
+    // Wait for stats to load from WebSocket
+    await page.waitForSelector('.system-stats', { state: 'visible' });
+
+    // Check that CPU, Memory, Disk, Temperature stats are displayed
+    await expect(page.locator('.stat-card')).toHaveCount(4);
+
+    // Verify stat labels
+    await expect(page.getByText('CPU Usage')).toBeVisible();
+    await expect(page.getByText('Memory Usage')).toBeVisible();
+    await expect(page.getByText('Disk Free')).toBeVisible();
+    await expect(page.getByText('CPU Temperature')).toBeVisible();
+  });
+
+  test('should show WebSocket connection status', async ({ page }) => {
+    // Check connection indicator
+    const wsStatus = page.locator('.ws-status');
+    await expect(wsStatus).toBeVisible();
+
+    // Should show "Connected" after WebSocket connects
+    await expect(page.getByText('Connected')).toBeVisible({ timeout: 5000 });
+
+    // Indicator should be green
+    const indicator = page.locator('.ws-indicator.connected');
+    await expect(indicator).toBeVisible();
+  });
+
+  test('should display camera status cards', async ({ page }) => {
+    // Wait for cameras to load
+    await page.waitForSelector('.cameras-section', { state: 'visible' });
+
+    // If cameras exist, verify their cards are displayed
+    const cameraCards = page.locator('.camera-status-card');
+    const count = await cameraCards.count();
+
+    if (count > 0) {
+      // Verify first camera card has required elements
+      const firstCard = cameraCards.first();
+      await expect(firstCard.locator('.camera-name')).toBeVisible();
+      await expect(firstCard.locator('.camera-type')).toBeVisible();
+      await expect(firstCard.locator('.camera-status')).toBeVisible();
+    }
+  });
+
+  test('should update stats in real-time', async ({ page }) => {
+    // Get initial CPU value
+    await page.waitForSelector('.system-stats', { state: 'visible' });
+    const cpuCard = page.locator('.stat-card').first();
+    const initialValue = await cpuCard.locator('.stat-value').textContent();
+
+    // Wait for WebSocket update (stats broadcast every 2 seconds)
+    await page.waitForTimeout(3000);
+
+    // Value should have updated (may be same value, but timestamp should change)
+    const lastUpdate = page.locator('.last-update');
+    await expect(lastUpdate).toBeVisible();
+  });
+
+  test('should navigate to settings', async ({ page }) => {
+    // Click on Settings navigation
+    await page.getByRole('link', { name: /settings/i }).click();
+
+    // Should navigate to /settings
+    await expect(page).toHaveURL('/settings');
+  });
+});

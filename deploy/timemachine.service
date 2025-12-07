@@ -1,55 +1,61 @@
 [Unit]
-Description=TimeMachine Observation Chamber Control System
-Documentation=https://github.com/blakelton/TimeMachine
+Description=TimeMachine Observation Chamber Service
+Documentation=https://github.com/yourusername/timemachine
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=exec
+Type=notify
 User=timemachine
 Group=timemachine
 WorkingDirectory=/opt/timemachine/backend
 
 # Environment
 EnvironmentFile=/etc/timemachine/timemachine.env
-Environment="PYTHONUNBUFFERED=1"
+
+# Resource Limits (Pi 3 constraints)
+MemoryMax=800M
+MemoryHigh=700M
+CPUQuota=300%
+TasksMax=256
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/timemachine /var/log/timemachine
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+
+# Device Access (for cameras)
+DevicePolicy=closed
+DeviceAllow=/dev/video* rw
+DeviceAllow=/dev/vchiq rw
+DeviceAllow=/dev/vcsm-cma rw
 
 # Execution
-ExecStart=/opt/timemachine/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+ExecStart=/opt/timemachine/backend/venv/bin/uvicorn app.main:app \
+    --host ${TIMEMACHINE_HOST} \
+    --port ${TIMEMACHINE_PORT} \
+    --workers 1 \
+    --log-config /etc/timemachine/logging.json
 ExecReload=/bin/kill -HUP $MAINPID
 
 # Restart policy
 Restart=always
-RestartSec=5
-StartLimitBurst=5
-StartLimitIntervalSec=60
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
 
-# Resource limits (Raspberry Pi 3: 1GB RAM)
-MemoryMax=800M
-MemoryHigh=700M
-CPUQuota=300%
-TasksMax=512
+# Watchdog (sends SIGABRT if health check fails)
+WatchdogSec=60
 
-# Security hardening
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-ReadWritePaths=/var/lib/timemachine
-ReadWritePaths=/var/log/timemachine
-
-# Camera and hardware access
-SupplementaryGroups=video
-DeviceAllow=/dev/video* rw
-DeviceAllow=/dev/vchiq rw
-DeviceAllow=/dev/vcsm-cma rw
-DevicePolicy=closed
-
-# Network
-PrivateNetwork=false
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-
-# Logging
+# Standard output to journald
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=timemachine

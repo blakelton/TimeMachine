@@ -1,0 +1,144 @@
+import { test, expect } from '@playwright/test';
+
+/**
+ * E2E tests for Camera Operations
+ * 
+ * Critical flows:
+ * - User adds a new camera
+ * - User starts preview
+ * - User captures still image
+ * - User records video
+ */
+
+test.describe('Camera Management', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/settings');
+  });
+
+  test('should add a new camera', async ({ page }) => {
+    // Click "Add Camera" button
+    await page.getByRole('button', { name: /add camera/i }).click();
+
+    // Modal should open
+    await expect(page.locator('.modal')).toBeVisible();
+
+    // Fill in camera form
+    await page.getByLabel(/name/i).fill('Test Camera');
+    await page.getByLabel(/type/i).selectOption('usb');
+    await page.getByLabel(/device path/i).fill('/dev/video0');
+
+    // Submit form
+    await page.getByRole('button', { name: /save|add/i }).click();
+
+    // Should show success toast
+    await expect(page.getByText(/camera added successfully/i)).toBeVisible({ timeout: 5000 });
+
+    // Modal should close
+    await expect(page.locator('.modal')).not.toBeVisible();
+
+    // Camera should appear in list
+    await expect(page.getByText('Test Camera')).toBeVisible();
+  });
+
+  test('should enable and disable camera', async ({ page }) => {
+    // Assuming at least one camera exists
+    const firstCamera = page.locator('.camera-item').first();
+    await expect(firstCamera).toBeVisible();
+
+    // Toggle enabled checkbox
+    const checkbox = firstCamera.locator('input[type="checkbox"]');
+    await checkbox.click();
+
+    // Should show success toast
+    await expect(page.getByText(/camera updated/i)).toBeVisible({ timeout: 5000 });
+  });
+
+  test('should delete camera with confirmation', async ({ page }) => {
+    // Assuming at least one camera exists
+    const firstCamera = page.locator('.camera-item').first();
+    const cameraName = await firstCamera.locator('.camera-name').textContent();
+
+    // Click delete button
+    await firstCamera.getByRole('button', { name: /delete/i }).click();
+
+    // Confirmation dialog should appear
+    await expect(page.locator('.confirm-dialog')).toBeVisible();
+    await expect(page.getByText(/are you sure/i)).toBeVisible();
+
+    // Confirm deletion
+    await page.getByRole('button', { name: /confirm|yes|delete/i }).click();
+
+    // Should show success toast
+    await expect(page.getByText(/camera deleted/i)).toBeVisible({ timeout: 5000 });
+
+    // Camera should be removed from list
+    if (cameraName) {
+      await expect(page.getByText(cameraName)).not.toBeVisible();
+    }
+  });
+});
+
+test.describe('Camera Preview', () => {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to first camera's preview tab
+    await page.goto('/');
+    const firstCamera = page.locator('.camera-status-card').first();
+    await firstCamera.click();
+    await page.getByRole('tab', { name: /preview/i }).click();
+  });
+
+  test('should start and stop preview', async ({ page }) => {
+    // Click "Start Preview" button
+    await page.getByRole('button', { name: /start preview/i }).click();
+
+    // Preview should load
+    await expect(page.locator('.preview-stream')).toBeVisible({ timeout: 10000 });
+
+    // "Stop Preview" button should appear
+    await expect(page.getByRole('button', { name: /stop preview/i })).toBeVisible();
+
+    // Stop preview
+    await page.getByRole('button', { name: /stop preview/i }).click();
+
+    // Preview should stop
+    await expect(page.locator('.preview-stream')).not.toBeVisible();
+  });
+});
+
+test.describe('Camera Recording', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    const firstCamera = page.locator('.camera-status-card').first();
+    await firstCamera.click();
+    await page.getByRole('tab', { name: /record/i }).click();
+  });
+
+  test('should start and stop recording', async ({ page }) => {
+    // Set recording duration
+    await page.getByLabel(/duration/i).fill('10');
+
+    // Click "Start Recording" button
+    await page.getByRole('button', { name: /start recording/i }).click();
+
+    // Recording should start
+    await expect(page.getByText(/recording/i)).toBeVisible({ timeout: 5000 });
+
+    // Timer should be visible and counting
+    await expect(page.locator('.recording-timer')).toBeVisible();
+
+    // "Stop Recording" button should appear
+    await expect(page.getByRole('button', { name: /stop recording/i })).toBeVisible();
+
+    // Stop recording
+    await page.getByRole('button', { name: /stop recording/i }).click();
+
+    // Recording should stop
+    await expect(page.getByText(/recording stopped/i)).toBeVisible({ timeout: 5000 });
+  });
+
+  test('should show disk space warning when low', async ({ page }) => {
+    // This test requires mocking low disk space
+    // Implementation depends on how disk space is checked
+    test.skip();
+  });
+});
