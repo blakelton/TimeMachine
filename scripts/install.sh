@@ -150,13 +150,21 @@ apt-get install -y \
   git \
   curl
 
-# Install Node.js (for building frontend)
+# Install Node.js and npm (for building frontend)
 if ! command -v node &> /dev/null; then
   echo "📦 Installing Node.js LTS..."
   curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
   apt-get install -y nodejs
 else
   echo "✓ Node.js already installed ($(node --version))"
+fi
+
+# Ensure npm is installed (sometimes missing even with nodejs)
+if ! command -v npm &> /dev/null; then
+  echo "📦 Installing npm..."
+  apt-get install -y npm
+else
+  echo "✓ npm already installed ($(npm --version))"
 fi
 
 # ============================================================================
