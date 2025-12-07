@@ -25,4 +25,5 @@ httpx==0.25.2
 
 # Camera support
 picamera2==0.3.17
-opencv-python-headless==4.8.1.78
+# Note: opencv-python-headless removed - not used in current implementation
+# Can be added later if image processing features are needed
