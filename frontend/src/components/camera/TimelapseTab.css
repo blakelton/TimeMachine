@@ -1,0 +1,182 @@
+/**
+ * Timelapse tab styles
+ */
+
+.timelapse-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.timelapse-tab__controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.timelapse-tab__input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.timelapse-tab__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #f5f5f5;
+}
+
+.timelapse-tab__info {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.timelapse-tab__info-label {
+  color: #666;
+}
+
+.timelapse-tab__info-value {
+  font-weight: 600;
+  color: #333;
+}
+
+.timelapse-tab__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+}
+
+.timelapse-tab__status {
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #17a2b8;
+}
+
+.timelapse-tab__status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.timelapse-tab__status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timelapse-tab__recording-dot {
+  width: 12px;
+  height: 12px;
+  background-color: #17a2b8;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.timelapse-tab__recording-text {
+  font-weight: 600;
+  color: #17a2b8;
+}
+
+.timelapse-tab__frames {
+  font-weight: 700;
+  font-family: monospace;
+  color: #333;
+}
+
+.timelapse-tab__progress {
+  height: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.timelapse-tab__progress-bar {
+  height: 100%;
+  background-color: #17a2b8;
+  transition: width 0.3s ease;
+}
+
+.timelapse-tab__progress-text {
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .timelapse-tab__input {
+    background-color: #2a2a2a;
+    border-color: #444;
+    color: #fff;
+  }
+
+  .timelapse-tab__input:disabled {
+    background-color: #1a1a1a;
+  }
+
+  .timelapse-tab__info {
+    background-color: #2a2a2a;
+  }
+
+  .timelapse-tab__info-label {
+    color: #aaa;
+  }
+
+  .timelapse-tab__info-value {
+    color: #fff;
+  }
+
+  .timelapse-tab__status {
+    background-color: #2a2a2a;
+    border-left-color: #17a2b8;
+  }
+
+  .timelapse-tab__frames {
+    color: #fff;
+  }
+
+  .timelapse-tab__progress {
+    background-color: #444;
+  }
+
+  .timelapse-tab__progress-text {
+    color: #aaa;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .timelapse-tab__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .timelapse-tab__actions {
+    flex-direction: column;
+  }
+
+  .timelapse-tab__status-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

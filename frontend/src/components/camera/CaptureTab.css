@@ -1,0 +1,140 @@
+/**
+ * Capture tab styles
+ */
+
+.capture-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+}
+
+.capture-tab__controls {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.capture-tab__select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.capture-tab__select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.capture-tab__capture-button {
+  min-width: 150px;
+}
+
+.capture-tab__preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 400px;
+}
+
+.capture-tab__image-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.capture-tab__image {
+  flex: 1;
+  object-fit: contain;
+  max-width: 100%;
+  max-height: calc(100% - 60px);
+}
+
+.capture-tab__image-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fff;
+  border-top: 1px solid #ddd;
+}
+
+.capture-tab__timestamp {
+  font-size: 14px;
+  color: #666;
+}
+
+.capture-tab__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #888;
+  text-align: center;
+  padding: 32px;
+}
+
+.capture-tab__placeholder p {
+  margin: 0;
+}
+
+.capture-tab__placeholder-hint {
+  font-size: 14px;
+  color: #aaa;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .capture-tab__select {
+    background-color: #2a2a2a;
+    border-color: #444;
+    color: #fff;
+  }
+
+  .capture-tab__preview {
+    background-color: #1a1a1a;
+  }
+
+  .capture-tab__image-info {
+    background-color: #2a2a2a;
+    border-top-color: #444;
+  }
+
+  .capture-tab__timestamp {
+    color: #aaa;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .capture-tab__controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .capture-tab__capture-button {
+    width: 100%;
+  }
+
+  .capture-tab__preview {
+    min-height: 300px;
+  }
+
+  .capture-tab__image-info {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+}

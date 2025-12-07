@@ -1,0 +1,91 @@
+/**
+ * Preview tab styles
+ */
+
+.preview-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.preview-tab__controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.preview-tab__display {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  min-height: 400px;
+}
+
+.preview-tab__stream {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.preview-tab__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.preview-tab__placeholder,
+.preview-tab__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #888;
+  text-align: center;
+  padding: 32px;
+}
+
+.preview-tab__error {
+  color: #dc3545;
+}
+
+.preview-tab__error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #fff;
+}
+
+/* Loading state */
+.preview-tab__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #888;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .preview-tab__display {
+    min-height: 300px;
+  }
+}

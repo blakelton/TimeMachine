@@ -26,7 +26,7 @@ export function HomePage() {
     },
   });
 
-  const cameras = camerasData?.data || [];
+  const cameras = (camerasData as any)?.cameras || [];
 
   return (
     <div className="home-page">
@@ -60,7 +60,7 @@ export function HomePage() {
         )}
         {cameras.length > 0 && (
           <div className="cameras-grid">
-            {cameras.map((camera) => (
+            {cameras.map((camera: any) => (
               <CameraStatusCard key={camera.id} camera={camera} />
             ))}
           </div>
