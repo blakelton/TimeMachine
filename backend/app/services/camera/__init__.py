@@ -7,6 +7,8 @@ from app.services.camera.discovery import (
 )
 from app.services.camera.pipeline import ManagedPipeline, PipelineConfig, PipelineState
 from app.services.camera.preview import preview_service
+from app.services.camera.capture import capture_service
+from app.services.camera.recording import recording_service
 
 __all__ = [
     "CameraDiscovery",
@@ -16,4 +18,6 @@ __all__ = [
     "PipelineConfig",
     "PipelineState",
     "preview_service",
+    "capture_service",
+    "recording_service",
 ]

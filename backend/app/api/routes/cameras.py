@@ -15,7 +15,12 @@ from app.schemas.camera import (
     CameraUpdate,
     DiscoveredCameraResponse,
 )
-from app.services.camera import CameraDiscovery, preview_service
+from app.services.camera import (
+    CameraDiscovery,
+    preview_service,
+    capture_service,
+    recording_service,
+)
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 logger = get_logger(__name__)
@@ -352,4 +357,187 @@ async def get_preview_status(
         "state": state.value if state else "idle",
         "port": port,
         "url": f"http://localhost:{port}" if port else None,
+    }
+
+
+@router.post("/{camera_id}/capture")
+async def capture_image(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    filename: str | None = None,
+) -> dict:
+    """Capture a still image from a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+        filename: Optional custom filename (without extension)
+
+    Returns:
+        Capture result with file path
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("capture_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Capture image
+    success, message, filepath = await capture_service.capture_image(
+        camera_id=camera_id,
+        device_path=camera.device_path,
+        camera_type=camera.camera_type,
+        filename=filename,
+    )
+
+    if success:
+        return {
+            "success": True,
+            "message": message,
+            "filepath": filepath,
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=message,
+        )
+
+
+@router.post("/{camera_id}/recording/start")
+async def start_recording(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    duration_seconds: int | None = None,
+    filename: str | None = None,
+) -> dict:
+    """Start recording from a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+        duration_seconds: Optional duration limit in seconds
+        filename: Optional custom filename (without extension)
+
+    Returns:
+        Recording start status
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("recording_start_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Start recording
+    success, message = await recording_service.start_recording(
+        camera_id=camera_id,
+        device_path=camera.device_path,
+        camera_type=camera.camera_type,
+        duration_seconds=duration_seconds,
+        filename=filename,
+    )
+
+    if success:
+        return {
+            "success": True,
+            "message": message,
+            "pid": recording_service.get_recording_pid(camera_id),
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=message,
+        )
+
+
+@router.post("/{camera_id}/recording/stop")
+async def stop_recording(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> dict:
+    """Stop recording for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Recording stop status with file path
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("recording_stop_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Stop recording
+    success, message, filepath = await recording_service.stop_recording(camera_id)
+
+    if success:
+        return {
+            "success": True,
+            "message": message,
+            "filepath": filepath,
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=message,
+        )
+
+
+@router.get("/{camera_id}/recording/status")
+async def get_recording_status(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> dict:
+    """Get recording status for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Recording status with PID and uptime
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("recording_status_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    state = recording_service.get_recording_state(camera_id)
+    pid = recording_service.get_recording_pid(camera_id)
+    uptime = recording_service.get_recording_uptime(camera_id)
+
+    return {
+        "camera_id": camera_id,
+        "state": state.value if state else "idle",
+        "pid": pid,
+        "uptime_seconds": uptime,
     }

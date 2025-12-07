@@ -4,7 +4,7 @@ import asyncio
 from typing import Optional
 
 from app.core.logging import get_logger
-from app.services.system.stats import check_memory_available
+from app.services.system.stats import check_memory_available, check_disk_available
 
 logger = get_logger(__name__)
 
@@ -78,13 +78,14 @@ encoder_semaphore = EncoderSemaphore()
 
 
 async def check_resources_available(
-    operation: str, min_memory_mb: int = 100
+    operation: str, min_memory_mb: int = 100, min_disk_mb: int = 500
 ) -> tuple[bool, str]:
     """Check if system has sufficient resources for an operation.
 
     Args:
         operation: Operation name for logging
         min_memory_mb: Minimum required memory in MB
+        min_disk_mb: Minimum required disk space in MB
 
     Returns:
         Tuple of (available: bool, reason: str)
@@ -106,10 +107,28 @@ async def check_resources_available(
         )
         return False, reason
 
+    # Check disk space availability
+    disk_ok, disk_available_mb = check_disk_available(min_disk_mb)
+
+    if not disk_ok:
+        reason = (
+            f"Insufficient disk space: {disk_available_mb}MB available, "
+            f"{min_disk_mb}MB required"
+        )
+        logger.warning(
+            "resource_check_failed",
+            operation=operation,
+            reason="insufficient_disk_space",
+            available_mb=disk_available_mb,
+            required_mb=min_disk_mb,
+        )
+        return False, reason
+
     logger.debug(
         "resource_check_passed",
         operation=operation,
         available_memory_mb=memory_available_mb,
+        available_disk_mb=disk_available_mb,
     )
 
     return True, "Resources available"
