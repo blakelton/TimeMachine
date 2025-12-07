@@ -85,13 +85,17 @@ The installation script will:
 **Post-installation:**
 
 ```bash
-# Setup nginx reverse proxy (recommended)
-sudo ./scripts/setup-nginx.sh
+# Build frontend (REQUIRED before installation)
+cd frontend
+npm install
+npm run build  # Creates frontend/dist directory
 
 # Install management command
 sudo cp scripts/timemachine.sh /usr/local/bin/timemachine
 sudo chmod +x /usr/local/bin/timemachine
 ```
+
+**Important**: The frontend must be built before running `install.sh`. The installer copies `frontend/dist` to the production location.
 
 ### Configuration
 
@@ -202,7 +206,13 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 # Frontend setup (separate terminal)
 cd frontend
 npm install
+
+# For local development (access from same machine)
 npm run dev
+
+# For network access (access from other machines)
+npm run dev -- --host 0.0.0.0
+# Then access from: http://raspberrypi.local:5173
 ```
 
 ### Testing API Endpoints
