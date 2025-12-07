@@ -124,22 +124,13 @@ sudo apt install -y \
   libcamera-dev \
   libcamera-tools
 
-# Install build dependencies
+# Install camera support and build dependencies
 sudo apt install -y \
   build-essential \
   git \
   nginx \
   v4l-utils \
-  libatlas-base-dev \
-  libcap-dev \
-  libavformat-dev \
-  libavcodec-dev \
-  libavdevice-dev \
-  libavutil-dev \
-  libavfilter-dev \
-  libswscale-dev \
-  libswresample-dev \
-  pkg-config
+  python3-picamera2
 ```
 
 ### 2. Create System User
@@ -191,8 +182,8 @@ sudo chmod +x /usr/local/bin/timemachine
 ### 5. Python Environment
 
 ```bash
-# Create virtual environment
-sudo -u timemachine python3.11 -m venv /opt/timemachine/venv
+# Create virtual environment with system site packages (for picamera2)
+sudo -u timemachine python3.11 -m venv /opt/timemachine/venv --system-site-packages
 
 # Install dependencies
 sudo -u timemachine /opt/timemachine/venv/bin/pip install --upgrade pip

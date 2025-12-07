@@ -40,6 +40,7 @@ apt-get install -y \
   python3 \
   python3-pip \
   python3-venv \
+  python3-picamera2 \
   nginx \
   libcamera-apps \
   gstreamer1.0-tools \
@@ -47,16 +48,7 @@ apt-get install -y \
   gstreamer1.0-plugins-good \
   gstreamer1.0-plugins-bad \
   v4l-utils \
-  git \
-  libcap-dev \
-  libavformat-dev \
-  libavcodec-dev \
-  libavdevice-dev \
-  libavutil-dev \
-  libavfilter-dev \
-  libswscale-dev \
-  libswresample-dev \
-  pkg-config
+  git
 
 # Create timemachine user
 if ! id -u timemachine &>/dev/null; then
@@ -87,7 +79,7 @@ fi
 
 # Create Python virtual environment
 echo "🐍 Setting up Python environment..."
-python3 -m venv /opt/timemachine/venv
+python3 -m venv /opt/timemachine/venv --system-site-packages
 /opt/timemachine/venv/bin/pip install --upgrade pip
 /opt/timemachine/venv/bin/pip install -r /opt/timemachine/backend/requirements.txt
 

@@ -24,6 +24,8 @@ psutil==5.9.6
 httpx==0.25.2
 
 # Camera support
-picamera2==0.3.17
+# Note: picamera2 should be installed via system package (python3-picamera2)
+# to avoid lengthy PyAV compilation. The pip version is kept commented for reference.
+# picamera2==0.3.17
 # Note: opencv-python-headless removed - not used in current implementation
 # Can be added later if image processing features are needed
