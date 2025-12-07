@@ -75,7 +75,9 @@ sudo ./install.sh
 ```
 
 The installation script will:
-- Install system dependencies (Python 3.11, GStreamer, libcamera, picamera2)
+- Install system dependencies (Python 3.11, Node.js, GStreamer, libcamera, picamera2, ffmpeg)
+- Install Node.js LTS (for frontend build)
+- Build frontend production bundle
 - Create timemachine user and directories
 - Set up Python virtual environment with system site packages
 - Initialize database
@@ -85,17 +87,10 @@ The installation script will:
 **Post-installation:**
 
 ```bash
-# Build frontend (REQUIRED before installation)
-cd frontend
-npm install
-npm run build  # Creates frontend/dist directory
-
 # Install management command
 sudo cp scripts/timemachine.sh /usr/local/bin/timemachine
 sudo chmod +x /usr/local/bin/timemachine
 ```
-
-**Important**: The frontend must be built before running `install.sh`. The installer copies `frontend/dist` to the production location.
 
 ### Configuration
 

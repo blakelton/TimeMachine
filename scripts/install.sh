@@ -48,7 +48,18 @@ apt-get install -y \
   gstreamer1.0-plugins-good \
   gstreamer1.0-plugins-bad \
   v4l-utils \
-  git
+  ffmpeg \
+  git \
+  curl
+
+# Install Node.js (for building frontend)
+if ! command -v node &> /dev/null; then
+  echo "📦 Installing Node.js LTS..."
+  curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  apt-get install -y nodejs
+else
+  echo "✓ Node.js already installed ($(node --version))"
+fi
 
 # Create timemachine user
 if ! id -u timemachine &>/dev/null; then
@@ -66,16 +77,34 @@ mkdir -p /var/lib/timemachine/media/{recordings,stills,timelapse}
 mkdir -p /var/log/timemachine
 mkdir -p /etc/timemachine
 
+# Build frontend
+echo "🔨 Building frontend..."
+if [ -d "$PROJECT_ROOT/frontend" ]; then
+  cd "$PROJECT_ROOT/frontend"
+
+  if [ ! -d "node_modules" ]; then
+    echo "  Installing frontend dependencies..."
+    npm install
+  fi
+
+  echo "  Building production bundle..."
+  npm run build
+
+  if [ -d "dist" ]; then
+    echo "  ✓ Frontend built successfully"
+  else
+    echo "  ❌ Frontend build failed"
+    exit 1
+  fi
+else
+  echo "  ❌ Frontend directory not found at $PROJECT_ROOT/frontend"
+  exit 1
+fi
+
 # Copy application files
 echo "📋 Copying application files..."
 cp -r "$PROJECT_ROOT/backend" /opt/timemachine/
-if [ -d "$PROJECT_ROOT/frontend/dist" ]; then
-  echo "  Copying frontend build..."
-  cp -r "$PROJECT_ROOT/frontend/dist" /opt/timemachine/static
-else
-  echo "  ⚠️  Frontend not built, skipping static files"
-  echo "     Run 'cd frontend && npm run build' first"
-fi
+cp -r "$PROJECT_ROOT/frontend/dist" /opt/timemachine/static
 
 # Create Python virtual environment
 echo "🐍 Setting up Python environment..."
