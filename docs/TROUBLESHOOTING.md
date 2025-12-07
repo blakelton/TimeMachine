@@ -277,11 +277,25 @@ H.264 encoder busy (in use by camera_1_recording)
 
 **Fix:** Stop other recordings first
 ```bash
-# Check active recordings
-curl http://localhost:8000/api/v1/cameras
+# Check running jobs
+curl http://localhost:8000/api/v1/jobs/running
 
 # Stop recording
 curl -X POST http://localhost:8000/api/v1/cameras/1/recording/stop
+
+# Force stop (skip EOS, may corrupt file)
+curl -X POST "http://localhost:8000/api/v1/cameras/1/recording/stop?force=true"
+```
+
+**Recording produces corrupted MP4:**
+```bash
+# Check if EOS was sent properly
+timemachine logs | grep "pipeline_eos"
+
+# Common cause: Recording was force-stopped or process killed
+# EOS signal allows mp4mux to write moov atom (required for playback)
+
+# Prevention: Always use stop endpoint, avoid killing processes directly
 ```
 
 **Recording timeout:**
@@ -294,6 +308,69 @@ free -h
 
 # Review logs for errors
 timemachine logs | grep recording
+```
+
+### Timelapse Issues
+
+**Timelapse stops unexpectedly:**
+```bash
+# Check job status
+curl http://localhost:8000/api/v1/jobs | grep timelapse
+
+# Check for resource issues
+timemachine logs | grep timelapse
+
+# Resume interrupted timelapse
+# The timelapse service supports resume via API
+```
+
+**Video assembly fails:**
+```bash
+# Check ffmpeg is installed
+ffmpeg -version
+
+# Check frame files exist
+ls -la /var/lib/timemachine/media/timelapses/
+
+# Manual assembly test
+ffmpeg -y -framerate 30 -pattern_type glob -i '/path/to/frames/frame_*.jpg' -c:v libx264 -pix_fmt yuv420p output.mp4
+```
+
+### Stale Jobs After Restart
+
+**Jobs stuck in "running" state after service restart:**
+
+The startup cleanup should automatically mark these as "interrupted". If not:
+
+```bash
+# Check for stale jobs
+curl http://localhost:8000/api/v1/jobs/running
+
+# Manual cleanup via database
+sqlite3 /var/lib/timemachine/timemachine.db "UPDATE jobs SET status='interrupted', completed_at=datetime('now') WHERE status='running';"
+
+# Restart service
+sudo systemctl restart timemachine
+```
+
+### Orphan GStreamer Processes
+
+**GStreamer processes left running after crash:**
+
+The startup cleanup kills orphan processes automatically. To check manually:
+
+```bash
+# Find orphan processes
+pgrep -f 'gst-launch-1.0'
+
+# Kill all GStreamer processes
+sudo killall gst-launch-1.0
+
+# Find orphan libcamera processes
+pgrep -f 'libcamera'
+
+# Kill orphan libcamera
+sudo killall libcamera-still libcamera-vid
 ```
 
 ## Database Issues

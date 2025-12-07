@@ -15,11 +15,21 @@ from app.schemas.camera import (
     CameraUpdate,
     DiscoveredCameraResponse,
 )
+from app.schemas.job import (
+    OperationResponse,
+    RecordingStatusResponse,
+    StartRecordingRequest,
+    StartTimelapseRequest,
+    StopTimelapseRequest,
+    TimelapseStatusResponse,
+)
 from app.services.camera import (
     CameraDiscovery,
+    TimelapseConfig,
     preview_service,
     capture_service,
     recording_service,
+    timelapse_service,
 )
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
@@ -237,10 +247,15 @@ async def discover_cameras() -> list[DiscoveredCameraResponse]:
     ]
 
 
-@router.post("/{camera_id}/preview/start")
+# =============================================================================
+# Preview Endpoints
+# =============================================================================
+
+
+@router.post("/{camera_id}/preview/start", response_model=OperationResponse)
 async def start_camera_preview(
     camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
-) -> dict:
+) -> OperationResponse:
     """Start preview stream for a camera.
 
     Args:
@@ -272,12 +287,11 @@ async def start_camera_preview(
     )
 
     if success:
-        return {
-            "success": True,
-            "message": message,
-            "port": 8080 + camera_id,
-            "url": f"http://localhost:{8080 + camera_id}",
-        }
+        return OperationResponse(
+            success=True,
+            message=message,
+            pid=preview_service.get_preview_pid(camera_id),
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -285,10 +299,10 @@ async def start_camera_preview(
         )
 
 
-@router.post("/{camera_id}/preview/stop")
+@router.post("/{camera_id}/preview/stop", response_model=OperationResponse)
 async def stop_camera_preview(
     camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
-) -> dict:
+) -> OperationResponse:
     """Stop preview stream for a camera.
 
     Args:
@@ -315,7 +329,7 @@ async def stop_camera_preview(
     success, message = await preview_service.stop_preview(camera_id)
 
     if success:
-        return {"success": True, "message": message}
+        return OperationResponse(success=True, message=message)
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -360,12 +374,17 @@ async def get_preview_status(
     }
 
 
-@router.post("/{camera_id}/capture")
+# =============================================================================
+# Capture Endpoints
+# =============================================================================
+
+
+@router.post("/{camera_id}/capture", response_model=OperationResponse)
 async def capture_image(
     camera_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
     filename: str | None = None,
-) -> dict:
+) -> OperationResponse:
     """Capture a still image from a camera.
 
     Args:
@@ -398,11 +417,11 @@ async def capture_image(
     )
 
     if success:
-        return {
-            "success": True,
-            "message": message,
-            "filepath": filepath,
-        }
+        return OperationResponse(
+            success=True,
+            message=message,
+            filepath=filepath,
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -410,23 +429,26 @@ async def capture_image(
         )
 
 
-@router.post("/{camera_id}/recording/start")
+# =============================================================================
+# Recording Endpoints
+# =============================================================================
+
+
+@router.post("/{camera_id}/recording/start", response_model=OperationResponse)
 async def start_recording(
     camera_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
-    duration_seconds: int | None = None,
-    filename: str | None = None,
-) -> dict:
+    request: StartRecordingRequest | None = None,
+) -> OperationResponse:
     """Start recording from a camera.
 
     Args:
         camera_id: Camera ID
         session: Database session
-        duration_seconds: Optional duration limit in seconds
-        filename: Optional custom filename (without extension)
+        request: Recording start parameters
 
     Returns:
-        Recording start status
+        Recording start status with job ID
 
     Raises:
         HTTPException: 404 if camera not found
@@ -441,21 +463,26 @@ async def start_recording(
             detail=f"Camera {camera_id} not found",
         )
 
-    # Start recording
-    success, message = await recording_service.start_recording(
+    # Start recording with Job tracking
+    duration_seconds = request.duration_seconds if request else None
+    filename = request.filename if request else None
+
+    success, message, job_id = await recording_service.start_recording(
         camera_id=camera_id,
         device_path=camera.device_path,
         camera_type=camera.camera_type,
+        session=session,
         duration_seconds=duration_seconds,
         filename=filename,
     )
 
     if success:
-        return {
-            "success": True,
-            "message": message,
-            "pid": recording_service.get_recording_pid(camera_id),
-        }
+        return OperationResponse(
+            success=True,
+            message=message,
+            job_id=job_id,
+            pid=recording_service.get_recording_pid(camera_id),
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -463,15 +490,18 @@ async def start_recording(
         )
 
 
-@router.post("/{camera_id}/recording/stop")
+@router.post("/{camera_id}/recording/stop", response_model=OperationResponse)
 async def stop_recording(
-    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
-) -> dict:
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    force: bool = False,
+) -> OperationResponse:
     """Stop recording for a camera.
 
     Args:
         camera_id: Camera ID
         session: Database session
+        force: Skip EOS and immediately terminate
 
     Returns:
         Recording stop status with file path
@@ -489,15 +519,17 @@ async def stop_recording(
             detail=f"Camera {camera_id} not found",
         )
 
-    # Stop recording
-    success, message, filepath = await recording_service.stop_recording(camera_id)
+    # Stop recording with Job tracking
+    success, message, filepath = await recording_service.stop_recording(
+        camera_id, session=session, force=force
+    )
 
     if success:
-        return {
-            "success": True,
-            "message": message,
-            "filepath": filepath,
-        }
+        return OperationResponse(
+            success=True,
+            message=message,
+            filepath=filepath,
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -505,10 +537,10 @@ async def stop_recording(
         )
 
 
-@router.get("/{camera_id}/recording/status")
+@router.get("/{camera_id}/recording/status", response_model=RecordingStatusResponse)
 async def get_recording_status(
     camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
-) -> dict:
+) -> RecordingStatusResponse:
     """Get recording status for a camera.
 
     Args:
@@ -516,7 +548,7 @@ async def get_recording_status(
         session: Database session
 
     Returns:
-        Recording status with PID and uptime
+        Recording status with PID, uptime, and job ID
 
     Raises:
         HTTPException: 404 if camera not found
@@ -534,10 +566,172 @@ async def get_recording_status(
     state = recording_service.get_recording_state(camera_id)
     pid = recording_service.get_recording_pid(camera_id)
     uptime = recording_service.get_recording_uptime(camera_id)
+    job_id = recording_service.get_recording_job_id(camera_id)
 
-    return {
-        "camera_id": camera_id,
-        "state": state.value if state else "idle",
-        "pid": pid,
-        "uptime_seconds": uptime,
-    }
+    return RecordingStatusResponse(
+        camera_id=camera_id,
+        state=state.value if state else "idle",
+        pid=pid,
+        uptime_seconds=uptime,
+        job_id=job_id,
+    )
+
+
+# =============================================================================
+# Timelapse Endpoints
+# =============================================================================
+
+
+@router.post("/{camera_id}/timelapse/start", response_model=OperationResponse)
+async def start_timelapse(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    request: StartTimelapseRequest | None = None,
+) -> OperationResponse:
+    """Start timelapse capture for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+        request: Timelapse configuration
+
+    Returns:
+        Timelapse start status with job ID
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("timelapse_start_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Build timelapse config
+    if request and request.config:
+        config = TimelapseConfig(
+            camera_id=camera_id,
+            interval_seconds=request.config.interval_seconds,
+            total_frames=request.config.total_frames,
+            duration_hours=request.config.duration_hours,
+            quality=request.config.quality,
+            resolution=(request.config.resolution_width, request.config.resolution_height),
+            output_fps=request.config.output_fps,
+        )
+    else:
+        config = TimelapseConfig(camera_id=camera_id)
+
+    # Start timelapse with Job tracking
+    success, message, job_id = await timelapse_service.start_timelapse(
+        camera_id=camera_id,
+        device_path=camera.device_path,
+        camera_type=camera.camera_type,
+        config=config,
+        session=session,
+    )
+
+    if success:
+        return OperationResponse(
+            success=True,
+            message=message,
+            job_id=job_id,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=message,
+        )
+
+
+@router.post("/{camera_id}/timelapse/stop", response_model=OperationResponse)
+async def stop_timelapse(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    request: StopTimelapseRequest | None = None,
+) -> OperationResponse:
+    """Stop timelapse capture for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+        request: Stop options (whether to assemble video)
+
+    Returns:
+        Timelapse stop status with output path
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("timelapse_stop_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Stop timelapse with Job tracking
+    assemble_video = request.assemble_video if request else True
+    success, message, output_path = await timelapse_service.stop_timelapse(
+        camera_id, session=session, assemble_video=assemble_video
+    )
+
+    if success:
+        return OperationResponse(
+            success=True,
+            message=message,
+            filepath=output_path,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=message,
+        )
+
+
+@router.get("/{camera_id}/timelapse/status", response_model=TimelapseStatusResponse)
+async def get_timelapse_status(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> TimelapseStatusResponse:
+    """Get timelapse status for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Timelapse status with progress and job ID
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("timelapse_status_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    is_running = timelapse_service.is_running(camera_id)
+    progress = timelapse_service.get_timelapse_progress(camera_id)
+    job_id = timelapse_service.get_timelapse_job_id(camera_id)
+
+    current_frame = progress[0] if progress else 0
+    total_frames = progress[1] if progress else None
+
+    return TimelapseStatusResponse(
+        camera_id=camera_id,
+        is_running=is_running,
+        current_frame=current_frame,
+        total_frames=total_frames,
+        job_id=job_id,
+    )

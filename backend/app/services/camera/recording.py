@@ -1,4 +1,4 @@
-"""Camera recording service with H.264 encoding."""
+"""Camera recording service with H.264 encoding and Job tracking."""
 
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.resources import check_resources_available, encoder_semaphore
-from app.db.repositories.camera import CameraRepository
+from app.db.repositories.job import JobRepository
 from app.services.camera.pipeline import ManagedPipeline, PipelineConfig, PipelineState
 
 logger = get_logger(__name__)
@@ -20,44 +20,54 @@ class RecordingService:
 
     Uses H.264 hardware encoder (single instance via semaphore).
     Tracks recordings with PID and state management.
+    Creates Job database records for tracking.
+    Uses EOS signal for clean MP4 file finalization.
     """
 
     def __init__(self):
         self._recordings: Dict[int, ManagedPipeline] = {}
         self._recording_files: Dict[int, str] = {}
+        self._job_ids: Dict[int, int] = {}  # camera_id -> job_id
 
     async def start_recording(
         self,
         camera_id: int,
         device_path: str,
         camera_type: str,
+        session: AsyncSession | None = None,
         duration_seconds: int | None = None,
         filename: str | None = None,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, int | None]:
         """Start recording from a camera.
 
         Args:
             camera_id: Camera database ID
             device_path: Camera device path
             camera_type: Camera type ('csi' or 'usb')
+            session: Database session for Job creation (optional)
             duration_seconds: Optional duration limit
             filename: Optional custom filename (without extension)
 
         Returns:
-            Tuple of (success: bool, message: str)
+            Tuple of (success: bool, message: str, job_id: int | None)
         """
         # Check if already recording
         if camera_id in self._recordings:
             pipeline = self._recordings[camera_id]
             if pipeline.get_state() == PipelineState.RUNNING:
-                return False, f"Camera {camera_id} is already recording"
+                return False, f"Camera {camera_id} is already recording", None
 
-        # Check system resources (recordings need more disk space)
+        # Estimate disk space needed (rough estimate: 500KB/s for H.264 1080p)
+        estimated_mb = 500  # Minimum
+        if duration_seconds:
+            estimated_mb = max(500, (duration_seconds * 500) // 1000)
+
+        # Check system resources
         resources_ok, reason = await check_resources_available(
-            f"recording_camera_{camera_id}", min_memory_mb=100, min_disk_mb=1000
+            f"recording_camera_{camera_id}", min_memory_mb=100, min_disk_mb=estimated_mb
         )
         if not resources_ok:
-            return False, reason
+            return False, reason, None
 
         # Try to acquire encoder semaphore
         owner_id = f"camera_{camera_id}_recording"
@@ -68,8 +78,10 @@ class RecordingService:
             return (
                 False,
                 f"H.264 encoder busy (in use by {current_owner})",
+                None,
             )
 
+        job_id: int | None = None
         try:
             # Generate filename if not provided
             if not filename:
@@ -84,6 +96,19 @@ class RecordingService:
             output_file = recording_path / f"{filename}.mp4"
             self._recording_files[camera_id] = str(output_file)
 
+            # Create Job record if session provided
+            if session:
+                job_repo = JobRepository(session)
+                job = await job_repo.create(
+                    camera_id=camera_id,
+                    job_type="recording",
+                    status="running",
+                    output_path=str(output_file),
+                )
+                job_id = job.id
+                self._job_ids[camera_id] = job_id
+                await session.commit()
+
             # Build GStreamer pipeline based on camera type
             if camera_type == "csi":
                 pipeline_cmd = self._build_csi_recording_pipeline(
@@ -94,13 +119,14 @@ class RecordingService:
                     camera_id, device_path, str(output_file), duration_seconds
                 )
 
-            # Create managed pipeline
+            # Create managed pipeline with EOS support for clean file finalization
             config = PipelineConfig(
                 pipeline_cmd=pipeline_cmd,
                 description=f"Recording for camera {camera_id}",
                 camera_id=camera_id,
                 restart_on_crash=False,  # Don't auto-restart recordings
                 max_restarts=0,
+                use_eos_on_stop=True,  # Send EOS for clean MP4 finalization
             )
 
             pipeline = ManagedPipeline(config)
@@ -115,26 +141,47 @@ class RecordingService:
                     output=str(output_file),
                     duration=duration_seconds,
                     pid=pipeline.get_pid(),
+                    job_id=job_id,
                 )
-                return True, f"Recording started: {output_file}"
+                return True, f"Recording started: {output_file}", job_id
             else:
                 # Release encoder if pipeline failed to start
                 encoder_semaphore.release(owner_id)
-                return False, "Failed to start recording pipeline"
+                # Mark job as failed if created
+                if session and job_id:
+                    job_repo = JobRepository(session)
+                    await job_repo.mark_failed(job_id, "Failed to start pipeline")
+                    await session.commit()
+                    del self._job_ids[camera_id]
+                return False, "Failed to start recording pipeline", None
 
         except Exception as e:
             # Release encoder on exception
             encoder_semaphore.release(owner_id)
+            # Mark job as failed if created
+            if session and job_id:
+                try:
+                    job_repo = JobRepository(session)
+                    await job_repo.mark_failed(job_id, str(e))
+                    await session.commit()
+                except Exception:
+                    pass
+                if camera_id in self._job_ids:
+                    del self._job_ids[camera_id]
             logger.error(
                 "recording_start_exception", camera_id=camera_id, error=str(e)
             )
-            return False, f"Recording error: {str(e)}"
+            return False, f"Recording error: {str(e)}", None
 
-    async def stop_recording(self, camera_id: int) -> tuple[bool, str, str | None]:
+    async def stop_recording(
+        self, camera_id: int, session: AsyncSession | None = None, force: bool = False
+    ) -> tuple[bool, str, str | None]:
         """Stop recording for a camera.
 
         Args:
             camera_id: Camera database ID
+            session: Database session for Job update (optional)
+            force: Skip EOS and immediately terminate
 
         Returns:
             Tuple of (success: bool, message: str, filepath: str | None)
@@ -144,9 +191,10 @@ class RecordingService:
 
         pipeline = self._recordings[camera_id]
         output_file = self._recording_files.get(camera_id)
+        job_id = self._job_ids.get(camera_id)
 
-        # Stop the pipeline
-        success = await pipeline.stop()
+        # Stop the pipeline (will use EOS if configured)
+        success = await pipeline.stop(force=force)
 
         # Release encoder semaphore
         owner_id = f"camera_{camera_id}_recording"
@@ -156,6 +204,8 @@ class RecordingService:
         del self._recordings[camera_id]
         if camera_id in self._recording_files:
             del self._recording_files[camera_id]
+        if camera_id in self._job_ids:
+            del self._job_ids[camera_id]
 
         if success:
             # Check if file exists and get size
@@ -166,14 +216,30 @@ class RecordingService:
                     camera_id=camera_id,
                     output=output_file,
                     size_mb=file_size_mb,
+                    job_id=job_id,
                 )
+                # Update job status
+                if session and job_id:
+                    job_repo = JobRepository(session)
+                    await job_repo.mark_completed(job_id, output_file)
+                    await session.commit()
                 return True, "Recording stopped", output_file
             else:
                 logger.warning(
                     "recording_stopped_no_file", camera_id=camera_id, output=output_file
                 )
+                # Mark job as failed
+                if session and job_id:
+                    job_repo = JobRepository(session)
+                    await job_repo.mark_failed(job_id, "Output file not created")
+                    await session.commit()
                 return True, "Recording stopped (file not found)", None
         else:
+            # Mark job as interrupted
+            if session and job_id:
+                job_repo = JobRepository(session)
+                await job_repo.mark_interrupted(job_id)
+                await session.commit()
             return False, "Failed to stop recording", None
 
     def get_recording_state(self, camera_id: int) -> Optional[PipelineState]:
@@ -215,11 +281,46 @@ class RecordingService:
             return self._recordings[camera_id].get_uptime_seconds()
         return None
 
-    async def stop_all_recordings(self) -> None:
-        """Stop all active recordings."""
+    def get_recording_job_id(self, camera_id: int) -> Optional[int]:
+        """Get the Job ID for an active recording.
+
+        Args:
+            camera_id: Camera database ID
+
+        Returns:
+            Job ID or None
+        """
+        return self._job_ids.get(camera_id)
+
+    def get_active_recordings(self) -> list[int]:
+        """Get list of camera IDs with active recordings.
+
+        Returns:
+            List of camera IDs
+        """
+        return [
+            cam_id
+            for cam_id, pipeline in self._recordings.items()
+            if pipeline.get_state() == PipelineState.RUNNING
+        ]
+
+    async def stop_all_recordings(
+        self, session: AsyncSession | None = None
+    ) -> list[tuple[int, bool, str | None]]:
+        """Stop all active recordings.
+
+        Args:
+            session: Database session for Job updates (optional)
+
+        Returns:
+            List of (camera_id, success, filepath) tuples
+        """
+        results = []
         camera_ids = list(self._recordings.keys())
         for camera_id in camera_ids:
-            await self.stop_recording(camera_id)
+            success, _, filepath = await self.stop_recording(camera_id, session)
+            results.append((camera_id, success, filepath))
+        return results
 
     def _build_csi_recording_pipeline(
         self,
@@ -240,6 +341,7 @@ class RecordingService:
             GStreamer pipeline command
         """
         # CSI camera with H.264 hardware encoder
+        # Using -e flag for EOS handling
         cmd = (
             f"gst-launch-1.0 -e "
             f"libcamerasrc ! "
@@ -250,11 +352,9 @@ class RecordingService:
             f"filesink location={output_file}"
         )
 
-        # Add duration if specified
+        # Add duration if specified (timeout will send SIGINT for EOS)
         if duration_seconds:
-            # GStreamer uses nanoseconds
-            duration_ns = duration_seconds * 1_000_000_000
-            cmd = f"timeout {duration_seconds} " + cmd
+            cmd = f"timeout --signal=INT {duration_seconds} " + cmd
 
         return cmd
 
@@ -277,6 +377,7 @@ class RecordingService:
             GStreamer pipeline command
         """
         # USB camera with H.264 hardware encoder
+        # Using -e flag for EOS handling
         cmd = (
             f"gst-launch-1.0 -e "
             f"v4l2src device={device_path} ! "
@@ -287,11 +388,28 @@ class RecordingService:
             f"filesink location={output_file}"
         )
 
-        # Add duration if specified
+        # Add duration if specified (timeout will send SIGINT for EOS)
         if duration_seconds:
-            cmd = f"timeout {duration_seconds} " + cmd
+            cmd = f"timeout --signal=INT {duration_seconds} " + cmd
 
         return cmd
+
+    @staticmethod
+    def estimate_disk_usage_mb(duration_seconds: int, bitrate_kbps: int = 4000) -> int:
+        """Estimate disk usage for a recording.
+
+        Args:
+            duration_seconds: Recording duration
+            bitrate_kbps: Video bitrate in kbps (default 4000)
+
+        Returns:
+            Estimated file size in MB
+        """
+        # Convert bitrate from kbps to bytes per second
+        bytes_per_second = (bitrate_kbps * 1000) / 8
+        total_bytes = bytes_per_second * duration_seconds
+        # Add 10% overhead for container, audio, etc.
+        return int((total_bytes * 1.1) / (1024 * 1024))
 
 
 # Global recording service instance

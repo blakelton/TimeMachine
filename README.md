@@ -2,22 +2,24 @@
 
 Temperature-controlled observation chamber management system for Raspberry Pi 3+. Provides web-based control for camera management (CSI and USB), recording, timelapse creation, and temperature control.
 
-## ⚠️ Development Status
+## Development Status
 
-**Current Phase**: Post-Phase 4 - Core camera operations in development
+**Current Phase**: Camera Services Implementation Complete
 
-**What's Ready**: ✅
+**What's Ready**:
 - Complete, production-ready web interface with real-time monitoring
 - Full camera configuration management (CRUD operations)
+- Camera operations (preview, capture, record, timelapse) with Job tracking
+- Timelapse service with resume support and video assembly
+- Startup cleanup (stale jobs, orphan process handling)
 - Deployment infrastructure (systemd, nginx, installation scripts)
-- Comprehensive documentation (getting started, configuration, troubleshooting, deployment)
+- Comprehensive documentation
 
-**What's Not Ready**: ❌
-- **Camera operations** (preview, capture, record, timelapse) - GStreamer services incomplete
-- **Retention policies** - Background cleanup not implemented
-- **Pipeline crash recovery** - Auto-restart not implemented
+**What Needs Testing**:
+- Hardware validation on Raspberry Pi 3
+- GStreamer pipeline verification with actual cameras
+- EOS handling for MP4 file finalization
 
-**Estimated Time to MVP**: 1-2 weeks
 **See**: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed status
 
 ---
@@ -25,11 +27,12 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 ## Features
 
 ### Camera Operations
-- **Camera Management**: Full CRUD for CSI and USB cameras with enable/disable controls
+- **Camera Discovery**: Automatic detection of CSI and USB cameras
 - **Live Preview**: MJPEG streaming with auto-reconnect
-- **Still Capture**: High-quality JPEG with configurable quality (low/medium/high/max)
-- **Video Recording**: H.264 hardware-encoded recording with bitrate control and live timer
-- **Timelapse Creation**: Configurable interval and duration with progress tracking
+- **Still Capture**: High-quality JPEG with configurable quality
+- **Video Recording**: H.264 hardware-encoded with EOS support for clean MP4 finalization
+- **Timelapse Creation**: Configurable interval/duration with progress tracking, resume support, and ffmpeg video assembly
+- **Job Tracking**: Database-backed job status with running/completed/failed states
 
 ### Web Interface
 - **Home Dashboard**: Real-time system stats (CPU, memory, disk, temperature) with live camera status
@@ -38,14 +41,16 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 - **Responsive Design**: Mobile-first UI with touch-friendly controls
 - **Real-time Updates**: WebSocket integration for live stats and job status
 
-### System Monitoring
+### System Management
 - **Live Statistics**: CPU, memory, disk usage, and temperature via WebSocket (2s updates)
 - **Disk Space Warnings**: Alerts when storage <10% free, blocks operations at <5%
-- **Job Tracking**: Real-time recording and timelapse progress with WebSocket updates
-- **Toast Notifications**: Success/error feedback for all operations
+- **Job Management**: View, filter, and manage recording/timelapse jobs via API
+- **Startup Cleanup**: Automatic cleanup of stale jobs and orphan GStreamer processes
+- **Graceful Shutdown**: EOS signal for recordings, proper job status updates
 
 ### API & Integration
 - **RESTful API**: Full FastAPI backend with OpenAPI documentation
+- **Jobs API**: Endpoints for job listing, filtering, and management
 - **WebSocket Protocol**: Typed messages for stats, camera events, and job updates
 - **Type Safety**: End-to-end TypeScript/Python type safety
 
@@ -125,7 +130,37 @@ timemachine status
 
 - **Web UI**: http://raspberrypi.local (or your Pi's IP address)
 - **API**: http://raspberrypi.local/api/v1/
-- **API Docs**: http://raspberrypi.local/api/v1/docs
+- **API Docs**: http://raspberrypi.local/api/docs
+
+## API Endpoints
+
+### Camera Operations
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/cameras` | GET | List all cameras |
+| `/cameras/{id}` | GET | Get camera details |
+| `/cameras/discover` | POST | Discover available cameras |
+| `/cameras/{id}/preview/start` | POST | Start MJPEG preview |
+| `/cameras/{id}/preview/stop` | POST | Stop preview |
+| `/cameras/{id}/capture` | POST | Capture still image |
+| `/cameras/{id}/recording/start` | POST | Start recording (returns job_id) |
+| `/cameras/{id}/recording/stop` | POST | Stop recording (EOS support) |
+| `/cameras/{id}/timelapse/start` | POST | Start timelapse capture |
+| `/cameras/{id}/timelapse/stop` | POST | Stop and assemble video |
+
+### Job Management
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/jobs` | GET | List all jobs (filter by camera_id, job_type, status) |
+| `/jobs/running` | GET | List currently running jobs |
+| `/jobs/{id}` | GET | Get job details |
+| `/jobs/{id}` | DELETE | Delete job record |
+
+### System
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check with system stats |
+| `/ws` | WebSocket | Real-time stats and events |
 
 ## Management Commands
 
@@ -161,11 +196,8 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Initialize database
-make db-init
-
 # Run development server
-make dev
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Frontend setup (separate terminal)
 cd frontend
@@ -173,11 +205,33 @@ npm install
 npm run dev
 ```
 
+### Testing API Endpoints
+
+```bash
+# Health check
+curl http://localhost:8000/api/v1/health
+
+# List cameras
+curl http://localhost:8000/api/v1/cameras
+
+# Discover cameras
+curl -X POST http://localhost:8000/api/v1/cameras/discover
+
+# List jobs
+curl http://localhost:8000/api/v1/jobs
+
+# Start recording (camera ID 1)
+curl -X POST http://localhost:8000/api/v1/cameras/1/recording/start
+
+# Stop recording
+curl -X POST http://localhost:8000/api/v1/cameras/1/recording/stop
+```
+
 ### API Documentation
 
 With the backend running, visit:
-- Interactive API docs: http://localhost:8000/api/v1/docs
-- OpenAPI schema: http://localhost:8000/api/v1/openapi.json
+- Interactive API docs: http://localhost:8000/api/docs
+- OpenAPI schema: http://localhost:8000/api/openapi.json
 
 ## Project Structure
 
@@ -185,10 +239,11 @@ With the backend running, visit:
 TimeMachine/
 ├── backend/              # FastAPI backend
 │   ├── app/
-│   │   ├── api/         # API endpoints
-│   │   ├── core/        # Config, logging, resources
+│   │   ├── api/         # API endpoints (cameras, jobs, health, etc.)
+│   │   ├── core/        # Config, logging, resources, rate limiting
 │   │   ├── db/          # Database models and repositories
-│   │   └── services/    # Camera, system services
+│   │   ├── schemas/     # Pydantic request/response schemas
+│   │   └── services/    # Camera, timelapse, startup services
 │   └── requirements.txt
 ├── frontend/            # React frontend
 │   ├── src/
@@ -235,7 +290,7 @@ TimeMachine/
 - [Configuration Guide](docs/configuration.md) - Environment variables and settings
 - [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 - [Deployment Checklist](docs/deployment-checklist.md) - Production deployment guide
-- [API Documentation](http://localhost:8000/api/v1/docs) - Interactive API docs
+- [API Documentation](http://localhost:8000/api/docs) - Interactive API docs
 
 ## System Requirements
 

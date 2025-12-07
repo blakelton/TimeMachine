@@ -142,21 +142,21 @@ async def get_system_stats() -> SystemStats:
     )
 
 
-def check_memory_available(min_mb: int | None = None) -> bool:
+def check_memory_available(min_mb: int | None = None) -> tuple[bool, int]:
     """Check if minimum memory is available.
 
     Args:
         min_mb: Minimum required memory in MB. Defaults to settings value.
 
     Returns:
-        True if sufficient memory is available.
+        Tuple of (is_available: bool, available_mb: int)
     """
     required = min_mb or settings.min_memory_mb
-    available = psutil.virtual_memory().available / (1024 * 1024)
-    return available >= required
+    available = int(psutil.virtual_memory().available / (1024 * 1024))
+    return available >= required, available
 
 
-def check_disk_available(min_mb: int | None = None, path: Path | None = None) -> bool:
+def check_disk_available(min_mb: int | None = None, path: Path | None = None) -> tuple[bool, int]:
     """Check if minimum disk space is available.
 
     Args:
@@ -164,14 +164,14 @@ def check_disk_available(min_mb: int | None = None, path: Path | None = None) ->
         path: Path to check. Defaults to media path.
 
     Returns:
-        True if sufficient disk space is available.
+        Tuple of (is_available: bool, available_mb: int)
     """
     required = min_mb or settings.min_disk_mb
     check_path = path or settings.media_path
 
     try:
         usage = shutil.disk_usage(check_path)
-        available = usage.free / (1024 * 1024)
-        return available >= required
+        available = int(usage.free / (1024 * 1024))
+        return available >= required, available
     except OSError:
-        return False
+        return False, 0
