@@ -22,3 +22,7 @@ psutil==5.9.6
 
 # HTTP client (for testing/webhooks)
 httpx==0.25.2
+
+# Camera support
+picamera2==0.3.17
+opencv-python-headless==4.8.1.78

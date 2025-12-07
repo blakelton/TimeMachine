@@ -13,7 +13,9 @@ from app.schemas.camera import (
     CameraListResponse,
     CameraResponse,
     CameraUpdate,
+    DiscoveredCameraResponse,
 )
+from app.services.camera import CameraDiscovery
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 logger = get_logger(__name__)
@@ -206,3 +208,25 @@ async def delete_camera(
         )
 
     logger.info("camera_deleted", camera_id=camera_id)
+
+
+@router.post("/discover", response_model=list[DiscoveredCameraResponse])
+async def discover_cameras() -> list[DiscoveredCameraResponse]:
+    """Discover all available cameras (CSI and USB).
+
+    Returns:
+        List of discovered cameras with capabilities
+    """
+    discovered = await CameraDiscovery.discover_all()
+
+    logger.info("camera_discovery_requested", found=len(discovered))
+
+    return [
+        DiscoveredCameraResponse(
+            name=cam.name,
+            device_path=cam.device_path,
+            camera_type=cam.camera_type,
+            capabilities=cam.capabilities.__dict__ if cam.capabilities else None,
+        )
+        for cam in discovered
+    ]

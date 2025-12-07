@@ -75,3 +75,12 @@ class CameraListResponse(BaseModel):
 
     cameras: list[CameraResponse] = Field(default_factory=list)
     total: int = Field(..., description="Total number of cameras")
+
+
+class DiscoveredCameraResponse(BaseModel):
+    """Schema for discovered camera response."""
+
+    name: str = Field(..., description="Camera name")
+    device_path: str = Field(..., description="Device path")
+    camera_type: str = Field(..., description="Camera type: 'csi' or 'usb'")
+    capabilities: dict | None = Field(None, description="Camera capabilities")
