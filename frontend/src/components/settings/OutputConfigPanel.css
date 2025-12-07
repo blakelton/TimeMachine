@@ -1,0 +1,76 @@
+/**
+ * Output configuration panel styles
+ */
+
+.output-config-panel {
+  max-width: 800px;
+}
+
+/* Configuration Form */
+.config-form {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.form-section {
+  margin-bottom: 2.5rem;
+}
+
+.form-section:last-of-type {
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.section-description {
+  margin: 0 0 1.5rem 0;
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.config-form .form-field {
+  margin-bottom: 1.5rem;
+}
+
+.config-form .form-field:last-child {
+  margin-bottom: 0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.form-actions .btn {
+  min-width: 120px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+  .config-form {
+    padding: 1.5rem;
+  }
+
+  .form-section {
+    margin-bottom: 2rem;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+}
