@@ -15,7 +15,7 @@ from app.schemas.camera import (
     CameraUpdate,
     DiscoveredCameraResponse,
 )
-from app.services.camera import CameraDiscovery
+from app.services.camera import CameraDiscovery, preview_service
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 logger = get_logger(__name__)
@@ -230,3 +230,126 @@ async def discover_cameras() -> list[DiscoveredCameraResponse]:
         )
         for cam in discovered
     ]
+
+
+@router.post("/{camera_id}/preview/start")
+async def start_camera_preview(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> dict:
+    """Start preview stream for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Preview start status
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("preview_start_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Start preview
+    success, message = await preview_service.start_preview(
+        camera_id=camera_id,
+        device_path=camera.device_path,
+        camera_type=camera.camera_type,
+        port=8080 + camera_id,
+    )
+
+    if success:
+        return {
+            "success": True,
+            "message": message,
+            "port": 8080 + camera_id,
+            "url": f"http://localhost:{8080 + camera_id}",
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=message,
+        )
+
+
+@router.post("/{camera_id}/preview/stop")
+async def stop_camera_preview(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> dict:
+    """Stop preview stream for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Preview stop status
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("preview_stop_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Stop preview
+    success, message = await preview_service.stop_preview(camera_id)
+
+    if success:
+        return {"success": True, "message": message}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=message,
+        )
+
+
+@router.get("/{camera_id}/preview/status")
+async def get_preview_status(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> dict:
+    """Get preview status for a camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Preview status
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("preview_status_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    state = preview_service.get_preview_state(camera_id)
+    port = preview_service.get_preview_port(camera_id)
+
+    return {
+        "camera_id": camera_id,
+        "state": state.value if state else "idle",
+        "port": port,
+        "url": f"http://localhost:{port}" if port else None,
+    }
