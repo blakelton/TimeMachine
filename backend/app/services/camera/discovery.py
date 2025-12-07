@@ -1,76 +1,40 @@
 """Camera discovery service for CSI and USB cameras."""
 
 import asyncio
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from app.core.logging import get_logger
+import structlog
 
-logger = get_logger(__name__)
-
-
-@dataclass
-class CameraCapabilities:
-    """Camera capabilities information."""
-
-    resolutions: list[str]
-    formats: list[str]
-    framerates: list[int]
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
 class CameraInfo:
-    """Discovered camera information."""
+    """Detected camera information."""
 
-    name: str
     device_path: str
     camera_type: str  # "csi" or "usb"
-    capabilities: CameraCapabilities | None = None
+    name: str
+    capabilities: dict | None = None
 
 
 class CameraDiscovery:
-    """Service for discovering CSI and USB cameras."""
+    """Service for discovering available cameras on the system."""
 
     @staticmethod
-    async def discover_all() -> list[CameraInfo]:
-        """Discover all available cameras (CSI and USB).
-
-        Returns:
-            List of discovered cameras
-        """
-        cameras: list[CameraInfo] = []
-
-        # Discover CSI cameras
-        csi_cameras = await CameraDiscovery._discover_csi()
-        cameras.extend(csi_cameras)
-
-        # Discover USB cameras
-        usb_cameras = await CameraDiscovery._discover_usb()
-        cameras.extend(usb_cameras)
-
-        logger.info(
-            "camera_discovery_complete",
-            total=len(cameras),
-            csi_count=len(csi_cameras),
-            usb_count=len(usb_cameras),
-        )
-
-        return cameras
-
-    @staticmethod
-    async def _discover_csi() -> list[CameraInfo]:
+    async def discover_csi_cameras() -> list[CameraInfo]:
         """Discover CSI cameras using libcamera.
 
         Returns:
-            List of CSI cameras
+            List of detected CSI cameras.
         """
-        cameras: list[CameraInfo] = []
+        cameras = []
 
         try:
-            # Try to detect CSI camera using libcamera-hello
-            # This will succeed if a CSI camera is connected
+            # Run libcamera-hello to list cameras
             proc = await asyncio.create_subprocess_exec(
                 "libcamera-hello",
                 "--list-cameras",
@@ -78,125 +42,110 @@ class CameraDiscovery:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await proc.communicate()
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            output = stdout.decode() if stdout else stderr.decode()
 
-            if proc.returncode == 0 and stdout:
-                output = stdout.decode()
+            # Parse output for camera info
+            # Example: "0 : imx219 [3280x2464] (/base/soc/i2c0mux/i2c@1/imx219@10)"
+            camera_pattern = re.compile(r"(\d+)\s*:\s*(\w+)")
 
-                # Parse libcamera output to extract camera info
-                # Example output: "0 : imx219 [3280x2464] (/base/soc/i2c0mux/i2c@1/imx219@10)"
-                for line in output.split("\n"):
-                    if ":" in line and "[" in line:
-                        # Extract camera index and name
-                        parts = line.split(":")
-                        if len(parts) >= 2:
-                            camera_name = parts[1].split("[")[0].strip()
-                            camera_index = parts[0].strip()
+            for match in camera_pattern.finditer(output):
+                camera_id = match.group(1)
+                sensor_name = match.group(2)
 
-                            # CSI cameras use index-based paths
-                            device_path = f"/dev/video{camera_index}"
-
-                            capabilities = await CameraDiscovery._get_csi_capabilities()
-
-                            cameras.append(
-                                CameraInfo(
-                                    name=f"CSI Camera ({camera_name})",
-                                    device_path=device_path,
-                                    camera_type="csi",
-                                    capabilities=capabilities,
-                                )
-                            )
-
-            logger.info("csi_discovery_complete", count=len(cameras))
+                camera = CameraInfo(
+                    device_path=f"/dev/video{camera_id}",
+                    camera_type="csi",
+                    name=f"CSI Camera ({sensor_name})",
+                    capabilities={"sensor": sensor_name},
+                )
+                cameras.append(camera)
+                logger.info(
+                    "csi_camera_discovered",
+                    device=camera.device_path,
+                    sensor=sensor_name,
+                )
 
         except FileNotFoundError:
-            logger.warning(
-                "libcamera_not_found",
-                message="libcamera-hello not found, CSI camera detection disabled",
-            )
+            logger.warning("libcamera_not_found", message="libcamera-hello not installed")
+        except asyncio.TimeoutError:
+            logger.warning("libcamera_timeout", message="libcamera-hello timed out")
         except Exception as e:
             logger.error("csi_discovery_error", error=str(e))
 
         return cameras
 
     @staticmethod
-    async def _discover_usb() -> list[CameraInfo]:
-        """Discover USB UVC cameras using V4L2.
+    async def discover_usb_cameras() -> list[CameraInfo]:
+        """Discover USB cameras using V4L2.
 
         Returns:
-            List of USB cameras
+            List of detected USB cameras.
         """
-        cameras: list[CameraInfo] = []
+        cameras = []
 
         try:
-            # Find all video devices
+            # List all video devices
             video_devices = list(Path("/dev").glob("video*"))
 
             for device_path in video_devices:
-                # Skip virtual devices (usually even-numbered devices)
-                # Real cameras are typically odd-numbered
-                device_num = device_path.name.replace("video", "")
-                if device_num.isdigit() and int(device_num) % 2 == 0:
+                device_str = str(device_path)
+
+                # Skip devices that are part of CSI camera (usually video10+)
+                device_num = int(re.search(r"\d+", device_str).group())
+                if device_num >= 10:
                     continue
 
-                # Check if it's a real camera by querying capabilities
+                # Use v4l2-ctl to get camera info
                 try:
                     proc = await asyncio.create_subprocess_exec(
                         "v4l2-ctl",
                         "--device",
-                        str(device_path),
+                        device_str,
                         "--info",
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
 
-                    stdout, stderr = await proc.communicate()
+                    stdout, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=3.0
+                    )
+                    output = stdout.decode() if stdout else ""
 
-                    if proc.returncode == 0 and stdout:
-                        output = stdout.decode()
+                    # Extract camera name from output
+                    # Example: "Card type      : HD Pro Webcam C920"
+                    card_match = re.search(
+                        r"Card type\s*:\s*(.+)", output, re.IGNORECASE
+                    )
+                    card_name = (
+                        card_match.group(1).strip() if card_match else "USB Camera"
+                    )
 
-                        # Extract camera name from card info
-                        camera_name = "USB Camera"
-                        for line in output.split("\n"):
-                            if "Card type" in line or "card" in line.lower():
-                                parts = line.split(":")
-                                if len(parts) >= 2:
-                                    camera_name = parts[1].strip()
-                                break
+                    # Get capabilities
+                    capabilities = await CameraDiscovery._get_v4l2_capabilities(
+                        device_str
+                    )
 
-                        # Get capabilities for this camera
-                        capabilities = await CameraDiscovery._get_usb_capabilities(
-                            str(device_path)
-                        )
-
-                        cameras.append(
-                            CameraInfo(
-                                name=camera_name,
-                                device_path=str(device_path),
-                                camera_type="usb",
-                                capabilities=capabilities,
-                            )
-                        )
-
-                        logger.debug(
-                            "usb_camera_found",
-                            device=str(device_path),
-                            name=camera_name,
-                        )
+                    camera = CameraInfo(
+                        device_path=device_str,
+                        camera_type="usb",
+                        name=f"USB: {card_name}",
+                        capabilities=capabilities,
+                    )
+                    cameras.append(camera)
+                    logger.info(
+                        "usb_camera_discovered", device=device_str, name=card_name
+                    )
 
                 except FileNotFoundError:
-                    logger.warning(
-                        "v4l2_not_found",
-                        message="v4l2-ctl not found, USB camera capabilities detection disabled",
-                    )
+                    logger.warning("v4l2_not_found", message="v4l2-ctl not installed")
                     break
+                except asyncio.TimeoutError:
+                    logger.warning("v4l2_timeout", device=device_str)
                 except Exception as e:
                     logger.debug(
-                        "device_check_failed", device=str(device_path), error=str(e)
+                        "usb_device_check_failed", device=device_str, error=str(e)
                     )
-                    continue
-
-            logger.info("usb_discovery_complete", count=len(cameras))
 
         except Exception as e:
             logger.error("usb_discovery_error", error=str(e))
@@ -204,35 +153,19 @@ class CameraDiscovery:
         return cameras
 
     @staticmethod
-    async def _get_csi_capabilities() -> CameraCapabilities | None:
-        """Get CSI camera capabilities using libcamera.
-
-        Returns:
-            Camera capabilities or None
-        """
-        try:
-            # Common CSI camera capabilities (e.g., IMX219, OV5647)
-            # In production, parse libcamera output for actual capabilities
-            return CameraCapabilities(
-                resolutions=["1920x1080", "1280x720", "640x480"],
-                formats=["H264", "MJPEG", "YUV420"],
-                framerates=[30, 25, 15, 10, 5],
-            )
-        except Exception as e:
-            logger.error("csi_capabilities_error", error=str(e))
-            return None
-
-    @staticmethod
-    async def _get_usb_capabilities(device_path: str) -> CameraCapabilities | None:
-        """Get USB camera capabilities using V4L2.
+    async def _get_v4l2_capabilities(device_path: str) -> dict:
+        """Get camera capabilities using v4l2-ctl.
 
         Args:
-            device_path: Path to video device
+            device_path: Path to video device.
 
         Returns:
-            Camera capabilities or None
+            Dictionary of capabilities.
         """
+        capabilities = {}
+
         try:
+            # Get supported formats
             proc = await asyncio.create_subprocess_exec(
                 "v4l2-ctl",
                 "--device",
@@ -242,55 +175,66 @@ class CameraDiscovery:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await proc.communicate()
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+            output = stdout.decode() if stdout else ""
 
-            if proc.returncode != 0 or not stdout:
-                return None
+            # Parse resolutions
+            resolutions = set()
+            res_pattern = re.compile(r"Size:\s*Discrete\s+(\d+)x(\d+)")
 
-            output = stdout.decode()
+            for match in res_pattern.finditer(output):
+                width, height = match.groups()
+                resolutions.add(f"{width}x{height}")
 
-            # Parse formats and resolutions
-            formats: set[str] = set()
-            resolutions: set[str] = set()
-            framerates: set[int] = set()
+            if resolutions:
+                capabilities["resolutions"] = sorted(resolutions, reverse=True)
 
-            current_format = None
-            for line in output.split("\n"):
-                line = line.strip()
+            # Parse frame rates
+            fps_pattern = re.compile(r"\((\d+\.\d+)\s*fps\)")
+            fps_values = {float(m.group(1)) for m in fps_pattern.finditer(output)}
 
-                # Format line: [0]: 'MJPG' (Motion-JPEG, compressed)
-                if line.startswith("[") and "]:" in line:
-                    parts = line.split("'")
-                    if len(parts) >= 2:
-                        current_format = parts[1]
-                        formats.add(current_format)
-
-                # Size line: Size: Discrete 1920x1080
-                if "Size:" in line and "Discrete" in line:
-                    parts = line.split()
-                    for part in parts:
-                        if "x" in part and part.replace("x", "").replace("0", "").replace("1", "").replace("2", "").replace("3", "").replace("4", "").replace("5", "").replace("6", "").replace("7", "").replace("8", "").replace("9", "") == "":
-                            resolutions.add(part)
-
-                # Framerate line: Interval: Discrete 0.033s (30.000 fps)
-                if "fps)" in line:
-                    parts = line.split("(")
-                    if len(parts) >= 2:
-                        fps_part = parts[1].split()[0]
-                        try:
-                            fps = int(float(fps_part))
-                            framerates.add(fps)
-                        except ValueError:
-                            pass
-
-            return CameraCapabilities(
-                resolutions=sorted(list(resolutions), reverse=True),
-                formats=sorted(list(formats)),
-                framerates=sorted(list(framerates), reverse=True),
-            )
+            if fps_values:
+                capabilities["max_fps"] = int(max(fps_values))
 
         except Exception as e:
-            logger.error(
-                "usb_capabilities_error", device=device_path, error=str(e)
-            )
-            return None
+            logger.debug("capabilities_check_failed", device=device_path, error=str(e))
+
+        return capabilities
+
+    @staticmethod
+    async def discover_all() -> list[CameraInfo]:
+        """Discover all available cameras (CSI and USB).
+
+        Returns:
+            List of all detected cameras.
+        """
+        # Run both discoveries in parallel
+        csi_cameras, usb_cameras = await asyncio.gather(
+            CameraDiscovery.discover_csi_cameras(),
+            CameraDiscovery.discover_usb_cameras(),
+            return_exceptions=True,
+        )
+
+        all_cameras = []
+
+        if isinstance(csi_cameras, list):
+            all_cameras.extend(csi_cameras)
+        else:
+            logger.error("csi_discovery_failed", error=str(csi_cameras))
+
+        if isinstance(usb_cameras, list):
+            all_cameras.extend(usb_cameras)
+        else:
+            logger.error("usb_discovery_failed", error=str(usb_cameras))
+
+        logger.info("camera_discovery_complete", total_found=len(all_cameras))
+        return all_cameras
+
+
+async def discover_cameras() -> list[CameraInfo]:
+    """Convenience function to discover all cameras.
+
+    Returns:
+        List of detected cameras.
+    """
+    return await CameraDiscovery.discover_all()
