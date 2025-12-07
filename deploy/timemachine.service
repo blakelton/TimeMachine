@@ -15,7 +15,7 @@ EnvironmentFile=/etc/timemachine/timemachine.env
 Environment="PYTHONUNBUFFERED=1"
 
 # Execution
-ExecStart=/opt/timemachine/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --log-config /opt/timemachine/backend/logging.conf
+ExecStart=/opt/timemachine/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ExecReload=/bin/kill -HUP $MAINPID
 
 # Restart policy
