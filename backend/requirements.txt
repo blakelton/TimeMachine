@@ -5,6 +5,7 @@ uvicorn[standard]==0.24.0
 # Database
 sqlalchemy[asyncio]==2.0.23
 aiosqlite==0.19.0
+alembic==1.13.0
 
 # Settings and validation
 pydantic==2.5.2

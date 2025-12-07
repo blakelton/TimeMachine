@@ -1,4 +1,4 @@
-.PHONY: help install install-dev run test lint format type-check clean
+.PHONY: help install install-dev run test lint format type-check clean db-migrate db-upgrade db-downgrade db-init
 
 help:
 	@echo "TimeMachine Backend - Make Commands"
@@ -10,6 +10,10 @@ help:
 	@echo "  lint          Run ruff linter"
 	@echo "  format        Format code with black and ruff"
 	@echo "  type-check    Run mypy type checker"
+	@echo "  db-init       Initialize database (create tables)"
+	@echo "  db-migrate    Generate new migration"
+	@echo "  db-upgrade    Apply migrations"
+	@echo "  db-downgrade  Rollback last migration"
 	@echo "  clean         Remove cache and build files"
 
 install:
@@ -33,6 +37,18 @@ format:
 
 type-check:
 	mypy app
+
+db-init:
+	python -c "import asyncio; from app.db.session import init_db; asyncio.run(init_db())"
+
+db-migrate:
+	alembic revision --autogenerate -m "$(msg)"
+
+db-upgrade:
+	alembic upgrade head
+
+db-downgrade:
+	alembic downgrade -1
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

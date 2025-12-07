@@ -43,6 +43,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error("authentication_config_invalid", error=str(e))
             raise
 
+    # Initialize database
+    from app.db.session import init_db
+
+    await init_db()
+    logger.info("database_initialized")
+
     yield
 
     # Shutdown
