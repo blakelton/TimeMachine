@@ -1,0 +1,58 @@
+[Unit]
+Description=TimeMachine Observation Chamber Control System
+Documentation=https://github.com/blakelton/TimeMachine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=timemachine
+Group=timemachine
+WorkingDirectory=/opt/timemachine/backend
+
+# Environment
+EnvironmentFile=/etc/timemachine/timemachine.env
+Environment="PYTHONUNBUFFERED=1"
+
+# Execution
+ExecStart=/opt/timemachine/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --log-config /opt/timemachine/backend/logging.conf
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart policy
+Restart=always
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Resource limits (Raspberry Pi 3: 1GB RAM)
+MemoryMax=800M
+MemoryHigh=700M
+CPUQuota=300%
+TasksMax=512
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/timemachine
+ReadWritePaths=/var/log/timemachine
+
+# Camera and hardware access
+SupplementaryGroups=video
+DeviceAllow=/dev/video* rw
+DeviceAllow=/dev/vchiq rw
+DeviceAllow=/dev/vcsm-cma rw
+DevicePolicy=closed
+
+# Network
+PrivateNetwork=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=timemachine
+
+[Install]
+WantedBy=multi-user.target
