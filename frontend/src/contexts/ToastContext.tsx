@@ -7,6 +7,8 @@ import {
   useContext,
   useState,
   useCallback,
+  useRef,
+  useEffect,
 } from "react";
 import type { ReactNode } from "react";
 
@@ -38,7 +40,20 @@ interface ToastProviderProps {
 export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  /**
+   * Timer management to prevent memory leaks.
+   * Stores all active toast timers keyed by toast ID.
+   */
+  const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   const removeToast = useCallback((id: string) => {
+    // Clear the timer if it exists
+    const timerId = timers.current.get(id);
+    if (timerId) {
+      clearTimeout(timerId);
+      timers.current.delete(id);
+    }
+
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
@@ -51,13 +66,26 @@ export function ToastProvider({ children }: ToastProviderProps) {
 
       // Auto-dismiss after duration
       if (duration > 0) {
-        setTimeout(() => {
+        const timerId = setTimeout(() => {
           removeToast(id);
         }, duration);
+
+        // Store timer for cleanup
+        timers.current.set(id, timerId);
       }
     },
     [removeToast]
   );
+
+  /**
+   * Cleanup effect: Clear all active timers on unmount to prevent memory leaks.
+   */
+  useEffect(() => {
+    return () => {
+      timers.current.forEach((timer) => clearTimeout(timer));
+      timers.current.clear();
+    };
+  }, []);
 
   // Convenience methods for different toast types
   const success = useCallback(

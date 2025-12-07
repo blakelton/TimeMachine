@@ -3,9 +3,10 @@
  */
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
 import { useToast } from "../../contexts/ToastContext";
+import { useApiMutation } from "../../hooks/useApiMutation";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -40,9 +41,9 @@ export function CamerasPanel() {
 
   const cameras = camerasData?.cameras || [];
 
-  // Create camera mutation
-  const createMutation = useMutation({
-    mutationFn: async (data: CameraFormData) => {
+  // Create camera mutation using custom hook
+  const createMutation = useApiMutation(
+    async (data: CameraFormData) => {
       const cameraData: CameraCreate = {
         name: data.name,
         device_path: data.device_path,
@@ -57,19 +58,19 @@ export function CamerasPanel() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cameras"] });
-      toast.success("Camera added successfully");
-      setAddModalOpen(false);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to add camera");
-    },
-  });
+    {
+      successMessage: "Camera added successfully",
+      errorMessage: "Failed to add camera",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["cameras"] });
+        setAddModalOpen(false);
+      },
+    }
+  );
 
-  // Update camera mutation
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: CameraFormData }) => {
+  // Update camera mutation using custom hook
+  const updateMutation = useApiMutation(
+    async ({ id, data }: { id: number; data: CameraFormData }) => {
       const updateData: CameraUpdate = {
         name: data.name,
         enabled: data.enabled,
@@ -83,19 +84,19 @@ export function CamerasPanel() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cameras"] });
-      toast.success("Camera updated successfully");
-      setEditCamera(null);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update camera");
-    },
-  });
+    {
+      successMessage: "Camera updated successfully",
+      errorMessage: "Failed to update camera",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["cameras"] });
+        setEditCamera(null);
+      },
+    }
+  );
 
-  // Delete camera mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (cameraId: number) => {
+  // Delete camera mutation using custom hook
+  const deleteMutation = useApiMutation(
+    async (cameraId: number) => {
       const response = await apiClient.DELETE("/api/v1/cameras/{camera_id}", {
         params: { path: { camera_id: cameraId } },
       });
@@ -103,19 +104,19 @@ export function CamerasPanel() {
         throw new Error("Failed to delete camera");
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cameras"] });
-      toast.success("Camera deleted successfully");
-      setDeleteCamera(null);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete camera");
-    },
-  });
+    {
+      successMessage: "Camera deleted successfully",
+      errorMessage: "Failed to delete camera",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["cameras"] });
+        setDeleteCamera(null);
+      },
+    }
+  );
 
-  // Toggle camera enabled status
-  const toggleEnabledMutation = useMutation({
-    mutationFn: async ({ id, enabled }: { id: number; enabled: boolean }) => {
+  // Toggle camera enabled status using custom hook
+  const toggleEnabledMutation = useApiMutation(
+    async ({ id, enabled }: { id: number; enabled: boolean }) => {
       const response = await apiClient.PATCH("/api/v1/cameras/{camera_id}", {
         params: { path: { camera_id: id } },
         body: { enabled },
@@ -125,13 +126,13 @@ export function CamerasPanel() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cameras"] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update camera");
-    },
-  });
+    {
+      errorMessage: "Failed to update camera",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["cameras"] });
+      },
+    }
+  );
 
   // Camera discovery (placeholder - would need backend endpoint)
   const handleDiscover = async () => {

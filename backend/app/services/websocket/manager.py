@@ -49,6 +49,10 @@ class WebSocketManager:
 
         Failed sends are logged and the client is automatically disconnected.
 
+        Race condition fix: We snapshot clients under lock, then verify each
+        client is still active before sending. This prevents sending to
+        disconnected clients while avoiding holding the lock during I/O.
+
         Args:
             message: Dictionary to send as JSON to all clients.
         """
@@ -56,13 +60,20 @@ class WebSocketManager:
             return
 
         data = json.dumps(message, default=str)
-        disconnected = []
 
+        # Take snapshot of clients under lock
         async with self._lock:
-            clients = list(self._clients)  # Copy to avoid modification during iteration
+            clients = list(self._clients)
 
+        # Send to snapshot, collecting failures
+        disconnected = []
         for client in clients:
             try:
+                # Double-check client still active before sending
+                # (avoids sending to clients disconnected during iteration)
+                if client not in self._clients:
+                    continue
+
                 await asyncio.wait_for(
                     client.send_text(data),
                     timeout=5.0,
@@ -74,9 +85,16 @@ class WebSocketManager:
                 logger.warning("ws_send_failed", error=str(e))
                 disconnected.append(client)
 
-        # Clean up failed connections
-        for client in disconnected:
-            await self.disconnect(client)
+        # Clean up failed connections under lock
+        if disconnected:
+            async with self._lock:
+                for client in disconnected:
+                    self._clients.discard(client)
+            logger.info(
+                "ws_clients_cleaned_up",
+                disconnected=len(disconnected),
+                remaining=len(self._clients),
+            )
 
     async def send_to(self, websocket: WebSocket, message: dict) -> None:
         """Send a message to a specific client.

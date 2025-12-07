@@ -3,9 +3,9 @@
  */
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
-import { useToast } from "../../contexts/ToastContext";
+import { useApiMutation } from "../../hooks/useApiMutation";
 import { FormField } from "../FormField";
 import { Button } from "../Button";
 import type { components } from "../../types/api";
@@ -24,7 +24,6 @@ interface OutputConfigFormData {
 
 export function OutputConfigPanel() {
   const queryClient = useQueryClient();
-  const toast = useToast();
 
   // Fetch output config
   const { data: configData, isLoading, error } = useQuery({
@@ -65,9 +64,9 @@ export function OutputConfigPanel() {
     }
   }, [configData]);
 
-  // Update config mutation
-  const updateMutation = useMutation({
-    mutationFn: async (data: OutputConfigUpdate) => {
+  // Update config mutation using custom hook
+  const updateMutation = useApiMutation(
+    async (data: OutputConfigUpdate) => {
       const response = await apiClient.PATCH("/api/v1/output-config", {
         body: data,
       });
@@ -76,47 +75,106 @@ export function OutputConfigPanel() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["output-config"] });
-      toast.success("Output configuration saved successfully");
-      setHasChanges(false);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to save configuration");
-    },
-  });
+    {
+      successMessage: "Output configuration saved successfully",
+      errorMessage: "Failed to save configuration",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["output-config"] });
+        setHasChanges(false);
+      },
+    }
+  );
 
+  /**
+   * Validation rules configuration.
+   * Declarative approach reduces cyclomatic complexity from 11 to ~2.
+   */
+  const validationRules = [
+    {
+      field: "recording_base_path" as keyof OutputConfigFormData,
+      validators: [
+        {
+          check: (value: string | number) => !String(value).trim(),
+          error: "Recording path is required",
+        },
+        {
+          check: (value: string | number) => !String(value).startsWith("/"),
+          error: "Path must be absolute (start with /)",
+        },
+      ],
+    },
+    {
+      field: "still_base_path" as keyof OutputConfigFormData,
+      validators: [
+        {
+          check: (value: string | number) => !String(value).trim(),
+          error: "Still captures path is required",
+        },
+        {
+          check: (value: string | number) => !String(value).startsWith("/"),
+          error: "Path must be absolute (start with /)",
+        },
+      ],
+    },
+    {
+      field: "timelapse_base_path" as keyof OutputConfigFormData,
+      validators: [
+        {
+          check: (value: string | number) => !String(value).trim(),
+          error: "Timelapse path is required",
+        },
+        {
+          check: (value: string | number) => !String(value).startsWith("/"),
+          error: "Path must be absolute (start with /)",
+        },
+      ],
+    },
+    {
+      field: "retention_days" as keyof OutputConfigFormData,
+      validators: [
+        {
+          check: (value: string | number) => Number(value) < 1,
+          error: "Retention must be at least 1 day",
+        },
+        {
+          check: (value: string | number) => Number(value) > 365,
+          error: "Retention cannot exceed 365 days",
+        },
+      ],
+    },
+    {
+      field: "max_storage_gb" as keyof OutputConfigFormData,
+      validators: [
+        {
+          check: (value: string | number) => Number(value) < 1,
+          error: "Storage limit must be at least 1 GB",
+        },
+        {
+          check: (value: string | number) => Number(value) > 1000,
+          error: "Storage limit cannot exceed 1000 GB",
+        },
+      ],
+    },
+  ];
+
+  /**
+   * Validates form data using declarative validation rules.
+   * This approach reduces cyclomatic complexity and improves maintainability.
+   *
+   * @returns true if validation passes, false otherwise
+   */
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof OutputConfigFormData, string>> = {};
 
-    if (!formData.recording_base_path.trim()) {
-      newErrors.recording_base_path = "Recording path is required";
-    } else if (!formData.recording_base_path.startsWith("/")) {
-      newErrors.recording_base_path = "Path must be absolute (start with /)";
-    }
+    for (const rule of validationRules) {
+      const value = formData[rule.field];
 
-    if (!formData.still_base_path.trim()) {
-      newErrors.still_base_path = "Still captures path is required";
-    } else if (!formData.still_base_path.startsWith("/")) {
-      newErrors.still_base_path = "Path must be absolute (start with /)";
-    }
-
-    if (!formData.timelapse_base_path.trim()) {
-      newErrors.timelapse_base_path = "Timelapse path is required";
-    } else if (!formData.timelapse_base_path.startsWith("/")) {
-      newErrors.timelapse_base_path = "Path must be absolute (start with /)";
-    }
-
-    if (formData.retention_days < 1) {
-      newErrors.retention_days = "Retention must be at least 1 day";
-    } else if (formData.retention_days > 365) {
-      newErrors.retention_days = "Retention cannot exceed 365 days";
-    }
-
-    if (formData.max_storage_gb < 1) {
-      newErrors.max_storage_gb = "Storage limit must be at least 1 GB";
-    } else if (formData.max_storage_gb > 1000) {
-      newErrors.max_storage_gb = "Storage limit cannot exceed 1000 GB";
+      for (const validator of rule.validators) {
+        if (validator.check(value)) {
+          newErrors[rule.field] = validator.error;
+          break; // Stop at first error for this field
+        }
+      }
     }
 
     setErrors(newErrors);

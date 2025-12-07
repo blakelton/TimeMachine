@@ -25,6 +25,22 @@ export function PreviewTab({ cameraId }: PreviewTabProps) {
     checkPreviewStatus();
   }, [cameraId]);
 
+  /**
+   * Cleanup effect: Stop preview when component unmounts.
+   * This prevents orphaned preview streams from running indefinitely.
+   */
+  useEffect(() => {
+    return () => {
+      // Only attempt to stop if preview is active
+      if (isPreviewActive) {
+        // Fire-and-forget cleanup (don't await on unmount)
+        apiClient.POST("/api/v1/cameras/{camera_id}/preview/stop" as any, {
+          params: { path: { camera_id: cameraId } },
+        });
+      }
+    };
+  }, [isPreviewActive, cameraId]);
+
   const checkPreviewStatus = async () => {
     try {
       // Try to load the preview stream to see if it's active
