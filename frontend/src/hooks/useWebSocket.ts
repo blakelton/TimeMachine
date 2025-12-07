@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type {
-  WebSocketMessage,
+  WSMessage,
   MessageHandler,
   ConnectionState,
 } from "../types/websocket";
@@ -55,7 +55,7 @@ export function useWebSocketSend(client: WebSocketClient) {
 /**
  * Hook to subscribe to specific message types
  */
-export function useWebSocketMessage<T extends WebSocketMessage>(
+export function useWebSocketMessage<T extends WSMessage>(
   client: WebSocketClient,
   messageType: T["type"],
   handler: (message: T) => void

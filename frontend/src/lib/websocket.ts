@@ -2,11 +2,7 @@
  * WebSocket client with automatic reconnection and typed message handling
  */
 
-import type {
-  ConnectionState,
-  MessageHandler,
-  WebSocketMessage,
-} from "../types/websocket";
+import type { ConnectionState, MessageHandler, WSMessage } from "../types/websocket";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
 
@@ -49,7 +45,7 @@ export class WebSocketClient {
 
       this.ws.onmessage = (event) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data);
+          const message: WSMessage = JSON.parse(event.data);
           this.handleMessage(message);
         } catch (error) {
           console.error("Failed to parse WebSocket message:", error);
@@ -125,7 +121,7 @@ export class WebSocketClient {
     return this.currentState;
   }
 
-  private handleMessage(message: WebSocketMessage): void {
+  private handleMessage(message: WSMessage): void {
     this.messageHandlers.forEach((handler) => {
       try {
         handler(message);
@@ -175,7 +171,6 @@ export class WebSocketClient {
 }
 
 /**
- * Global WebSocket clients
+ * Global WebSocket client for unified endpoint
  */
-export const statsWs = new WebSocketClient("/ws/stats");
-export const eventsWs = new WebSocketClient("/ws/events");
+export const wsClient = new WebSocketClient("/api/v1/ws");
