@@ -60,18 +60,42 @@ The script will:
 1. Update system packages
 2. Install Python 3.11 and dependencies
 3. Install GStreamer and libcamera packages
-4. Create `timemachine` system user
-5. Create directory structure in `/opt/timemachine`
-6. Set up Python virtual environment
-7. Install Python dependencies
-8. Initialize SQLite database
-9. Install systemd service
-10. Install nginx configuration
-11. Install management script to `/usr/local/bin/timemachine`
+4. Install python3-picamera2 (pre-compiled)
+5. Create `timemachine` system user
+6. Create directory structure in `/opt/timemachine`
+7. Set up Python virtual environment with system site packages
+8. Install Python dependencies
+9. Initialize SQLite database
+10. Install systemd service
+11. Copy nginx configuration
+12. Create environment configuration template
 
-**Installation time:** 10-20 minutes (depending on internet speed)
+**Installation time:** ~5 minutes
 
-### 3. Configure Environment
+### 3. Setup Nginx (Optional but Recommended)
+
+Configure nginx as reverse proxy:
+
+```bash
+sudo ./scripts/setup-nginx.sh
+```
+
+This script:
+- Installs nginx site configuration
+- Creates symlink in sites-enabled
+- Removes default site
+- Tests and reloads nginx configuration
+- Enables nginx on boot
+
+### 4. Install Management Script
+
+```bash
+# Install timemachine command
+sudo cp scripts/timemachine.sh /usr/local/bin/timemachine
+sudo chmod +x /usr/local/bin/timemachine
+```
+
+### 5. Configure Environment
 
 Edit the environment file:
 
@@ -79,9 +103,15 @@ Edit the environment file:
 sudo nano /etc/timemachine/timemachine.env
 ```
 
+**Important:** Update paths for production:
+```bash
+TIMEMACHINE_DB_PATH=/var/lib/timemachine/timemachine.db
+TIMEMACHINE_MEDIA_PATH=/var/lib/timemachine/media
+```
+
 See [CONFIGURATION.md](CONFIGURATION.md) for all available options.
 
-### 4. Start Services
+### 6. Start Services
 
 ```bash
 # Start services

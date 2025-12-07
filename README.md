@@ -34,12 +34,23 @@ sudo ./install.sh
 ```
 
 The installation script will:
-- Install system dependencies (Python 3.11, GStreamer, libcamera)
+- Install system dependencies (Python 3.11, GStreamer, libcamera, picamera2)
 - Create timemachine user and directories
-- Set up Python virtual environment
+- Set up Python virtual environment with system site packages
 - Initialize database
 - Configure systemd service
-- Set up nginx reverse proxy
+- Copy nginx configuration
+
+**Post-installation:**
+
+```bash
+# Setup nginx reverse proxy (recommended)
+sudo ./scripts/setup-nginx.sh
+
+# Install management command
+sudo cp scripts/timemachine.sh /usr/local/bin/timemachine
+sudo chmod +x /usr/local/bin/timemachine
+```
 
 ### Configuration
 
@@ -47,6 +58,12 @@ Edit the environment configuration:
 
 ```bash
 sudo nano /etc/timemachine/timemachine.env
+```
+
+**Update production paths:**
+```bash
+TIMEMACHINE_DB_PATH=/var/lib/timemachine/timemachine.db
+TIMEMACHINE_MEDIA_PATH=/var/lib/timemachine/media
 ```
 
 Key settings:
