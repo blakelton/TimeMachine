@@ -1,0 +1,154 @@
+/**
+ * Camera status card styles
+ */
+
+.camera-status-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.25rem;
+  border: 2px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.camera-status-card.online {
+  border-color: #28a745;
+  background: #f1f9f4;
+}
+
+.camera-status-card.offline {
+  border-color: #6c757d;
+  background: #f8f9fa;
+}
+
+.camera-status-card.error {
+  border-color: #dc3545;
+  background: #ffebee;
+}
+
+.camera-status-card.disabled {
+  border-color: #dee2e6;
+  background: #f8f9fa;
+  opacity: 0.7;
+}
+
+.camera-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.camera-info {
+  flex: 1;
+}
+
+.camera-name {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.camera-type {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: #e9ecef;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6c757d;
+  text-transform: uppercase;
+}
+
+.camera-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.status-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.camera-status-card.online .status-text {
+  color: #28a745;
+}
+
+.camera-status-card.offline .status-text {
+  color: #6c757d;
+}
+
+.camera-status-card.error .status-text {
+  color: #dc3545;
+}
+
+.camera-status-card.disabled .status-text {
+  color: #adb5bd;
+}
+
+.camera-event {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  margin-top: 0.75rem;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.event-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.event-text {
+  font-size: 0.875rem;
+  color: #856404;
+  flex: 1;
+}
+
+.camera-operation {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #dee2e6;
+}
+
+.operation-label {
+  font-size: 0.875rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.operation-text {
+  font-size: 0.875rem;
+  color: #333;
+  font-weight: 600;
+}
+
+/* Hover effect for interactive cards */
+.camera-status-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
