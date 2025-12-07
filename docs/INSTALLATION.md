@@ -131,7 +131,15 @@ sudo apt install -y \
   nginx \
   v4l-utils \
   libatlas-base-dev \
-  libcap-dev
+  libcap-dev \
+  libavformat-dev \
+  libavcodec-dev \
+  libavdevice-dev \
+  libavutil-dev \
+  libavfilter-dev \
+  libswscale-dev \
+  libswresample-dev \
+  pkg-config
 ```
 
 ### 2. Create System User
