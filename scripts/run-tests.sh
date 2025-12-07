@@ -326,7 +326,22 @@ EOF
 \`\`\`
 OS: $(uname -s) $(uname -r) ($(uname -m))
 Python: $(python3 --version 2>&1 || echo "N/A")
-Node: $(node --version 2>&1 || echo "N/A")
+GStreamer: $(gst-launch-1.0 --version 2>&1 | head -1 || echo "N/A")
+FFmpeg: $(ffmpeg -version 2>&1 | head -1 || echo "N/A")
+\`\`\`
+
+## Service Status
+
+\`\`\`
+TimeMachine: $(systemctl is-active timemachine 2>/dev/null || echo "not installed")
+Nginx: $(systemctl is-active nginx 2>/dev/null || echo "not installed")
+\`\`\`
+
+## Port Status
+
+\`\`\`
+Port ${PORT}: $(ss -tlnp 2>/dev/null | grep ":${PORT} " | head -1 || echo "not listening")
+Port 80: $(ss -tlnp 2>/dev/null | grep ":80 " | head -1 || echo "not listening")
 \`\`\`
 
 ## Quick Commands
@@ -340,6 +355,9 @@ timemachine status
 
 # Restart service
 sudo timemachine restart
+
+# Start manually
+cd ~/projects/TimeMachine/backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
 \`\`\`
 
 ---
