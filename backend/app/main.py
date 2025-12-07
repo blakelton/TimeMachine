@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from app import __version__
-from app.api.routes import cameras, health, output_config
+from app.api.routes import cameras, health, output_config, websocket
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.logging import setup_logging
@@ -49,10 +49,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
     logger.info("database_initialized")
 
+    # Start stats broadcaster for WebSocket clients
+    import asyncio
+
+    from app.services.stats_broadcaster import stats_broadcast_loop
+
+    broadcast_task = asyncio.create_task(stats_broadcast_loop())
+    logger.info("stats_broadcaster_started")
+
     yield
 
     # Shutdown
     logger.info("application_stopping")
+    broadcast_task.cancel()
+    try:
+        await broadcast_task
+    except asyncio.CancelledError:
+        pass
 
 
 def create_app() -> FastAPI:
@@ -96,6 +109,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(cameras.router, prefix="/api/v1")
     app.include_router(output_config.router, prefix="/api/v1")
+    app.include_router(websocket.router, prefix="/api/v1")
 
     return app
 

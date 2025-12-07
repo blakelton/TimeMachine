@@ -4,14 +4,30 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 
 ## Features
 
-- **Camera Management**: Support for CSI and USB cameras with auto-discovery
-- **Live Preview**: MJPEG streaming from multiple cameras
-- **Still Capture**: High-quality JPEG image capture
-- **Video Recording**: H.264 hardware-encoded video recording
-- **Web Interface**: Responsive React-based UI for remote control
-- **System Monitoring**: Real-time CPU, memory, and temperature monitoring
-- **RESTful API**: Full API for programmatic control
-- **WebSocket**: Real-time system stats and event notifications
+### Camera Operations
+- **Camera Management**: Full CRUD for CSI and USB cameras with enable/disable controls
+- **Live Preview**: MJPEG streaming with auto-reconnect
+- **Still Capture**: High-quality JPEG with configurable quality (low/medium/high/max)
+- **Video Recording**: H.264 hardware-encoded recording with bitrate control and live timer
+- **Timelapse Creation**: Configurable interval and duration with progress tracking
+
+### Web Interface
+- **Home Dashboard**: Real-time system stats (CPU, memory, disk, temperature) with live camera status
+- **Camera Tabs**: Individual camera control with Preview/Capture/Record/Timelapse tabs
+- **System Settings**: Camera CRUD, output configuration, notification preferences
+- **Responsive Design**: Mobile-first UI with touch-friendly controls
+- **Real-time Updates**: WebSocket integration for live stats and job status
+
+### System Monitoring
+- **Live Statistics**: CPU, memory, disk usage, and temperature via WebSocket (2s updates)
+- **Disk Space Warnings**: Alerts when storage <10% free, blocks operations at <5%
+- **Job Tracking**: Real-time recording and timelapse progress with WebSocket updates
+- **Toast Notifications**: Success/error feedback for all operations
+
+### API & Integration
+- **RESTful API**: Full FastAPI backend with OpenAPI documentation
+- **WebSocket Protocol**: Typed messages for stats, camera events, and job updates
+- **Type Safety**: End-to-end TypeScript/Python type safety
 
 ## Hardware Requirements
 

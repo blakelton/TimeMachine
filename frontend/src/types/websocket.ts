@@ -1,88 +1,81 @@
 /**
- * WebSocket message protocol types for real-time updates
+ * WebSocket message protocol types matching backend
  */
 
 /**
- * System statistics message
+ * System statistics update message
  */
-export interface StatsMessage {
-  type: "stats";
-  data: {
-    cpu_percent: number;
-    memory_percent: number;
-    memory_available_mb: number;
-    memory_total_mb: number;
-    memory_status: "ok" | "warning" | "critical";
-    disk_percent: number;
-    disk_available_mb: number;
-    disk_total_mb: number;
-    cpu_temp_c: number | null;
-    throttled: {
-      under_voltage: boolean;
-      frequency_capped: boolean;
-      currently_throttled: boolean;
-      soft_temp_limit: boolean;
-    };
-  };
+export interface WSStatsUpdate {
+  type: "stats_update";
+  cpu_percent: number;
+  memory_percent: number;
+  disk_free_gb: number;
+  temperature_celsius: number | null;
   timestamp: string;
 }
 
 /**
- * Camera status update message
+ * Camera event message
  */
-export interface CameraStatusMessage {
-  type: "camera_status";
-  data: {
-    camera_id: number;
-    status: "online" | "offline" | "busy" | "error";
-    active_operation: "idle" | "preview" | "recording" | "timelapse" | "capture";
-  };
+export interface WSCameraEvent {
+  type: "camera_event";
+  camera_id: number;
+  event: "online" | "offline" | "recording_started" | "recording_stopped" | "error";
+  message?: string | null;
   timestamp: string;
 }
 
 /**
- * System event message
+ * Job update message
  */
-export interface EventMessage {
-  type: "event";
-  data: {
-    event_type: string;
-    severity: "info" | "warning" | "error";
-    message: string;
-    details?: Record<string, unknown>;
-  };
+export interface WSJobUpdate {
+  type: "job_update";
+  job_id: number;
+  camera_id: number;
+  job_type: string;
+  status: "pending" | "running" | "completed" | "failed";
+  progress?: number | null; // 0-100
   timestamp: string;
 }
 
 /**
- * Job status update message
+ * Error message
  */
-export interface JobStatusMessage {
-  type: "job_status";
-  data: {
-    job_id: number;
-    camera_id: number;
-    status: "pending" | "running" | "completed" | "failed" | "interrupted";
-    progress?: number; // For timelapse
-  };
+export interface WSError {
+  type: "error";
+  code: string;
+  message: string;
   timestamp: string;
 }
 
 /**
  * Union type of all possible WebSocket messages
  */
-export type WebSocketMessage =
-  | StatsMessage
-  | CameraStatusMessage
-  | EventMessage
-  | JobStatusMessage;
+export type WSMessage = WSStatsUpdate | WSCameraEvent | WSJobUpdate | WSError;
+
+/**
+ * Type guards for message discrimination
+ */
+export function isStatsUpdate(msg: WSMessage): msg is WSStatsUpdate {
+  return msg.type === "stats_update";
+}
+
+export function isCameraEvent(msg: WSMessage): msg is WSCameraEvent {
+  return msg.type === "camera_event";
+}
+
+export function isJobUpdate(msg: WSMessage): msg is WSJobUpdate {
+  return msg.type === "job_update";
+}
+
+export function isError(msg: WSMessage): msg is WSError {
+  return msg.type === "error";
+}
 
 /**
  * WebSocket message handler type
  */
-export type MessageHandler<T extends WebSocketMessage = WebSocketMessage> = (
-  message: T
-) => void;
+export type MessageHandler<T extends WSMessage = WSMessage> = (message: T) => void;
 
 /**
  * WebSocket connection state

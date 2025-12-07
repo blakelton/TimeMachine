@@ -1,0 +1,57 @@
+/**
+ * Disk space warning styles
+ */
+
+.disk-space-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border-left: 4px solid;
+}
+
+.disk-space-warning__icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.disk-space-warning__message {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.disk-space-warning__message strong {
+  font-weight: 600;
+}
+
+/* Warning level styles */
+.disk-space-warning--warning {
+  background-color: #fff3cd;
+  border-color: #ffc107;
+  color: #856404;
+}
+
+.disk-space-warning--critical {
+  background-color: #f8d7da;
+  border-color: #dc3545;
+  color: #721c24;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .disk-space-warning--warning {
+    background-color: #664d03;
+    border-color: #ffc107;
+    color: #fff3cd;
+  }
+
+  .disk-space-warning--critical {
+    background-color: #842029;
+    border-color: #dc3545;
+    color: #f8d7da;
+  }
+}
