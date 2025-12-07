@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from app import __version__
-from app.api.routes import health
+from app.api.routes import cameras, health, output_config
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.logging import setup_logging
@@ -94,6 +94,8 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(health.router, prefix="/api/v1")
+    app.include_router(cameras.router, prefix="/api/v1")
+    app.include_router(output_config.router, prefix="/api/v1")
 
     return app
 

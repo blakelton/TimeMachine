@@ -13,6 +13,13 @@ from alembic import context
 from app.core.config import settings
 from app.db.base import Base
 
+# Import all models for Alembic auto-generation
+from app.db.models.camera import Camera  # noqa: F401
+from app.db.models.event import Event  # noqa: F401
+from app.db.models.job import Job  # noqa: F401
+from app.db.models.output_config import OutputConfig  # noqa: F401
+from app.db.models.temperature_config import TemperatureConfig  # noqa: F401
+
 # Alembic Config object
 config = context.config
 

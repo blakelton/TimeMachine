@@ -30,10 +30,10 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     # Database
-    db_path: Path = Path("/var/lib/timemachine/timemachine.db")
+    db_path: Path = Field(default_factory=lambda: Path("./data/timemachine.db"))
 
     # Storage
-    media_path: Path = Path("/var/lib/timemachine/media")
+    media_path: Path = Field(default_factory=lambda: Path("./data/media"))
 
     # CORS
     cors_origins: list[str] = Field(default=["http://localhost:5173"])
