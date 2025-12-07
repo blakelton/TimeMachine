@@ -47,7 +47,8 @@ apt-get install -y \
   gstreamer1.0-plugins-good \
   gstreamer1.0-plugins-bad \
   v4l-utils \
-  git
+  git \
+  libcap-dev
 
 # Create timemachine user
 if ! id -u timemachine &>/dev/null; then

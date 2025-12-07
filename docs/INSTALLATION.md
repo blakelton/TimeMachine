@@ -130,7 +130,8 @@ sudo apt install -y \
   git \
   nginx \
   v4l-utils \
-  libatlas-base-dev
+  libatlas-base-dev \
+  libcap-dev
 ```
 
 ### 2. Create System User
