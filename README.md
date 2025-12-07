@@ -2,6 +2,26 @@
 
 Temperature-controlled observation chamber management system for Raspberry Pi 3+. Provides web-based control for camera management (CSI and USB), recording, timelapse creation, and temperature control.
 
+## ⚠️ Development Status
+
+**Current Phase**: Post-Phase 4 - Core camera operations in development
+
+**What's Ready**: ✅
+- Complete, production-ready web interface with real-time monitoring
+- Full camera configuration management (CRUD operations)
+- Deployment infrastructure (systemd, nginx, installation scripts)
+- Comprehensive documentation (getting started, configuration, troubleshooting, deployment)
+
+**What's Not Ready**: ❌
+- **Camera operations** (preview, capture, record, timelapse) - GStreamer services incomplete
+- **Retention policies** - Background cleanup not implemented
+- **Pipeline crash recovery** - Auto-restart not implemented
+
+**Estimated Time to MVP**: 1-2 weeks
+**See**: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed status
+
+---
+
 ## Features
 
 ### Camera Operations
@@ -210,9 +230,11 @@ TimeMachine/
 
 ## Documentation
 
-- [Installation Guide](docs/INSTALLATION.md) - Detailed setup instructions
-- [Configuration Reference](docs/CONFIGURATION.md) - Environment variables and settings
-- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- **[Project Status](docs/PROJECT_STATUS.md)** - Current development status and roadmap
+- [Getting Started Guide](docs/getting-started.md) - Installation and initial setup
+- [Configuration Guide](docs/configuration.md) - Environment variables and settings
+- [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
+- [Deployment Checklist](docs/deployment-checklist.md) - Production deployment guide
 - [API Documentation](http://localhost:8000/api/v1/docs) - Interactive API docs
 
 ## System Requirements
