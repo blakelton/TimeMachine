@@ -156,6 +156,435 @@ export interface paths {
         patch: operations["update_camera_api_v1_cameras__camera_id__patch"];
         trace?: never;
     };
+    "/api/v1/cameras/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discover Cameras
+         * @description Discover all available cameras (CSI and USB).
+         *
+         *     Returns:
+         *         List of discovered cameras with capabilities
+         */
+        post: operations["discover_cameras_api_v1_cameras_discover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/preview/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Camera Preview
+         * @description Start preview stream for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Preview start status
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        post: operations["start_camera_preview_api_v1_cameras__camera_id__preview_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/preview/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Camera Preview
+         * @description Stop preview stream for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Preview stop status
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        post: operations["stop_camera_preview_api_v1_cameras__camera_id__preview_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/preview/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Preview Status
+         * @description Get preview status for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Preview status
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        get: operations["get_preview_status_api_v1_cameras__camera_id__preview_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Capture Image
+         * @description Capture a still image from a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *         filename: Optional custom filename (without extension)
+         *
+         *     Returns:
+         *         Capture result with file path
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        post: operations["capture_image_api_v1_cameras__camera_id__capture_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/recording/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Recording
+         * @description Start recording from a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *         request: Recording start parameters
+         *
+         *     Returns:
+         *         Recording start status with job ID
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        post: operations["start_recording_api_v1_cameras__camera_id__recording_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/recording/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Recording
+         * @description Stop recording for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *         force: Skip EOS and immediately terminate
+         *
+         *     Returns:
+         *         Recording stop status with file path
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        post: operations["stop_recording_api_v1_cameras__camera_id__recording_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/recording/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Recording Status
+         * @description Get recording status for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Recording status with PID, uptime, and job ID
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        get: operations["get_recording_status_api_v1_cameras__camera_id__recording_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/timelapse/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Timelapse
+         * @description Start timelapse capture for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *         request: Timelapse configuration
+         *
+         *     Returns:
+         *         Timelapse start status with job ID
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        post: operations["start_timelapse_api_v1_cameras__camera_id__timelapse_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/timelapse/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Timelapse
+         * @description Stop timelapse capture for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *         request: Stop options (whether to assemble video)
+         *
+         *     Returns:
+         *         Timelapse stop status with output path
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        post: operations["stop_timelapse_api_v1_cameras__camera_id__timelapse_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cameras/{camera_id}/timelapse/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Timelapse Status
+         * @description Get timelapse status for a camera.
+         *
+         *     Args:
+         *         camera_id: Camera ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Timelapse status with progress and job ID
+         *
+         *     Raises:
+         *         HTTPException: 404 if camera not found
+         */
+        get: operations["get_timelapse_status_api_v1_cameras__camera_id__timelapse_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jobs
+         * @description List all jobs with optional filtering.
+         *
+         *     Args:
+         *         session: Database session
+         *         camera_id: Filter by camera ID
+         *         job_type: Filter by job type ('recording', 'timelapse', 'capture')
+         *         status_filter: Filter by status ('pending', 'running', 'completed', 'failed', 'interrupted')
+         *         skip: Number of records to skip
+         *         limit: Maximum number of records to return
+         *
+         *     Returns:
+         *         List of jobs and total count
+         */
+        get: operations["list_jobs_api_v1_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/running": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Running Jobs
+         * @description List all currently running jobs.
+         *
+         *     Args:
+         *         session: Database session
+         *         camera_id: Optional camera ID filter
+         *
+         *     Returns:
+         *         List of running jobs
+         */
+        get: operations["list_running_jobs_api_v1_jobs_running_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job
+         * @description Get a specific job by ID.
+         *
+         *     Args:
+         *         job_id: Job ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Job details
+         *
+         *     Raises:
+         *         HTTPException: 404 if job not found
+         */
+        get: operations["get_job_api_v1_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Job
+         * @description Delete a job record.
+         *
+         *     Note: This only deletes the job record, not the output files.
+         *
+         *     Args:
+         *         job_id: Job ID
+         *         session: Database session
+         *
+         *     Raises:
+         *         HTTPException: 404 if job not found, 400 if job is running
+         */
+        delete: operations["delete_job_api_v1_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/output-config": {
         parameters: {
             query?: never;
@@ -193,6 +622,91 @@ export interface paths {
          *         Updated output configuration
          */
         patch: operations["update_output_config_api_v1_output_config_patch"];
+        trace?: never;
+    };
+    "/api/v1/temperature/stub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Temperature Stub
+         * @description Get stub message indicating temperature control is not yet implemented.
+         *
+         *     This endpoint exists to maintain API compatibility for future temperature
+         *     control features. The frontend can display this message to users.
+         */
+        get: operations["get_temperature_stub_api_v1_temperature_stub_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/temperature/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Temperature Config
+         * @description Get current temperature configuration (stub).
+         *
+         *     Returns configuration if it exists, or None if not configured.
+         */
+        get: operations["get_temperature_config_api_v1_temperature_config_get"];
+        /**
+         * Update Temperature Config
+         * @description Update temperature configuration (stub).
+         *
+         *     Note: This only updates configuration. Actual temperature control
+         *     logic is not yet implemented.
+         */
+        put: operations["update_temperature_config_api_v1_temperature_config_put"];
+        /**
+         * Create Temperature Config
+         * @description Create temperature configuration (stub).
+         *
+         *     Note: This only stores configuration. Actual temperature control
+         *     logic is not yet implemented.
+         */
+        post: operations["create_temperature_config_api_v1_temperature_config_post"];
+        /**
+         * Delete Temperature Config
+         * @description Delete temperature configuration.
+         */
+        delete: operations["delete_temperature_config_api_v1_temperature_config_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/temperature/reading": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Temperature Reading
+         * @description Get current temperature reading (stub).
+         *
+         *     Returns stub data since hardware integration is not yet implemented.
+         */
+        get: operations["get_temperature_reading_api_v1_temperature_reading_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -346,6 +860,32 @@ export interface components {
             default_settings?: components["schemas"]["CameraSettings"] | null;
         };
         /**
+         * DiscoveredCameraResponse
+         * @description Schema for discovered camera response.
+         */
+        DiscoveredCameraResponse: {
+            /**
+             * Name
+             * @description Camera name
+             */
+            name: string;
+            /**
+             * Device Path
+             * @description Device path
+             */
+            device_path: string;
+            /**
+             * Camera Type
+             * @description Camera type: 'csi' or 'usb'
+             */
+            camera_type: string;
+            /**
+             * Capabilities
+             * @description Camera capabilities
+             */
+            capabilities?: Record<string, never> | null;
+        };
+        /**
          * DiskInfo
          * @description Disk statistics.
          */
@@ -379,6 +919,78 @@ export interface components {
             version: string;
             /** Environment */
             environment: string;
+            /** Auth Enabled */
+            auth_enabled: boolean;
+        };
+        /**
+         * JobListResponse
+         * @description Job list response schema.
+         */
+        JobListResponse: {
+            /** Jobs */
+            jobs?: components["schemas"]["JobResponse"][];
+            /**
+             * Total
+             * @description Total number of jobs
+             */
+            total: number;
+        };
+        /**
+         * JobResponse
+         * @description Job response schema.
+         */
+        JobResponse: {
+            /**
+             * Id
+             * @description Job ID
+             */
+            id: number;
+            /**
+             * Camera Id
+             * @description Camera ID
+             */
+            camera_id: number;
+            /**
+             * Job Type
+             * @description Job type: recording, timelapse, capture
+             */
+            job_type: string;
+            /**
+             * Status
+             * @description Job status: pending, running, completed, failed, interrupted
+             */
+            status: string;
+            /**
+             * Output Path
+             * @description Output file path
+             */
+            output_path?: string | null;
+            /**
+             * Error Message
+             * @description Error message if failed
+             */
+            error_message?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             * @description Start timestamp
+             */
+            started_at: string;
+            /**
+             * Completed At
+             * @description Completion timestamp
+             */
+            completed_at?: string | null;
+            /**
+             * Timelapse Progress
+             * @description Timelapse frame count
+             */
+            timelapse_progress?: number | null;
+            /**
+             * Timelapse Config
+             * @description Timelapse configuration
+             */
+            timelapse_config?: Record<string, never> | null;
         };
         /**
          * MemoryInfo
@@ -408,6 +1020,37 @@ export interface components {
             timestamp?: string;
             /** Request Id */
             request_id?: string | null;
+        };
+        /**
+         * OperationResponse
+         * @description Generic operation response.
+         */
+        OperationResponse: {
+            /**
+             * Success
+             * @description Whether operation succeeded
+             */
+            success: boolean;
+            /**
+             * Message
+             * @description Status message
+             */
+            message: string;
+            /**
+             * Job Id
+             * @description Associated job ID
+             */
+            job_id?: number | null;
+            /**
+             * Filepath
+             * @description Output file path
+             */
+            filepath?: string | null;
+            /**
+             * Pid
+             * @description Process ID
+             */
+            pid?: number | null;
         };
         /**
          * OutputConfigResponse
@@ -466,6 +1109,37 @@ export interface components {
             /** Max Storage Gb */
             max_storage_gb?: number | null;
         };
+        /**
+         * RecordingStatusResponse
+         * @description Recording status response.
+         */
+        RecordingStatusResponse: {
+            /**
+             * Camera Id
+             * @description Camera ID
+             */
+            camera_id: number;
+            /**
+             * State
+             * @description Pipeline state
+             */
+            state: string;
+            /**
+             * Pid
+             * @description Process ID
+             */
+            pid?: number | null;
+            /**
+             * Uptime Seconds
+             * @description Recording uptime
+             */
+            uptime_seconds?: number | null;
+            /**
+             * Job Id
+             * @description Job ID
+             */
+            job_id?: number | null;
+        };
         /** ResponseWrapper[HealthResponse] */
         ResponseWrapper_HealthResponse_: {
             data: components["schemas"]["HealthResponse"];
@@ -475,6 +1149,30 @@ export interface components {
         ResponseWrapper_StatsResponse_: {
             data: components["schemas"]["StatsResponse"];
             meta?: components["schemas"]["Meta"];
+        };
+        /**
+         * StartRecordingRequest
+         * @description Request to start a recording.
+         */
+        StartRecordingRequest: {
+            /**
+             * Duration Seconds
+             * @description Optional duration limit
+             */
+            duration_seconds?: number | null;
+            /**
+             * Filename
+             * @description Optional custom filename
+             */
+            filename?: string | null;
+        };
+        /**
+         * StartTimelapseRequest
+         * @description Request to start a timelapse.
+         */
+        StartTimelapseRequest: {
+            /** @description Timelapse configuration */
+            config?: components["schemas"]["TimelapseConfigSchema"];
         };
         /**
          * StatsResponse
@@ -493,6 +1191,173 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+        };
+        /**
+         * StopTimelapseRequest
+         * @description Request to stop a timelapse.
+         */
+        StopTimelapseRequest: {
+            /**
+             * Assemble Video
+             * @description Whether to assemble frames into video
+             * @default true
+             */
+            assemble_video: boolean;
+        };
+        /**
+         * TemperatureConfig
+         * @description Schema for temperature configuration response.
+         */
+        TemperatureConfig: {
+            /**
+             * Enabled
+             * @description Enable temperature control
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Target Temp
+             * @description Target temperature in Celsius
+             */
+            target_temp?: number | null;
+            /**
+             * Sensor Pin
+             * @description GPIO pin for temperature sensor
+             */
+            sensor_pin?: number | null;
+            /**
+             * Heater Pin
+             * @description GPIO pin for heater
+             */
+            heater_pin?: number | null;
+            /**
+             * Cooler Pin
+             * @description GPIO pin for cooler
+             */
+            cooler_pin?: number | null;
+            /**
+             * Hysteresis
+             * @description Temperature hysteresis (deadband) in Celsius
+             * @default 1
+             */
+            hysteresis: number;
+            /** Id */
+            id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TemperatureConfigCreate
+         * @description Schema for creating temperature configuration.
+         */
+        TemperatureConfigCreate: {
+            /**
+             * Enabled
+             * @description Enable temperature control
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Target Temp
+             * @description Target temperature in Celsius
+             */
+            target_temp?: number | null;
+            /**
+             * Sensor Pin
+             * @description GPIO pin for temperature sensor
+             */
+            sensor_pin?: number | null;
+            /**
+             * Heater Pin
+             * @description GPIO pin for heater
+             */
+            heater_pin?: number | null;
+            /**
+             * Cooler Pin
+             * @description GPIO pin for cooler
+             */
+            cooler_pin?: number | null;
+            /**
+             * Hysteresis
+             * @description Temperature hysteresis (deadband) in Celsius
+             * @default 1
+             */
+            hysteresis: number;
+        };
+        /**
+         * TemperatureConfigUpdate
+         * @description Schema for updating temperature configuration.
+         */
+        TemperatureConfigUpdate: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Target Temp */
+            target_temp?: number | null;
+            /** Sensor Pin */
+            sensor_pin?: number | null;
+            /** Heater Pin */
+            heater_pin?: number | null;
+            /** Cooler Pin */
+            cooler_pin?: number | null;
+            /** Hysteresis */
+            hysteresis?: number | null;
+        };
+        /**
+         * TemperatureReading
+         * @description Current temperature reading (stub).
+         */
+        TemperatureReading: {
+            /**
+             * Current Temp
+             * @description Current temperature in Celsius
+             */
+            current_temp?: number | null;
+            /**
+             * Target Temp
+             * @description Target temperature in Celsius
+             */
+            target_temp?: number | null;
+            /**
+             * Heater Active
+             * @description Heater is currently active
+             * @default false
+             */
+            heater_active: boolean;
+            /**
+             * Cooler Active
+             * @description Cooler is currently active
+             * @default false
+             */
+            cooler_active: boolean;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp?: string;
+        };
+        /**
+         * TemperatureStubMessage
+         * @description Stub message for temperature features.
+         */
+        TemperatureStubMessage: {
+            /**
+             * Message
+             * @default Temperature control is not yet implemented. This is a stub endpoint for future functionality.
+             */
+            message: string;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
         };
         /**
          * ThrottleInfo
@@ -514,6 +1379,84 @@ export interface components {
             historical?: string[] | null;
             /** Error */
             error?: string | null;
+        };
+        /**
+         * TimelapseConfigSchema
+         * @description Timelapse configuration schema.
+         */
+        TimelapseConfigSchema: {
+            /**
+             * Interval Seconds
+             * @description Seconds between captures
+             * @default 60
+             */
+            interval_seconds: number;
+            /**
+             * Total Frames
+             * @description Total frames to capture
+             */
+            total_frames?: number | null;
+            /**
+             * Duration Hours
+             * @description Total duration in hours
+             */
+            duration_hours?: number | null;
+            /**
+             * Quality
+             * @description JPEG quality (1-100)
+             * @default 95
+             */
+            quality: number;
+            /**
+             * Resolution Width
+             * @description Output width
+             * @default 1920
+             */
+            resolution_width: number;
+            /**
+             * Resolution Height
+             * @description Output height
+             * @default 1080
+             */
+            resolution_height: number;
+            /**
+             * Output Fps
+             * @description Output video FPS
+             * @default 30
+             */
+            output_fps: number;
+        };
+        /**
+         * TimelapseStatusResponse
+         * @description Timelapse status response.
+         */
+        TimelapseStatusResponse: {
+            /**
+             * Camera Id
+             * @description Camera ID
+             */
+            camera_id: number;
+            /**
+             * Is Running
+             * @description Whether timelapse is running
+             */
+            is_running: boolean;
+            /**
+             * Current Frame
+             * @description Current frame count
+             * @default 0
+             */
+            current_frame: number;
+            /**
+             * Total Frames
+             * @description Total frames target
+             */
+            total_frames?: number | null;
+            /**
+             * Job Id
+             * @description Job ID
+             */
+            job_id?: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -735,6 +1678,478 @@ export interface operations {
             };
         };
     };
+    discover_cameras_api_v1_cameras_discover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveredCameraResponse"][];
+                };
+            };
+        };
+    };
+    start_camera_preview_api_v1_cameras__camera_id__preview_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_camera_preview_api_v1_cameras__camera_id__preview_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preview_status_api_v1_cameras__camera_id__preview_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    capture_image_api_v1_cameras__camera_id__capture_post: {
+        parameters: {
+            query?: {
+                filename?: string | null;
+            };
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_recording_api_v1_cameras__camera_id__recording_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StartRecordingRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_recording_api_v1_cameras__camera_id__recording_stop_post: {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_recording_status_api_v1_cameras__camera_id__recording_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_timelapse_api_v1_cameras__camera_id__timelapse_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StartTimelapseRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_timelapse_api_v1_cameras__camera_id__timelapse_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StopTimelapseRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_timelapse_status_api_v1_cameras__camera_id__timelapse_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelapseStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jobs_api_v1_jobs_get: {
+        parameters: {
+            query?: {
+                camera_id?: number | null;
+                job_type?: string | null;
+                status_filter?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_running_jobs_api_v1_jobs_running_get: {
+        parameters: {
+            query?: {
+                camera_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_api_v1_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_job_api_v1_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_output_config_api_v1_output_config_get: {
         parameters: {
             query?: never;
@@ -784,6 +2199,150 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_temperature_stub_api_v1_temperature_stub_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemperatureStubMessage"];
+                };
+            };
+        };
+    };
+    get_temperature_config_api_v1_temperature_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemperatureConfig"] | null;
+                };
+            };
+        };
+    };
+    update_temperature_config_api_v1_temperature_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemperatureConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemperatureConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_temperature_config_api_v1_temperature_config_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemperatureConfigCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemperatureConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_temperature_config_api_v1_temperature_config_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_temperature_reading_api_v1_temperature_reading_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemperatureReading"];
                 };
             };
         };

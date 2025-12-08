@@ -110,6 +110,7 @@ def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessi
 # Global engine and session factory
 engine = create_engine()
 SessionFactory = create_session_factory(engine)
+AsyncSessionLocal = SessionFactory  # Alias for compatibility
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
