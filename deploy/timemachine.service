@@ -38,7 +38,7 @@ DeviceAllow=/dev/vchiq rw
 DeviceAllow=/dev/vcsm-cma rw
 
 # Execution
-ExecStart=/opt/timemachine/backend/venv/bin/uvicorn app.main:app \
+ExecStart=/opt/timemachine/venv/bin/uvicorn app.main:app \
     --host ${TIMEMACHINE_HOST} \
     --port ${TIMEMACHINE_PORT} \
     --workers 1 \
