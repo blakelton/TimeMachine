@@ -30,6 +30,7 @@ async def health_check() -> ResponseWrapper[HealthResponse]:
             status="ok",
             version=__version__,
             environment=settings.env,
+            auth_enabled=settings.auth_enabled,
         ),
         meta=Meta(),
     )

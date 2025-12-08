@@ -43,6 +43,7 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     environment: str
+    auth_enabled: bool
 
 
 class ThrottleInfo(BaseModel):

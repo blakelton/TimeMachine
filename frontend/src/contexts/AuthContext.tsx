@@ -2,11 +2,12 @@
  * Authentication context for optional HTTP Basic Auth
  */
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { setAuthHeader, clearAuthHeader, hasAuth } from "../api/client";
 
 interface AuthContextType {
   isAuthenticated: boolean;
+  authRequired: boolean | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   checkAuth: () => Promise<boolean>;
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(hasAuth());
+  const [authRequired, setAuthRequired] = useState<boolean | null>(null);
 
   const login = useCallback(async (username: string, password: string) => {
     try {
@@ -67,8 +69,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Check if backend requires authentication on mount
+  useEffect(() => {
+    const checkAuthRequired = async () => {
+      try {
+        const response = await fetch("/api/v1/health");
+        const data = await response.json();
+        const authEnabled = data.data?.auth_enabled ?? false;
+
+        setAuthRequired(authEnabled);
+
+        // If auth is not required, auto-authenticate
+        if (!authEnabled) {
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.error("Failed to check auth status:", error);
+        // On error, assume auth is not required (fail open for better UX)
+        setAuthRequired(false);
+        setIsAuthenticated(true);
+      }
+    };
+
+    checkAuthRequired();
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ isAuthenticated, authRequired, login, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

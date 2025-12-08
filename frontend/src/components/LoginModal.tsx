@@ -7,7 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import "./LoginModal.css";
 
 export function LoginModal() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, authRequired, login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,8 +27,14 @@ export function LoginModal() {
     }
   };
 
-  if (isAuthenticated) {
+  // Don't show modal if authenticated or if auth is not required
+  if (isAuthenticated || authRequired === false) {
     return null;
+  }
+
+  // Show loading state while checking auth status
+  if (authRequired === null) {
+    return null; // Or could show a loading spinner
   }
 
   return (
