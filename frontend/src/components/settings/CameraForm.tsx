@@ -5,10 +5,12 @@
 import { useState, useEffect } from "react";
 import { FormField } from "../FormField";
 import { Button } from "../Button";
+import { apiClient } from "../../api/client";
 import type { components } from "../../types/api";
 import "./CameraForm.css";
 
 type CameraResponse = components["schemas"]["CameraResponse"];
+type DiscoveredCameraResponse = components["schemas"]["DiscoveredCameraResponse"];
 
 interface CameraFormProps {
   camera?: CameraResponse | null;
@@ -49,6 +51,37 @@ export function CameraForm({
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof CameraFormData, string>>>({});
+  const [discoveredCameras, setDiscoveredCameras] = useState<DiscoveredCameraResponse[]>([]);
+  const [discoveringCameras, setDiscoveringCameras] = useState(false);
+
+  // Discover available cameras on mount (only when adding new camera)
+  useEffect(() => {
+    if (!camera) {
+      const discoverCameras = async () => {
+        setDiscoveringCameras(true);
+        try {
+          const { data, error } = await apiClient.POST("/api/v1/cameras/discover");
+          if (data && !error) {
+            setDiscoveredCameras(data);
+            // Auto-select first camera if available
+            if (data.length > 0 && !formData.device_path) {
+              setFormData((prev) => ({
+                ...prev,
+                device_path: data[0].device_path,
+                camera_type: data[0].camera_type as "csi" | "usb",
+                name: prev.name || data[0].name,
+              }));
+            }
+          }
+        } catch (err) {
+          console.error("Failed to discover cameras:", err);
+        } finally {
+          setDiscoveringCameras(false);
+        }
+      };
+      discoverCameras();
+    }
+  }, [camera]);
 
   // Update form when camera prop changes (for edit mode)
   // eslint-disable-next-line react-compiler/react-compiler
@@ -129,20 +162,52 @@ export function CameraForm({
       </FormField>
 
       <FormField
+        element="select"
         label="Device Path"
-        type="text"
         value={formData.device_path}
         onChange={(e) => handleChange("device_path", e.target.value)}
         error={errors.device_path}
-        placeholder={formData.camera_type === "usb" ? "/dev/video0" : "/dev/video0"}
         helperText={
-          formData.camera_type === "usb"
-            ? "USB cameras typically use /dev/videoN"
-            : "CSI camera path"
+          discoveringCameras
+            ? "Discovering cameras..."
+            : discoveredCameras.length > 0
+            ? "Select a detected camera or choose Custom to enter manually"
+            : "No cameras detected - enter path manually"
         }
         required
-        disabled={loading || Boolean(camera)} // Disable path change when editing
-      />
+        disabled={loading || Boolean(camera) || discoveringCameras}
+      >
+        {discoveredCameras.length === 0 && !discoveringCameras && (
+          <option value="">-- No cameras detected --</option>
+        )}
+        {discoveringCameras && (
+          <option value="">-- Discovering cameras... --</option>
+        )}
+        {discoveredCameras.map((cam) => (
+          <option key={cam.device_path} value={cam.device_path}>
+            {cam.name} ({cam.device_path}) - {cam.camera_type.toUpperCase()}
+          </option>
+        ))}
+        <option value="custom">Custom (enter manually)</option>
+      </FormField>
+
+      {formData.device_path === "custom" && (
+        <FormField
+          label="Custom Device Path"
+          type="text"
+          value=""
+          onChange={(e) => handleChange("device_path", e.target.value)}
+          error={errors.device_path}
+          placeholder={formData.camera_type === "usb" ? "/dev/video0" : "/dev/video0"}
+          helperText={
+            formData.camera_type === "usb"
+              ? "USB cameras typically use /dev/videoN"
+              : "CSI camera path"
+          }
+          required
+          disabled={loading}
+        />
+      )}
 
       <div className="form-field">
         <label className="checkbox-label">
