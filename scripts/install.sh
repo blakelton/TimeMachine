@@ -150,21 +150,29 @@ apt-get install -y \
   git \
   curl
 
-# Install Node.js and npm (for building frontend)
-if ! command -v node &> /dev/null; then
-  echo "📦 Installing Node.js LTS..."
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+# Install Node.js 22.x (required for Vite 6.x which needs Node.js 20.19+ or 22.12+)
+NODE_REQUIRED_MAJOR=22
+NODE_CURRENT_VERSION=$(node --version 2>/dev/null | sed 's/v//' || echo "0.0.0")
+NODE_CURRENT_MAJOR=$(echo "$NODE_CURRENT_VERSION" | cut -d. -f1)
+
+if [ "$NODE_CURRENT_MAJOR" -lt "$NODE_REQUIRED_MAJOR" ]; then
+  echo "📦 Installing Node.js ${NODE_REQUIRED_MAJOR}.x (current: v${NODE_CURRENT_VERSION})..."
+  # Remove old nodejs if present
+  apt-get remove -y nodejs npm 2>/dev/null || true
+  # Install Node.js 22.x from NodeSource
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
+  echo "  ✓ Node.js installed: $(node --version)"
 else
-  echo "✓ Node.js already installed ($(node --version))"
+  echo "✓ Node.js already meets requirements ($(node --version))"
 fi
 
-# Ensure npm is installed (sometimes missing even with nodejs)
+# Verify npm is available (comes with nodejs from NodeSource)
 if ! command -v npm &> /dev/null; then
-  echo "📦 Installing npm..."
-  apt-get install -y npm
+  echo "❌ Error: npm not found after Node.js installation"
+  exit 1
 else
-  echo "✓ npm already installed ($(npm --version))"
+  echo "✓ npm available ($(npm --version))"
 fi
 
 # ============================================================================
