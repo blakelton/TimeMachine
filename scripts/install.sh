@@ -194,17 +194,101 @@ safe_mkdir /var/log/timemachine "timemachine:timemachine"
 safe_mkdir /etc/timemachine "root:timemachine"
 
 # ============================================================================
+# BACKEND DEPLOYMENT (needs to be before frontend build for type generation)
+# ============================================================================
+
+echo "📋 Deploying backend files..."
+
+# Backup existing backend on upgrade
+if [ "$INSTALL_TYPE" = "upgrade" ] && [ -d /opt/timemachine/backend ]; then
+  backup_dir="/opt/timemachine/backup/backend.$(date +%Y%m%d_%H%M%S)"
+  echo "  📦 Backing up existing backend..."
+  mkdir -p "$backup_dir"
+  cp -r /opt/timemachine/backend "$backup_dir/"
+fi
+
+# Deploy backend code
+cp -r "$PROJECT_ROOT/backend" /opt/timemachine/backend.new
+chown -R timemachine:timemachine /opt/timemachine/backend.new
+rm -rf /opt/timemachine/backend.old
+[ -d /opt/timemachine/backend ] && mv /opt/timemachine/backend /opt/timemachine/backend.old
+mv /opt/timemachine/backend.new /opt/timemachine/backend
+rm -rf /opt/timemachine/backend.old
+
+echo "🐍 Setting up Python environment..."
+
+if [ "$INSTALL_TYPE" = "upgrade" ] && [ -d /opt/timemachine/venv ]; then
+  echo "  ♻️  Recreating virtual environment for clean upgrade..."
+  rm -rf /opt/timemachine/venv
+fi
+
+python3 -m venv /opt/timemachine/venv --system-site-packages
+/opt/timemachine/venv/bin/pip install --upgrade pip
+/opt/timemachine/venv/bin/pip install -r /opt/timemachine/backend/requirements.txt
+
+# ============================================================================
+# FRONTEND TYPE GENERATION
+# ============================================================================
+
+echo "📝 Generating frontend TypeScript types from backend OpenAPI schema..."
+
+# Temporarily start backend to generate OpenAPI schema
+cd /opt/timemachine/backend
+TEMP_PID_FILE="/tmp/timemachine_temp_backend.pid"
+
+# Start backend in background
+sudo -u timemachine /opt/timemachine/venv/bin/uvicorn app.main:app \
+  --host 127.0.0.1 --port 8765 &
+TEMP_BACKEND_PID=$!
+echo $TEMP_BACKEND_PID > "$TEMP_PID_FILE"
+
+echo "  ⏳ Waiting for backend to start..."
+sleep 5
+
+# Check if backend is running
+if ! curl -s http://127.0.0.1:8765/api/v1/health > /dev/null 2>&1; then
+  echo "  ⚠️  Backend failed to start, trying longer wait..."
+  sleep 5
+fi
+
+if curl -s http://127.0.0.1:8765/api/v1/health > /dev/null 2>&1; then
+  echo "  ✓ Backend started on port 8765"
+
+  # Generate types
+  cd "$PROJECT_ROOT/frontend"
+  if [ ! -d "node_modules" ]; then
+    echo "  Installing frontend dependencies..."
+    npm install
+  fi
+
+  echo "  Generating TypeScript types..."
+  npx openapi-typescript http://127.0.0.1:8765/api/openapi.json -o src/types/api.ts
+
+  if [ -f "src/types/api.ts" ]; then
+    echo "  ✓ TypeScript types generated successfully"
+  else
+    echo "  ⚠️  Warning: Type generation may have failed"
+  fi
+else
+  echo "  ⚠️  Warning: Could not start backend temporarily for type generation"
+  echo "  ⚠️  You may need to run 'npm run generate-types' manually after installation"
+fi
+
+# Stop temporary backend
+if [ -f "$TEMP_PID_FILE" ]; then
+  TEMP_BACKEND_PID=$(cat "$TEMP_PID_FILE")
+  kill $TEMP_BACKEND_PID 2>/dev/null || true
+  rm -f "$TEMP_PID_FILE"
+  echo "  ⏸️  Stopped temporary backend"
+fi
+
+# ============================================================================
 # FRONTEND BUILD
 # ============================================================================
 
 echo "🔨 Building frontend..."
 if [ -d "$PROJECT_ROOT/frontend" ]; then
   cd "$PROJECT_ROOT/frontend"
-
-  if [ ! -d "node_modules" ]; then
-    echo "  Installing frontend dependencies..."
-    npm install
-  fi
 
   echo "  Building production bundle..."
   npm run build
@@ -221,29 +305,10 @@ else
 fi
 
 # ============================================================================
-# CODE DEPLOYMENT (with backup for upgrades)
+# FRONTEND STATIC FILES DEPLOYMENT
 # ============================================================================
 
-echo "📋 Deploying application files..."
-
-# Backup existing backend on upgrade
-if [ "$INSTALL_TYPE" = "upgrade" ] && [ -d /opt/timemachine/backend ]; then
-  backup_dir="/opt/timemachine/backup/backend.$(date +%Y%m%d_%H%M%S)"
-  echo "  📦 Backing up existing backend..."
-  mkdir -p "$backup_dir"
-  cp -r /opt/timemachine/backend "$backup_dir/"
-fi
-
-# Deploy backend (atomic operation)
-echo "  📂 Deploying backend..."
-rm -rf /opt/timemachine/backend.new
-cp -r "$PROJECT_ROOT/backend" /opt/timemachine/backend.new
-if [ -d /opt/timemachine/backend ]; then
-  rm -rf /opt/timemachine/backend.old
-  mv /opt/timemachine/backend /opt/timemachine/backend.old
-fi
-mv /opt/timemachine/backend.new /opt/timemachine/backend
-rm -rf /opt/timemachine/backend.old
+echo "📂 Deploying frontend static files..."
 
 # Backup existing static files on upgrade
 if [ "$INSTALL_TYPE" = "upgrade" ] && [ -d /opt/timemachine/static ]; then
@@ -254,7 +319,6 @@ if [ "$INSTALL_TYPE" = "upgrade" ] && [ -d /opt/timemachine/static ]; then
 fi
 
 # Deploy frontend (atomic operation)
-echo "  📂 Deploying frontend..."
 rm -rf /opt/timemachine/static.new
 cp -r "$PROJECT_ROOT/frontend/dist" /opt/timemachine/static.new
 if [ -d /opt/timemachine/static ]; then
@@ -263,21 +327,6 @@ if [ -d /opt/timemachine/static ]; then
 fi
 mv /opt/timemachine/static.new /opt/timemachine/static
 rm -rf /opt/timemachine/static.old
-
-# ============================================================================
-# PYTHON ENVIRONMENT
-# ============================================================================
-
-echo "🐍 Setting up Python environment..."
-
-if [ "$INSTALL_TYPE" = "upgrade" ] && [ -d /opt/timemachine/venv ]; then
-  echo "  ♻️  Recreating virtual environment for clean upgrade..."
-  rm -rf /opt/timemachine/venv
-fi
-
-python3 -m venv /opt/timemachine/venv --system-site-packages
-/opt/timemachine/venv/bin/pip install --upgrade pip
-/opt/timemachine/venv/bin/pip install -r /opt/timemachine/backend/requirements.txt
 
 # ============================================================================
 # DATABASE INITIALIZATION
