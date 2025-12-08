@@ -24,6 +24,12 @@ class OutputConfigBase(BaseModel):
     )
 
 
+class OutputConfigCreate(OutputConfigBase):
+    """Schema for creating output configuration."""
+
+    pass
+
+
 class OutputConfigUpdate(BaseModel):
     """Schema for updating output configuration (all fields optional)."""
 
@@ -40,3 +46,10 @@ class OutputConfigResponse(OutputConfigBase):
     id: int = Field(..., description="Configuration ID")
 
     model_config = {"from_attributes": True}
+
+
+class OutputConfigListResponse(BaseModel):
+    """Schema for output configuration list response."""
+
+    configs: list[OutputConfigResponse] = Field(default_factory=list)
+    total: int = Field(..., description="Total number of configurations")
