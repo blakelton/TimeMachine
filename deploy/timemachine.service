@@ -5,7 +5,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=notify
+Type=simple
 User=timemachine
 Group=timemachine
 WorkingDirectory=/opt/timemachine/backend
@@ -51,9 +51,6 @@ RestartSec=10
 KillMode=mixed
 KillSignal=SIGTERM
 TimeoutStopSec=30
-
-# Watchdog (sends SIGABRT if health check fails)
-WatchdogSec=60
 
 # Standard output to journald
 StandardOutput=journal
