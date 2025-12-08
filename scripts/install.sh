@@ -232,28 +232,47 @@ python3 -m venv /opt/timemachine/venv --system-site-packages
 
 echo "📝 Generating frontend TypeScript types from backend OpenAPI schema..."
 
+# Ensure database exists before starting backend
+DB_PATH="/var/lib/timemachine/timemachine.db"
+if [ ! -f "$DB_PATH" ]; then
+  echo "  📦 Initializing database for type generation..."
+  cd /opt/timemachine/backend
+  sudo -u timemachine /opt/timemachine/venv/bin/python -c "import asyncio; from app.db.session import init_db; asyncio.run(init_db())" 2>/dev/null || true
+fi
+
+# Ensure environment file exists
+if [ ! -f /etc/timemachine/timemachine.env ]; then
+  echo "  📝 Creating temporary environment configuration..."
+  cp "$PROJECT_ROOT/deploy/timemachine.env.example" /etc/timemachine/timemachine.env
+  chown root:timemachine /etc/timemachine/timemachine.env
+  chmod 640 /etc/timemachine/timemachine.env
+fi
+
 # Temporarily start backend to generate OpenAPI schema
 cd /opt/timemachine/backend
 TEMP_PID_FILE="/tmp/timemachine_temp_backend.pid"
+TEMP_LOG_FILE="/tmp/timemachine_temp_backend.log"
 
-# Start backend in background
-sudo -u timemachine /opt/timemachine/venv/bin/uvicorn app.main:app \
-  --host 127.0.0.1 --port 8765 &
+# Start backend in background with environment
+sudo -u timemachine bash -c "export $(grep -v '^#' /etc/timemachine/timemachine.env | xargs) && /opt/timemachine/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765" > "$TEMP_LOG_FILE" 2>&1 &
 TEMP_BACKEND_PID=$!
 echo $TEMP_BACKEND_PID > "$TEMP_PID_FILE"
 
 echo "  ⏳ Waiting for backend to start..."
-sleep 5
+sleep 3
 
-# Check if backend is running
-if ! curl -s http://127.0.0.1:8765/api/v1/health > /dev/null 2>&1; then
-  echo "  ⚠️  Backend failed to start, trying longer wait..."
-  sleep 5
-fi
+# Check if backend is running (try up to 10 times with 1 second intervals)
+BACKEND_STARTED=false
+for i in {1..10}; do
+  if curl -s http://127.0.0.1:8765/api/v1/health > /dev/null 2>&1; then
+    echo "  ✓ Backend started on port 8765"
+    BACKEND_STARTED=true
+    break
+  fi
+  sleep 1
+done
 
-if curl -s http://127.0.0.1:8765/api/v1/health > /dev/null 2>&1; then
-  echo "  ✓ Backend started on port 8765"
-
+if [ "$BACKEND_STARTED" = true ]; then
   # Generate types
   cd "$PROJECT_ROOT/frontend"
   if [ ! -d "node_modules" ]; then
@@ -271,6 +290,8 @@ if curl -s http://127.0.0.1:8765/api/v1/health > /dev/null 2>&1; then
   fi
 else
   echo "  ⚠️  Warning: Could not start backend temporarily for type generation"
+  echo "  ⚠️  Backend logs:"
+  [ -f "$TEMP_LOG_FILE" ] && tail -n 10 "$TEMP_LOG_FILE" | sed 's/^/  │ /'
   echo "  ⚠️  You may need to run 'npm run generate-types' manually after installation"
 fi
 
@@ -279,6 +300,7 @@ if [ -f "$TEMP_PID_FILE" ]; then
   TEMP_BACKEND_PID=$(cat "$TEMP_PID_FILE")
   kill $TEMP_BACKEND_PID 2>/dev/null || true
   rm -f "$TEMP_PID_FILE"
+  rm -f "$TEMP_LOG_FILE"
   echo "  ⏸️  Stopped temporary backend"
 fi
 
