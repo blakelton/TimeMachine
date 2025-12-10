@@ -200,18 +200,28 @@ class CameraDiscovery:
                         card_match.group(1).strip() if card_match else "Unknown USB Camera"
                     )
 
+                    # Extract bus info to distinguish physical cameras with same model
+                    # Bus info example: "usb-3f980000.usb-1.3.1" (unique per USB port)
+                    bus_match = re.search(
+                        r"Bus info\s*:\s*(.+?)(?:\n|$)", output, re.IGNORECASE
+                    )
+                    bus_info = bus_match.group(1).strip() if bus_match else ""
+
                     # Deduplicate: USB cameras often create multiple video nodes
-                    # Only add the first node for each unique camera name
-                    if card_name in seen_cameras:
+                    # Use bus_info to distinguish between physical cameras with same model
+                    # Only add the first video node per unique physical camera (bus_info)
+                    if bus_info and bus_info in seen_cameras:
                         logger.debug(
                             "usb_camera_duplicate_skipped",
                             device=device_str,
                             name=card_name,
-                            message="Skipping duplicate video node for same camera",
+                            bus_info=bus_info,
+                            message="Skipping duplicate video node for same physical camera",
                         )
                         continue
 
-                    seen_cameras.add(card_name)
+                    if bus_info:
+                        seen_cameras.add(bus_info)
 
                     # Get capabilities
                     capabilities = await CameraDiscovery._get_v4l2_capabilities(

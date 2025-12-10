@@ -240,12 +240,34 @@ async def discover_cameras(
         List of discovered cameras with capabilities, excluding already-configured ones
     """
     # Discover cameras based on type
-    if camera_type == "csi":
-        discovered = await CameraDiscovery.discover_csi_cameras()
-    elif camera_type == "usb":
-        discovered = await CameraDiscovery.discover_usb_cameras()
-    else:
-        discovered = await CameraDiscovery.discover_all()
+    logger.info(
+        "camera_discovery_starting",
+        camera_type=camera_type,
+        message="Starting camera discovery",
+    )
+
+    try:
+        if camera_type == "csi":
+            discovered = await CameraDiscovery.discover_csi_cameras()
+        elif camera_type == "usb":
+            discovered = await CameraDiscovery.discover_usb_cameras()
+        else:
+            discovered = await CameraDiscovery.discover_all()
+
+        logger.info(
+            "camera_discovery_raw_results",
+            camera_type=camera_type,
+            discovered_count=len(discovered),
+            cameras=[{"name": cam.name, "device": cam.device_path, "type": cam.camera_type} for cam in discovered],
+        )
+    except Exception as e:
+        logger.error(
+            "camera_discovery_failed",
+            camera_type=camera_type,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
 
     # Get existing camera device paths to filter them out
     repo = CameraRepository(session)
@@ -258,11 +280,12 @@ async def discover_cameras(
     ]
 
     logger.info(
-        "camera_discovery_requested",
+        "camera_discovery_completed",
         camera_type=camera_type,
         found=len(discovered),
         available=len(available_cameras),
         filtered=len(discovered) - len(available_cameras),
+        existing_paths=list(existing_paths),
     )
 
     return [
