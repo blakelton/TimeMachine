@@ -5,7 +5,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
-import { useToast } from "../../contexts/ToastContext";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
@@ -24,7 +23,6 @@ export function CamerasPanel() {
   const [deleteCamera, setDeleteCamera] = useState<CameraResponse | null>(null);
 
   const queryClient = useQueryClient();
-  const toast = useToast();
 
   // Fetch cameras
   const { data: camerasData, isLoading, error } = useQuery({
