@@ -26,7 +26,7 @@ class CameraDiscovery:
 
     @staticmethod
     async def discover_csi_cameras() -> list[CameraInfo]:
-        """Discover CSI cameras using libcamera.
+        """Discover CSI cameras using libcamera or v4l2 fallback.
 
         Returns:
             List of detected CSI cameras.
@@ -34,7 +34,7 @@ class CameraDiscovery:
         cameras = []
 
         try:
-            # Run libcamera-hello to list cameras
+            # Try libcamera-hello first
             proc = await asyncio.create_subprocess_exec(
                 "libcamera-hello",
                 "--list-cameras",
@@ -69,11 +69,71 @@ class CameraDiscovery:
                 )
 
         except FileNotFoundError:
-            logger.warning("libcamera_not_found", message="libcamera-hello not installed")
+            logger.info("libcamera_not_found", message="Trying v4l2 fallback for CSI detection")
+            # Fallback: detect CSI camera via v4l2 unicam driver
+            cameras = await CameraDiscovery._discover_csi_via_v4l2()
         except asyncio.TimeoutError:
             logger.warning("libcamera_timeout", message="libcamera-hello timed out")
         except Exception as e:
             logger.error("csi_discovery_error", error=str(e))
+
+        return cameras
+
+    @staticmethod
+    async def _discover_csi_via_v4l2() -> list[CameraInfo]:
+        """Fallback method to discover CSI cameras via v4l2 unicam driver.
+
+        Returns:
+            List of detected CSI cameras.
+        """
+        cameras = []
+        video_devices = list(Path("/dev").glob("video*"))
+
+        for device_path in video_devices:
+            device_str = str(device_path)
+            device_num = int(re.search(r"\d+", device_str).group())
+
+            # Only check devices 0-9
+            if device_num >= 10:
+                continue
+
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "v4l2-ctl",
+                    "--device",
+                    device_str,
+                    "--info",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+                output = stdout.decode() if stdout else ""
+
+                # Check for unicam driver (CSI camera)
+                driver_match = re.search(r"Driver name\s*:\s*(.+)", output, re.IGNORECASE)
+                driver_name = driver_match.group(1).strip() if driver_match else ""
+
+                if driver_name == "unicam":
+                    # Extract card type for sensor name
+                    card_match = re.search(r"Card type\s*:\s*(.+)", output, re.IGNORECASE)
+                    card_name = card_match.group(1).strip() if card_match else "CSI Camera"
+
+                    camera = CameraInfo(
+                        device_path=device_str,
+                        camera_type="csi",
+                        name=f"CSI {card_name.upper()} - {device_str}",
+                        capabilities={"driver": driver_name},
+                    )
+                    cameras.append(camera)
+                    logger.info(
+                        "csi_camera_discovered_v4l2",
+                        device=device_str,
+                        driver=driver_name,
+                    )
+
+            except Exception as e:
+                logger.debug("csi_v4l2_check_failed", device=device_str, error=str(e))
 
         return cameras
 
@@ -93,7 +153,7 @@ class CameraDiscovery:
             for device_path in video_devices:
                 device_str = str(device_path)
 
-                # Skip devices that are part of CSI camera (usually video10+)
+                # Skip devices >= 10 (codec/ISP devices)
                 device_num = int(re.search(r"\d+", device_str).group())
                 if device_num >= 10:
                     continue
@@ -114,8 +174,21 @@ class CameraDiscovery:
                     )
                     output = stdout.decode() if stdout else ""
 
+                    # Extract driver name to identify camera type
+                    driver_match = re.search(
+                        r"Driver name\s*:\s*(.+)", output, re.IGNORECASE
+                    )
+                    driver_name = driver_match.group(1).strip() if driver_match else ""
+
+                    # Skip non-USB cameras (unicam is CSI, bcm2835 is codec/ISP)
+                    if driver_name in ["unicam", "bcm2835-codec", "bcm2835-isp"]:
+                        continue
+
+                    # Only process uvcvideo (USB cameras)
+                    if driver_name != "uvcvideo":
+                        continue
+
                     # Extract camera name from output
-                    # Example: "Card type      : HD Pro Webcam C920"
                     card_match = re.search(
                         r"Card type\s*:\s*(.+)", output, re.IGNORECASE
                     )
