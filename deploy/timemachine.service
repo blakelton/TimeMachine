@@ -8,6 +8,8 @@ Wants=network-online.target
 Type=simple
 User=timemachine
 Group=timemachine
+# Explicitly add video group for camera access (required for v4l2 devices)
+SupplementaryGroups=video
 WorkingDirectory=/opt/timemachine/backend
 
 # Environment
@@ -32,7 +34,9 @@ RestrictRealtime=true
 RestrictNamespaces=true
 
 # Device Access (for cameras)
-DevicePolicy=closed
+# DevicePolicy=auto allows access based on group membership (video group)
+# This is more permissive but necessary for v4l2-ctl subprocess calls
+DevicePolicy=auto
 DeviceAllow=/dev/video* rw
 DeviceAllow=/dev/vchiq rw
 DeviceAllow=/dev/vcsm-cma rw
