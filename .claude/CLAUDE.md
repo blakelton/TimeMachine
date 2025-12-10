@@ -14,6 +14,46 @@ TimeMachine is a temperature-controlled observation chamber management system fo
 
 ---
 
+## Development Environment (CRITICAL)
+
+**⚠️ NEVER RUN SYSTEM DIAGNOSTIC COMMANDS ON THE DEVELOPMENT MACHINE ⚠️**
+
+This project is developed on a **development workstation** but deployed to a **Raspberry Pi 3** target device.
+
+### Development Rules:
+
+1. **NO System Commands on Development Machine**:
+   - NEVER run `sudo` commands on the development machine
+   - NEVER run diagnostic commands like `v4l2-ctl`, `libcamera-hello`, etc. on dev machine
+   - NEVER test hardware-specific features on dev machine
+
+2. **Create Diagnostic Scripts Instead**:
+   - When Pi-specific diagnostics are needed, create a script in `/scripts/` directory
+   - User will deploy the script to Pi, run it, and provide results
+   - Examples: `scripts/test-camera-discovery.sh`, `scripts/diagnose-camera-discovery.sh`
+
+3. **Safe Commands on Development Machine**:
+   - Git operations (status, add, commit, push, pull, etc.)
+   - Code editing and file operations
+   - Node/npm/python package management for development
+   - Reading files and searching codebase
+
+4. **Deployment Process**:
+   - Code changes: Edit locally, commit to git
+   - User runs `ssh timemachine.local ./projects/TimeMachine/scripts/install.sh` to deploy
+   - Diagnostics: Create script → user deploys → user runs → user provides output
+
+### Target Device Specifications:
+
+- **Platform**: Raspberry Pi 3+
+- **OS**: Debian-based Linux
+- **Hardware**: CSI camera port, USB ports for cameras
+- **Video Devices**: `/dev/video0-9` (cameras), `/dev/video10+` (codecs/ISP)
+- **Service User**: `timemachine` (runs backend service)
+- **Required Groups**: `video` group for camera access
+
+---
+
 ## Git Branching Strategy
 
 ### Branch Structure
