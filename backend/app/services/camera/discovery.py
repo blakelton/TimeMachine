@@ -152,13 +152,22 @@ class CameraDiscovery:
             # List all video devices
             video_devices = list(Path("/dev").glob("video*"))
 
+            logger.info(
+                "usb_discovery_scan_starting",
+                total_devices=len(video_devices),
+                devices=[str(d) for d in video_devices],
+            )
+
             for device_path in video_devices:
                 device_str = str(device_path)
 
                 # Skip devices >= 10 (codec/ISP devices)
                 device_num = int(re.search(r"\d+", device_str).group())
                 if device_num >= 10:
+                    logger.debug("usb_device_skipped_high_number", device=device_str, device_num=device_num)
                     continue
+
+                logger.debug("usb_device_checking", device=device_str, device_num=device_num)
 
                 # Use v4l2-ctl to get camera info
                 try:
@@ -176,6 +185,15 @@ class CameraDiscovery:
                     )
                     output = stdout.decode() if stdout else ""
 
+                    if not output:
+                        logger.warning(
+                            "usb_device_no_output",
+                            device=device_str,
+                            stderr=stderr.decode() if stderr else "",
+                            returncode=proc.returncode,
+                        )
+                        continue
+
                     # Extract driver name to identify camera type
                     # Note: Use non-greedy match and stop at newline to avoid capturing extra whitespace
                     driver_match = re.search(
@@ -185,10 +203,12 @@ class CameraDiscovery:
 
                     # Skip non-USB cameras (unicam is CSI, bcm2835 is codec/ISP)
                     if driver_name in ["unicam", "bcm2835-codec", "bcm2835-isp"]:
+                        logger.debug("usb_device_skipped_non_usb", device=device_str, driver=driver_name)
                         continue
 
                     # Only process uvcvideo (USB cameras)
                     if driver_name != "uvcvideo":
+                        logger.debug("usb_device_skipped_not_uvcvideo", device=device_str, driver=driver_name)
                         continue
 
                     # Extract camera name from output
@@ -241,18 +261,22 @@ class CameraDiscovery:
                     )
 
                 except FileNotFoundError:
-                    logger.warning("v4l2_not_found", message="v4l2-ctl not installed")
+                    logger.error("v4l2_not_found", message="v4l2-ctl command not found")
                     break
                 except asyncio.TimeoutError:
-                    logger.warning("v4l2_timeout", device=device_str)
+                    logger.warning("v4l2_timeout", device=device_str, message="v4l2-ctl timed out after 3 seconds")
                 except Exception as e:
-                    logger.debug(
-                        "usb_device_check_failed", device=device_str, error=str(e)
+                    logger.warning(
+                        "usb_device_check_failed",
+                        device=device_str,
+                        error=str(e),
+                        error_type=type(e).__name__,
                     )
 
         except Exception as e:
-            logger.error("usb_discovery_error", error=str(e))
+            logger.error("usb_discovery_error", error=str(e), error_type=type(e).__name__)
 
+        logger.info("usb_discovery_complete", cameras_found=len(cameras))
         return cameras
 
     @staticmethod
