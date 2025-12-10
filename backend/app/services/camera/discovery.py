@@ -111,12 +111,13 @@ class CameraDiscovery:
                 output = stdout.decode() if stdout else ""
 
                 # Check for unicam driver (CSI camera)
-                driver_match = re.search(r"Driver name\s*:\s*(.+)", output, re.IGNORECASE)
+                # Note: Use non-greedy match and stop at newline
+                driver_match = re.search(r"Driver name\s*:\s*(.+?)(?:\n|$)", output, re.IGNORECASE)
                 driver_name = driver_match.group(1).strip() if driver_match else ""
 
                 if driver_name == "unicam":
                     # Extract card type for sensor name
-                    card_match = re.search(r"Card type\s*:\s*(.+)", output, re.IGNORECASE)
+                    card_match = re.search(r"Card type\s*:\s*(.+?)(?:\n|$)", output, re.IGNORECASE)
                     card_name = card_match.group(1).strip() if card_match else "CSI Camera"
 
                     camera = CameraInfo(
@@ -142,9 +143,10 @@ class CameraDiscovery:
         """Discover USB cameras using V4L2.
 
         Returns:
-            List of detected USB cameras.
+            List of detected USB cameras (deduplicated by card name).
         """
         cameras = []
+        seen_cameras = set()  # Track camera names to deduplicate multiple video nodes
 
         try:
             # List all video devices
@@ -175,8 +177,9 @@ class CameraDiscovery:
                     output = stdout.decode() if stdout else ""
 
                     # Extract driver name to identify camera type
+                    # Note: Use non-greedy match and stop at newline to avoid capturing extra whitespace
                     driver_match = re.search(
-                        r"Driver name\s*:\s*(.+)", output, re.IGNORECASE
+                        r"Driver name\s*:\s*(.+?)(?:\n|$)", output, re.IGNORECASE
                     )
                     driver_name = driver_match.group(1).strip() if driver_match else ""
 
@@ -189,12 +192,26 @@ class CameraDiscovery:
                         continue
 
                     # Extract camera name from output
+                    # Note: Use non-greedy match and stop at newline
                     card_match = re.search(
-                        r"Card type\s*:\s*(.+)", output, re.IGNORECASE
+                        r"Card type\s*:\s*(.+?)(?:\n|$)", output, re.IGNORECASE
                     )
                     card_name = (
                         card_match.group(1).strip() if card_match else "Unknown USB Camera"
                     )
+
+                    # Deduplicate: USB cameras often create multiple video nodes
+                    # Only add the first node for each unique camera name
+                    if card_name in seen_cameras:
+                        logger.debug(
+                            "usb_camera_duplicate_skipped",
+                            device=device_str,
+                            name=card_name,
+                            message="Skipping duplicate video node for same camera",
+                        )
+                        continue
+
+                    seen_cameras.add(card_name)
 
                     # Get capabilities
                     capabilities = await CameraDiscovery._get_v4l2_capabilities(
