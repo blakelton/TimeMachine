@@ -34,12 +34,13 @@ RestrictRealtime=true
 RestrictNamespaces=true
 
 # Device Access (for cameras)
-# DevicePolicy=auto allows access based on group membership (video group)
-# This is more permissive but necessary for v4l2-ctl subprocess calls
-DevicePolicy=auto
-DeviceAllow=/dev/video* rw
-DeviceAllow=/dev/vchiq rw
-DeviceAllow=/dev/vcsm-cma rw
+# NOTE: DevicePolicy must be disabled for v4l2-ctl subprocess calls to work
+# The timemachine user is in the video group which provides access via standard Unix permissions
+# Systemd device sandboxing (even DevicePolicy=auto) blocks subprocess device access
+# DevicePolicy=auto
+# DeviceAllow=/dev/video* rw
+# DeviceAllow=/dev/vchiq rw
+# DeviceAllow=/dev/vcsm-cma rw
 
 # Execution
 ExecStart=/opt/timemachine/venv/bin/uvicorn app.main:app \
