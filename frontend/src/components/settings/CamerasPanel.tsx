@@ -22,7 +22,6 @@ export function CamerasPanel() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editCamera, setEditCamera] = useState<CameraResponse | null>(null);
   const [deleteCamera, setDeleteCamera] = useState<CameraResponse | null>(null);
-  const [isDiscovering, setIsDiscovering] = useState(false);
 
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -134,17 +133,6 @@ export function CamerasPanel() {
     }
   );
 
-  // Camera discovery (placeholder - would need backend endpoint)
-  const handleDiscover = async () => {
-    setIsDiscovering(true);
-    try {
-      // Simulated discovery - in real implementation, call POST /api/v1/cameras/discover
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast.info("Camera discovery feature coming soon");
-    } finally {
-      setIsDiscovering(false);
-    }
-  };
 
   const handleAddCamera = async (data: CameraFormData) => {
     await createMutation.mutateAsync(data);
@@ -174,13 +162,6 @@ export function CamerasPanel() {
           </p>
         </div>
         <div className="panel-actions">
-          <Button
-            variant="outline"
-            onClick={handleDiscover}
-            loading={isDiscovering}
-          >
-            Discover Cameras
-          </Button>
           <Button variant="primary" onClick={() => setAddModalOpen(true)}>
             Add Camera
           </Button>

@@ -5,7 +5,6 @@
 import { useState, useEffect } from "react";
 import { FormField } from "../FormField";
 import { Button } from "../Button";
-import { apiClient } from "../../api/client";
 import type { components } from "../../types/api";
 import "./CameraForm.css";
 
@@ -61,14 +60,12 @@ export function CameraForm({
         setDiscoveringCameras(true);
         setDiscoveredCameras([]); // Clear previous results
         try {
-          const { data, error } = await apiClient.POST("/api/v1/cameras/discover", {
-            params: {
-              query: {
-                camera_type: formData.camera_type,
-              },
-            },
-          });
-          if (data && !error) {
+          // Call discovery endpoint with camera_type as query parameter
+          const url = `/api/v1/cameras/discover?camera_type=${formData.camera_type}`;
+          const response = await fetch(url, { method: "POST" });
+
+          if (response.ok) {
+            const data = await response.json();
             setDiscoveredCameras(data);
             // Auto-select first camera if available and device path is empty or "custom"
             if (data.length > 0 && (!formData.device_path || formData.device_path === "custom")) {
@@ -78,6 +75,8 @@ export function CameraForm({
                 name: prev.name || data[0].name,
               }));
             }
+          } else {
+            console.error("Camera discovery failed:", response.status, response.statusText);
           }
         } catch (err) {
           console.error("Failed to discover cameras:", err);
