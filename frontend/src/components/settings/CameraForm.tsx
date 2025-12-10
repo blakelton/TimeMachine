@@ -54,21 +54,27 @@ export function CameraForm({
   const [discoveredCameras, setDiscoveredCameras] = useState<DiscoveredCameraResponse[]>([]);
   const [discoveringCameras, setDiscoveringCameras] = useState(false);
 
-  // Discover available cameras on mount (only when adding new camera)
+  // Discover available cameras when camera type changes (only when adding new camera)
   useEffect(() => {
-    if (!camera) {
+    if (!camera && formData.camera_type) {
       const discoverCameras = async () => {
         setDiscoveringCameras(true);
+        setDiscoveredCameras([]); // Clear previous results
         try {
-          const { data, error } = await apiClient.POST("/api/v1/cameras/discover");
+          const { data, error } = await apiClient.POST("/api/v1/cameras/discover", {
+            params: {
+              query: {
+                camera_type: formData.camera_type,
+              },
+            },
+          });
           if (data && !error) {
             setDiscoveredCameras(data);
-            // Auto-select first camera if available
-            if (data.length > 0 && !formData.device_path) {
+            // Auto-select first camera if available and device path is empty or "custom"
+            if (data.length > 0 && (!formData.device_path || formData.device_path === "custom")) {
               setFormData((prev) => ({
                 ...prev,
                 device_path: data[0].device_path,
-                camera_type: data[0].camera_type as "csi" | "usb",
                 name: prev.name || data[0].name,
               }));
             }
@@ -81,7 +87,8 @@ export function CameraForm({
       };
       discoverCameras();
     }
-  }, [camera]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera, formData.camera_type]); // Only trigger on camera_type change, not on device_path or name changes
 
   // Update form when camera prop changes (for edit mode)
   // eslint-disable-next-line react-compiler/react-compiler
@@ -196,13 +203,19 @@ export function CameraForm({
           label="Custom Device Path"
           type="text"
           value=""
-          onChange={(e) => handleChange("device_path", e.target.value)}
+          onChange={(e) => {
+            const newPath = e.target.value;
+            setFormData((prev) => ({ ...prev, device_path: newPath || "custom" }));
+            if (errors.device_path) {
+              setErrors((prev) => ({ ...prev, device_path: undefined }));
+            }
+          }}
           error={errors.device_path}
-          placeholder={formData.camera_type === "usb" ? "/dev/video0" : "/dev/video0"}
+          placeholder={formData.camera_type === "usb" ? "/dev/video0" : "/dev/video10"}
           helperText={
             formData.camera_type === "usb"
               ? "USB cameras typically use /dev/videoN"
-              : "CSI camera path"
+              : "CSI cameras typically use /dev/video10 or higher"
           }
           required
           disabled={loading}

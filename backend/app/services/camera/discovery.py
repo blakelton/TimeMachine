@@ -52,11 +52,13 @@ class CameraDiscovery:
             for match in camera_pattern.finditer(output):
                 camera_id = match.group(1)
                 sensor_name = match.group(2)
+                device_path = f"/dev/video{camera_id}"
 
+                # Make name specific: include sensor model and device path
                 camera = CameraInfo(
-                    device_path=f"/dev/video{camera_id}",
+                    device_path=device_path,
                     camera_type="csi",
-                    name=f"CSI Camera ({sensor_name})",
+                    name=f"CSI {sensor_name.upper()} - {device_path}",
                     capabilities={"sensor": sensor_name},
                 )
                 cameras.append(camera)
@@ -118,7 +120,7 @@ class CameraDiscovery:
                         r"Card type\s*:\s*(.+)", output, re.IGNORECASE
                     )
                     card_name = (
-                        card_match.group(1).strip() if card_match else "USB Camera"
+                        card_match.group(1).strip() if card_match else "Unknown USB Camera"
                     )
 
                     # Get capabilities
@@ -126,10 +128,11 @@ class CameraDiscovery:
                         device_str
                     )
 
+                    # Make name specific: include model and device path
                     camera = CameraInfo(
                         device_path=device_str,
                         camera_type="usb",
-                        name=f"USB: {card_name}",
+                        name=f"USB {card_name} - {device_str}",
                         capabilities=capabilities,
                     )
                     cameras.append(camera)

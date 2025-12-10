@@ -226,24 +226,53 @@ async def delete_camera(
 
 
 @router.post("/discover", response_model=list[DiscoveredCameraResponse])
-async def discover_cameras() -> list[DiscoveredCameraResponse]:
-    """Discover all available cameras (CSI and USB).
+async def discover_cameras(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    camera_type: str | None = None,
+) -> list[DiscoveredCameraResponse]:
+    """Discover available cameras (CSI and USB), excluding already-configured ones.
+
+    Args:
+        camera_type: Optional filter by camera type ('csi' or 'usb')
+        session: Database session to check for existing cameras
 
     Returns:
-        List of discovered cameras with capabilities
+        List of discovered cameras with capabilities, excluding already-configured ones
     """
-    discovered = await CameraDiscovery.discover_all()
+    # Discover cameras based on type
+    if camera_type == "csi":
+        discovered = await CameraDiscovery.discover_csi_cameras()
+    elif camera_type == "usb":
+        discovered = await CameraDiscovery.discover_usb_cameras()
+    else:
+        discovered = await CameraDiscovery.discover_all()
 
-    logger.info("camera_discovery_requested", found=len(discovered))
+    # Get existing camera device paths to filter them out
+    repo = CameraRepository(session)
+    existing_cameras = await repo.get_all()
+    existing_paths = {cam.device_path for cam in existing_cameras}
+
+    # Filter out already-configured cameras
+    available_cameras = [
+        cam for cam in discovered if cam.device_path not in existing_paths
+    ]
+
+    logger.info(
+        "camera_discovery_requested",
+        camera_type=camera_type,
+        found=len(discovered),
+        available=len(available_cameras),
+        filtered=len(discovered) - len(available_cameras),
+    )
 
     return [
         DiscoveredCameraResponse(
             name=cam.name,
             device_path=cam.device_path,
             camera_type=cam.camera_type,
-            capabilities=cam.capabilities.__dict__ if cam.capabilities else None,
+            capabilities=cam.capabilities if cam.capabilities else None,
         )
-        for cam in discovered
+        for cam in available_cameras
     ]
 
 
