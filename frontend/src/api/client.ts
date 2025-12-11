@@ -5,8 +5,11 @@
 import createClient from "openapi-fetch";
 import type { paths } from "../types/api";
 
-// Base URL for the API - can be overridden with environment variable
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Base URL for the API
+// In production, use empty string to make requests relative to the current origin
+// (nginx will proxy /api/* to the backend)
+// In development, VITE_API_URL can be set to http://localhost:8000
+const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 /**
  * Typed API client
