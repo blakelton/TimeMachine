@@ -177,12 +177,13 @@ class PreviewService:
             GStreamer pipeline command
         """
         # USB camera using v4l2src
-        # Try MJPEG first, fallback to YUV with jpegenc
+        # Most USB cameras support YUYV - convert to JPEG for streaming
+        # Use lower resolution (640x480) for better performance on Pi
         return (
             f"gst-launch-1.0 -v "
             f"v4l2src device={device_path} ! "
-            f"image/jpeg,width=1280,height=720,framerate=15/1 ! "
-            f"jpegdec ! "
+            f"video/x-raw,format=YUY2,width=640,height=480,framerate=15/1 ! "
+            f"videoconvert ! "
             f"jpegenc quality=50 ! "
             f"multipartmux boundary=--frame ! "
             f"tcpserversink host=0.0.0.0 port={port}"

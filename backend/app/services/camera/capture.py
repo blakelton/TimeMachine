@@ -132,11 +132,12 @@ class CaptureService:
             Command string
         """
         # Use GStreamer for USB cameras
+        # Most USB cameras support YUYV - convert to JPEG for output
         return (
             f"gst-launch-1.0 -q "
             f"v4l2src device={device_path} num-buffers=1 ! "
-            f"image/jpeg,width=1920,height=1080 ! "
-            f"jpegdec ! "
+            f"video/x-raw,format=YUY2,width=1280,height=720 ! "
+            f"videoconvert ! "
             f"jpegenc quality=95 ! "
             f"filesink location={output_file}"
         )

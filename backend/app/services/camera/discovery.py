@@ -211,22 +211,16 @@ class CameraDiscovery:
                         logger.debug("usb_device_skipped_not_uvcvideo", device=device_str, driver=driver_name)
                         continue
 
-                    # Check if device supports VIDEO_CAPTURE capability
-                    # USB cameras create multiple video nodes - we only want capture devices
-                    # VIDEO_CAPTURE = 0x00000001, VIDEO_CAPTURE_MPLANE = 0x00001000
-                    caps_match = re.search(r"Capabilities\s*:\s*(0x[0-9a-fA-F]+)", output, re.IGNORECASE)
-                    if caps_match:
-                        caps = int(caps_match.group(1), 16)
-                        is_capture_device = bool(caps & 0x00000001) or bool(caps & 0x00001000)
-                        if not is_capture_device:
-                            logger.debug(
-                                "usb_device_skipped_no_capture_capability",
-                                device=device_str,
-                                capabilities=hex(caps),
-                                message="Device is metadata-only, not a capture device",
-                            )
-                            continue
-                        logger.debug("usb_device_has_capture_capability", device=device_str, capabilities=hex(caps))
+                    # Check if device has actual video capture formats
+                    # USB cameras create multiple video nodes - metadata nodes have no formats
+                    has_formats = await CameraDiscovery._device_has_capture_formats(device_str)
+                    if not has_formats:
+                        logger.debug(
+                            "usb_device_skipped_no_formats",
+                            device=device_str,
+                            message="Device has no capture formats (metadata-only node)",
+                        )
+                        continue
 
                     # Extract camera name from output
                     # Note: Use non-greedy match and stop at newline
@@ -295,6 +289,49 @@ class CameraDiscovery:
 
         logger.info("usb_discovery_complete", cameras_found=len(cameras))
         return cameras
+
+    @staticmethod
+    async def _device_has_capture_formats(device_path: str) -> bool:
+        """Check if a device has actual video capture formats.
+
+        USB cameras create multiple video nodes. The main capture node has formats
+        like YUYV, MJPG, etc. Metadata-only nodes have no formats listed.
+
+        Args:
+            device_path: Path to video device.
+
+        Returns:
+            True if device has capture formats, False otherwise.
+        """
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "v4l2-ctl",
+                "--device",
+                device_path,
+                "--list-formats",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+            output = stdout.decode() if stdout else ""
+
+            # Look for format entries like "[0]: 'YUYV'" or "[0]: 'MJPG'"
+            format_pattern = re.compile(r"\[\d+\]:\s*'[A-Z0-9]+'")
+            has_formats = bool(format_pattern.search(output))
+
+            logger.debug(
+                "device_format_check",
+                device=device_path,
+                has_formats=has_formats,
+                output_preview=output[:200] if output else "empty",
+            )
+
+            return has_formats
+
+        except Exception as e:
+            logger.debug("format_check_failed", device=device_path, error=str(e))
+            return False
 
     @staticmethod
     async def _get_v4l2_capabilities(device_path: str) -> dict:
