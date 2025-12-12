@@ -92,6 +92,26 @@ class ManagedPipeline:
 
             self.pid = self.process.pid
             self.started_at = datetime.utcnow()
+
+            # Wait briefly to detect immediate failures
+            # GStreamer pipelines often fail instantly if there's a problem
+            await asyncio.sleep(0.5)
+
+            # Check if process exited immediately (indicates failure)
+            if self.process.returncode is not None:
+                # Process already exited - read stderr for error details
+                _, stderr = await self.process.communicate()
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                logger.error(
+                    "pipeline_start_failed_immediate_exit",
+                    camera_id=self.config.camera_id,
+                    description=self.config.description,
+                    returncode=self.process.returncode,
+                    error=error_msg[:500],  # Truncate long errors
+                )
+                self.state = PipelineState.ERROR
+                return False
+
             self.state = PipelineState.RUNNING
 
             logger.info(

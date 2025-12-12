@@ -1,5 +1,7 @@
 """Camera preview service using GStreamer MJPEG streaming."""
 
+import asyncio
+import socket
 from typing import Dict, Optional
 
 from app.core.logging import get_logger
@@ -69,18 +71,57 @@ class PreviewService:
         pipeline = ManagedPipeline(config)
         success = await pipeline.start()
 
-        if success:
-            self._previews[camera_id] = pipeline
-            logger.info(
-                "preview_started",
+        if not success:
+            return False, "Failed to start preview pipeline - check camera device and GStreamer"
+
+        # Store pipeline reference
+        self._previews[camera_id] = pipeline
+
+        # Wait for TCP port to be ready (GStreamer needs time to initialize tcpserversink)
+        port_ready = await self._wait_for_port(port, timeout=3.0)
+        if not port_ready:
+            logger.warning(
+                "preview_port_not_ready",
                 camera_id=camera_id,
-                device=device_path,
                 port=port,
-                pid=pipeline.get_pid(),
+                message="TCP port not ready after timeout, stream may not be available yet",
             )
-            return True, f"Preview started on port {port}"
-        else:
-            return False, "Failed to start preview pipeline"
+            # Don't fail - the pipeline might still be starting
+
+        logger.info(
+            "preview_started",
+            camera_id=camera_id,
+            device=device_path,
+            port=port,
+            pid=pipeline.get_pid(),
+            port_ready=port_ready,
+        )
+        return True, f"Preview started on port {port}"
+
+    async def _wait_for_port(self, port: int, timeout: float = 3.0) -> bool:
+        """Wait for TCP port to be ready.
+
+        Args:
+            port: Port number to check
+            timeout: Maximum time to wait
+
+        Returns:
+            True if port is ready, False if timeout
+        """
+        start_time = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            try:
+                # Try to connect to the port
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(0.1)
+                result = sock.connect_ex(("127.0.0.1", port))
+                sock.close()
+                if result == 0:
+                    return True
+            except Exception:
+                pass
+            await asyncio.sleep(0.1)
+        return False
 
     async def stop_preview(self, camera_id: int) -> tuple[bool, str]:
         """Stop preview stream for a camera.
@@ -130,6 +171,19 @@ class PreviewService:
         # In production, track ports properly
         if camera_id in self._previews:
             return 8080 + camera_id
+        return None
+
+    def get_preview_pid(self, camera_id: int) -> Optional[int]:
+        """Get preview pipeline PID for a camera.
+
+        Args:
+            camera_id: Camera database ID
+
+        Returns:
+            PID or None
+        """
+        if camera_id in self._previews:
+            return self._previews[camera_id].get_pid()
         return None
 
     async def stop_all_previews(self) -> None:
