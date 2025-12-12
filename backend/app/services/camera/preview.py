@@ -232,11 +232,11 @@ class PreviewService:
         """
         # USB camera using v4l2src
         # Most USB cameras support YUYV - convert to JPEG for streaming
-        # Use lower resolution (640x480) for better performance on Pi
+        # Use 640x480 resolution, let camera choose native framerate
         return (
             f"gst-launch-1.0 -v "
             f"v4l2src device={device_path} ! "
-            f"video/x-raw,format=YUY2,width=640,height=480,framerate=15/1 ! "
+            f"video/x-raw,format=YUY2,width=640,height=480 ! "
             f"videoconvert ! "
             f"jpegenc quality=50 ! "
             f"multipartmux boundary=--frame ! "
