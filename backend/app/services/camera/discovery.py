@@ -211,6 +211,23 @@ class CameraDiscovery:
                         logger.debug("usb_device_skipped_not_uvcvideo", device=device_str, driver=driver_name)
                         continue
 
+                    # Check if device supports VIDEO_CAPTURE capability
+                    # USB cameras create multiple video nodes - we only want capture devices
+                    # VIDEO_CAPTURE = 0x00000001, VIDEO_CAPTURE_MPLANE = 0x00001000
+                    caps_match = re.search(r"Capabilities\s*:\s*(0x[0-9a-fA-F]+)", output, re.IGNORECASE)
+                    if caps_match:
+                        caps = int(caps_match.group(1), 16)
+                        is_capture_device = bool(caps & 0x00000001) or bool(caps & 0x00001000)
+                        if not is_capture_device:
+                            logger.debug(
+                                "usb_device_skipped_no_capture_capability",
+                                device=device_str,
+                                capabilities=hex(caps),
+                                message="Device is metadata-only, not a capture device",
+                            )
+                            continue
+                        logger.debug("usb_device_has_capture_capability", device=device_str, capabilities=hex(caps))
+
                     # Extract camera name from output
                     # Note: Use non-greedy match and stop at newline
                     card_match = re.search(
