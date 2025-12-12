@@ -47,9 +47,8 @@ export function CaptureTab({ cameraId }: CaptureTabProps) {
       }
 
       if (data) {
-        // Set the captured image URL
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-        const imageUrl = `${baseUrl}${(data as any).file_url}`;
+        // file_url is already an absolute path served by nginx (e.g., /media/stills/...)
+        const imageUrl = (data as any).file_url;
         setLastCaptureUrl(imageUrl);
         setLastCaptureTime(new Date((data as any).timestamp).toLocaleString());
         toast.success("Image captured successfully");

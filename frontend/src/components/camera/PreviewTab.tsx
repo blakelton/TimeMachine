@@ -55,8 +55,8 @@ export function PreviewTab({ cameraId }: PreviewTabProps) {
   };
 
   const getStreamUrl = () => {
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    return `${baseUrl}/api/v1/cameras/${cameraId}/preview/stream`;
+    // Use relative URL - nginx will proxy to backend in production
+    return `/api/v1/cameras/${cameraId}/preview/stream`;
   };
 
   const handleStartPreview = async () => {
