@@ -435,7 +435,10 @@ async def stream_preview(
     """Stream MJPEG preview from camera.
 
     This endpoint proxies the GStreamer TCP socket stream to HTTP,
-    allowing browsers to display the MJPEG stream directly.
+    converting the raw multipart stream to browser-compatible MJPEG.
+
+    GStreamer's multipartmux outputs raw boundaries without MIME headers.
+    Browsers expect proper multipart format with Content-Type headers.
 
     Args:
         camera_id: Camera ID
@@ -467,9 +470,12 @@ async def stream_preview(
         )
 
     async def stream_generator() -> AsyncGenerator[bytes, None]:
-        """Connect to GStreamer TCP socket and yield MJPEG data."""
+        """Connect to GStreamer TCP socket and yield browser-compatible MJPEG."""
         reader = None
         writer = None
+        boundary = b"--frame"
+        frame_count = 0
+
         try:
             # Connect to GStreamer TCP server
             reader, writer = await asyncio.wait_for(
@@ -482,12 +488,49 @@ async def stream_preview(
                 port=port,
             )
 
-            # Stream data from TCP socket to HTTP response
+            # Buffer for accumulating data
+            buffer = b""
+
             while True:
-                chunk = await reader.read(8192)
+                chunk = await reader.read(65536)
                 if not chunk:
                     break
-                yield chunk
+
+                buffer += chunk
+
+                # Process complete frames from buffer
+                while True:
+                    # Find JPEG start marker (FFD8)
+                    jpeg_start = buffer.find(b'\xff\xd8')
+                    if jpeg_start == -1:
+                        # No JPEG start found, clear buffer except last byte
+                        buffer = buffer[-1:] if buffer else b""
+                        break
+
+                    # Find JPEG end marker (FFD9) after start
+                    jpeg_end = buffer.find(b'\xff\xd9', jpeg_start)
+                    if jpeg_end == -1:
+                        # JPEG not complete, keep buffer from jpeg_start
+                        buffer = buffer[jpeg_start:]
+                        break
+
+                    # Extract complete JPEG frame
+                    jpeg_data = buffer[jpeg_start:jpeg_end + 2]
+
+                    # Output browser-compatible MJPEG frame
+                    yield boundary + b"\r\n"
+                    yield b"Content-Type: image/jpeg\r\n"
+                    yield f"Content-Length: {len(jpeg_data)}\r\n".encode()
+                    yield b"\r\n"
+                    yield jpeg_data
+                    yield b"\r\n"
+
+                    frame_count += 1
+                    if frame_count == 1:
+                        logger.info("preview_stream_first_frame", camera_id=camera_id)
+
+                    # Remove processed frame from buffer
+                    buffer = buffer[jpeg_end + 2:]
 
         except asyncio.TimeoutError:
             logger.error(
@@ -514,11 +557,15 @@ async def stream_preview(
                     await writer.wait_closed()
                 except Exception:
                     pass
-            logger.info("preview_stream_disconnected", camera_id=camera_id)
+            logger.info(
+                "preview_stream_disconnected",
+                camera_id=camera_id,
+                frames_sent=frame_count,
+            )
 
     return StreamingResponse(
         stream_generator(),
-        media_type="multipart/x-mixed-replace; boundary=--frame",
+        media_type="multipart/x-mixed-replace; boundary=frame",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
