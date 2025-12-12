@@ -1,5 +1,10 @@
 /**
- * Camera page with tab navigation
+ * Camera page with live preview and operation tabs
+ *
+ * Layout:
+ * - Header with camera name and status
+ * - Live preview (always visible)
+ * - Tabs for Capture, Record, Timelapse operations
  */
 
 import { useParams, useNavigate } from "react-router-dom";
@@ -11,19 +16,18 @@ import { RecordTab } from "../components/camera/RecordTab";
 import { TimelapseTab } from "../components/camera/TimelapseTab";
 import "./CameraPage.css";
 
-type TabType = "preview" | "capture" | "record" | "timelapse";
+type TabType = "capture" | "record" | "timelapse";
 
 const TABS: { id: TabType; label: string }[] = [
-  { id: "preview", label: "Preview" },
   { id: "capture", label: "Capture" },
   { id: "record", label: "Record" },
   { id: "timelapse", label: "Timelapse" },
 ];
 
 export function CameraPage() {
-  const { cameraId, tab = "preview" } = useParams<{
+  const { cameraId, tab } = useParams<{
     cameraId: string;
-    tab?: TabType;
+    tab?: string;
   }>();
   const navigate = useNavigate();
 
@@ -53,7 +57,9 @@ export function CameraPage() {
     );
   }
 
-  const currentTab = (tab as TabType) || "preview";
+  // Map "preview" to "capture" for backwards compatibility, default to "capture"
+  const currentTab: TabType =
+    tab === "record" || tab === "timelapse" ? tab : "capture";
 
   const handleTabChange = (newTab: TabType) => {
     navigate(`/camera/${cameraId}/${newTab}`);
@@ -77,7 +83,13 @@ export function CameraPage() {
         )}
       </div>
 
-      <div className="camera-page__tabs">
+      {/* Live preview - always visible */}
+      <div className="camera-page__preview">
+        <PreviewTab cameraId={cameraIdNum} />
+      </div>
+
+      {/* Operation tabs below preview */}
+      <div className="camera-page__operations">
         <div className="camera-page__tab-nav">
           {TABS.map((tabItem) => (
             <button
@@ -95,7 +107,6 @@ export function CameraPage() {
         </div>
 
         <div className="camera-page__tab-content">
-          {currentTab === "preview" && <PreviewTab cameraId={cameraIdNum} />}
           {currentTab === "capture" && <CaptureTab cameraId={cameraIdNum} />}
           {currentTab === "record" && <RecordTab cameraId={cameraIdNum} />}
           {currentTab === "timelapse" && (

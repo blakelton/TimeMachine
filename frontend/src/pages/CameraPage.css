@@ -51,6 +51,24 @@
   color: #2b8a3e;
 }
 
+/* Live preview section - always visible */
+.camera-page__preview {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+/* Operations section with tabs */
+.camera-page__operations {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+/* Legacy support - can be removed later */
 .camera-page__tabs {
   background-color: #fff;
   border-radius: 8px;
@@ -118,6 +136,16 @@
   .camera-page__status {
     background-color: #2b8a3e;
     color: #d3f9d8;
+  }
+
+  .camera-page__preview {
+    background-color: #2a2a2a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  .camera-page__operations {
+    background-color: #2a2a2a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
   .camera-page__tabs {

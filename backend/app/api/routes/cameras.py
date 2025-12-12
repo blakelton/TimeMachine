@@ -1,8 +1,10 @@
 """Camera management API endpoints."""
 
-from typing import Annotated
+import asyncio
+from typing import Annotated, AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -424,6 +426,106 @@ async def get_preview_status(
         "port": port,
         "url": f"http://localhost:{port}" if port else None,
     }
+
+
+@router.get("/{camera_id}/preview/stream")
+async def stream_preview(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> StreamingResponse:
+    """Stream MJPEG preview from camera.
+
+    This endpoint proxies the GStreamer TCP socket stream to HTTP,
+    allowing browsers to display the MJPEG stream directly.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        StreamingResponse with MJPEG content
+
+    Raises:
+        HTTPException: 404 if camera not found, 503 if preview not running
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("preview_stream_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Check if preview is running
+    port = preview_service.get_preview_port(camera_id)
+    if port is None:
+        logger.warning("preview_stream_not_running", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Preview not running. Start preview first.",
+        )
+
+    async def stream_generator() -> AsyncGenerator[bytes, None]:
+        """Connect to GStreamer TCP socket and yield MJPEG data."""
+        reader = None
+        writer = None
+        try:
+            # Connect to GStreamer TCP server
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", port),
+                timeout=5.0,
+            )
+            logger.info(
+                "preview_stream_connected",
+                camera_id=camera_id,
+                port=port,
+            )
+
+            # Stream data from TCP socket to HTTP response
+            while True:
+                chunk = await reader.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+
+        except asyncio.TimeoutError:
+            logger.error(
+                "preview_stream_connection_timeout",
+                camera_id=camera_id,
+                port=port,
+            )
+        except ConnectionRefusedError:
+            logger.error(
+                "preview_stream_connection_refused",
+                camera_id=camera_id,
+                port=port,
+            )
+        except Exception as e:
+            logger.error(
+                "preview_stream_error",
+                camera_id=camera_id,
+                error=str(e),
+            )
+        finally:
+            if writer:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+            logger.info("preview_stream_disconnected", camera_id=camera_id)
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="multipart/x-mixed-replace; boundary=--frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 # =============================================================================
