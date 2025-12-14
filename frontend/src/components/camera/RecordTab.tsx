@@ -44,10 +44,10 @@ export function RecordTab({ cameraId }: RecordTabProps) {
 
   // Subscribe to job updates to track recording status
   useWebSocketMessage<WSJobUpdate>(wsClient, "job_update", (message) => {
-    if (message.camera_id === cameraId && message.job_type === "record") {
+    if (message.camera_id === cameraId && message.job_type === "recording") {
       if (message.status === "running") {
         setIsRecording(true);
-      } else if (message.status === "completed" || message.status === "failed") {
+      } else if (message.status === "completed" || message.status === "failed" || message.status === "interrupted") {
         setIsRecording(false);
         setRecordingStartTime(null);
         setElapsedSeconds(0);
@@ -110,12 +110,11 @@ export function RecordTab({ cameraId }: RecordTabProps) {
 
     try {
       const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/record/start" as any,
+        "/api/v1/cameras/{camera_id}/recording/start" as any,
         {
           params: { path: { camera_id: cameraId } },
           body: {
-            bitrate: bitrateNum,
-            duration: durationNum,
+            duration_seconds: durationNum,
           },
         }
       );
@@ -144,7 +143,7 @@ export function RecordTab({ cameraId }: RecordTabProps) {
 
     try {
       const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/record/stop" as any,
+        "/api/v1/cameras/{camera_id}/recording/stop" as any,
         {
           params: { path: { camera_id: cameraId } },
         }

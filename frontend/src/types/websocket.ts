@@ -33,7 +33,7 @@ export interface WSJobUpdate {
   job_id: number;
   camera_id: number;
   job_type: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "completed" | "failed" | "interrupted";
   progress?: number | null; // 0-100
   timestamp: string;
 }

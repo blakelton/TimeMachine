@@ -56,12 +56,15 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
           );
           setFramesCaptured(capturedFrames);
         }
-      } else if (message.status === "completed" || message.status === "failed") {
+      } else if (message.status === "completed" || message.status === "failed" || message.status === "interrupted") {
         setIsRunning(false);
         setFramesCaptured(0);
         setTotalFrames(0);
         if (message.status === "completed") {
           toast.success("Timelapse completed");
+        } else if (message.status === "interrupted") {
+          // Refresh to check for interrupted state
+          checkInterrupted();
         } else {
           toast.error("Timelapse failed");
         }
@@ -208,13 +211,18 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
     setIsLoading(true);
 
     try {
+      // Calculate total_frames from duration and interval
+      const totalFramesCalc = Math.floor(durationNum / intervalNum);
+
       const { error } = await apiClient.POST(
         "/api/v1/cameras/{camera_id}/timelapse/start" as any,
         {
           params: { path: { camera_id: cameraId } },
           body: {
-            interval: intervalNum,
-            duration: durationNum,
+            config: {
+              interval_seconds: intervalNum,
+              total_frames: totalFramesCalc,
+            },
           },
         }
       );

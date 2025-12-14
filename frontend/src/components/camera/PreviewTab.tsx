@@ -2,7 +2,7 @@
  * Preview tab - Live MJPEG camera preview
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
@@ -20,10 +20,28 @@ export function PreviewTab({ cameraId }: PreviewTabProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const toast = useToast();
 
+  const getStreamUrl = useCallback(() => {
+    // Use relative URL - nginx will proxy to backend in production
+    return `/api/v1/cameras/${cameraId}/preview/stream`;
+  }, [cameraId]);
+
+  const checkPreviewStatus = useCallback(async () => {
+    try {
+      // Try to load the preview stream to see if it's active
+      const streamUrl = getStreamUrl();
+      const response = await fetch(streamUrl, { method: "HEAD" });
+      setIsPreviewActive(response.ok);
+      setHasError(!response.ok);
+    } catch (error) {
+      setIsPreviewActive(false);
+      setHasError(true);
+    }
+  }, [getStreamUrl]);
+
   // Check if preview is already running on mount
   useEffect(() => {
     checkPreviewStatus();
-  }, [cameraId]);
+  }, [checkPreviewStatus]);
 
   /**
    * Cleanup effect: Stop preview when component unmounts.
@@ -40,24 +58,6 @@ export function PreviewTab({ cameraId }: PreviewTabProps) {
       }
     };
   }, [isPreviewActive, cameraId]);
-
-  const checkPreviewStatus = async () => {
-    try {
-      // Try to load the preview stream to see if it's active
-      const streamUrl = getStreamUrl();
-      const response = await fetch(streamUrl, { method: "HEAD" });
-      setIsPreviewActive(response.ok);
-      setHasError(!response.ok);
-    } catch (error) {
-      setIsPreviewActive(false);
-      setHasError(true);
-    }
-  };
-
-  const getStreamUrl = () => {
-    // Use relative URL - nginx will proxy to backend in production
-    return `/api/v1/cameras/${cameraId}/preview/stream`;
-  };
 
   const handleStartPreview = async () => {
     setIsLoading(true);
