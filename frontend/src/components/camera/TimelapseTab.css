@@ -164,7 +164,7 @@
   }
 }
 
-/* Responsive */
+/* Responsive - Tablet */
 @media (max-width: 768px) {
   .timelapse-tab__controls {
     grid-template-columns: 1fr;
@@ -178,5 +178,84 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+}
+
+/* Small touchscreen (800x480) and mobile */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .timelapse-tab {
+    gap: 12px;
+  }
+
+  .timelapse-tab__controls {
+    gap: 10px;
+  }
+
+  .timelapse-tab__input {
+    min-height: 40px;
+    font-size: 16px; /* Prevent iOS zoom on focus */
+  }
+
+  .timelapse-tab__info {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .timelapse-tab__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .timelapse-tab__status {
+    padding: 10px;
+  }
+
+  .timelapse-tab__status-header {
+    flex-direction: row;
+    margin-bottom: 8px;
+  }
+}
+
+/* Landscape-specific for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .timelapse-tab {
+    gap: 8px;
+  }
+
+  .timelapse-tab__controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .timelapse-tab__input {
+    min-height: 32px;
+    padding: 4px 8px;
+  }
+
+  .timelapse-tab__info {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .timelapse-tab__actions {
+    flex-direction: row;
+  }
+
+  .timelapse-tab__status {
+    padding: 8px;
+  }
+
+  .timelapse-tab__status-header {
+    margin-bottom: 6px;
+  }
+
+  .timelapse-tab__progress {
+    height: 6px;
+    margin-bottom: 4px;
+  }
+
+  .timelapse-tab__progress-text {
+    font-size: 12px;
   }
 }

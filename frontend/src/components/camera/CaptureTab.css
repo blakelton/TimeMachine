@@ -117,7 +117,7 @@
   }
 }
 
-/* Responsive */
+/* Responsive - Tablet */
 @media (max-width: 768px) {
   .capture-tab__controls {
     flex-direction: column;
@@ -136,5 +136,86 @@
     flex-direction: column;
     gap: 12px;
     align-items: stretch;
+  }
+}
+
+/* Small touchscreen (800x480) and mobile */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .capture-tab {
+    gap: 12px;
+  }
+
+  .capture-tab__controls {
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .capture-tab__select {
+    min-height: 40px;
+    font-size: 16px; /* Prevent iOS zoom on focus */
+    flex: 1;
+  }
+
+  .capture-tab__capture-button {
+    min-width: auto;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .capture-tab__preview {
+    min-height: 150px;
+  }
+
+  .capture-tab__placeholder {
+    padding: 16px;
+    gap: 4px;
+    font-size: 14px;
+  }
+
+  .capture-tab__image-info {
+    padding: 8px 12px;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .capture-tab__timestamp {
+    font-size: 12px;
+  }
+}
+
+/* Landscape-specific for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .capture-tab {
+    gap: 8px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .capture-tab__controls {
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .capture-tab__select {
+    min-height: 32px;
+    padding: 4px 8px;
+  }
+
+  .capture-tab__preview {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .capture-tab__placeholder {
+    padding: 8px;
+  }
+
+  .capture-tab__image-info {
+    padding: 6px 10px;
+  }
+
+  .capture-tab__image {
+    max-height: calc(100% - 40px);
   }
 }

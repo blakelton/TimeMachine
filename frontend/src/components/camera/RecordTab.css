@@ -118,7 +118,7 @@
   }
 }
 
-/* Responsive */
+/* Responsive - Tablet */
 @media (max-width: 768px) {
   .record-tab__controls {
     grid-template-columns: 1fr;
@@ -126,5 +126,74 @@
 
   .record-tab__actions {
     flex-direction: column;
+  }
+}
+
+/* Small touchscreen (800x480) and mobile */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .record-tab {
+    gap: 12px;
+  }
+
+  .record-tab__controls {
+    gap: 10px;
+  }
+
+  .record-tab__input {
+    min-height: 40px;
+    font-size: 16px; /* Prevent iOS zoom on focus */
+  }
+
+  .record-tab__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .record-tab__status {
+    padding: 10px;
+  }
+
+  .record-tab__status-indicator {
+    margin-bottom: 8px;
+  }
+
+  .record-tab__timer {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+}
+
+/* Landscape-specific for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .record-tab {
+    gap: 8px;
+  }
+
+  .record-tab__controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .record-tab__input {
+    min-height: 32px;
+    padding: 4px 8px;
+  }
+
+  .record-tab__actions {
+    flex-direction: row;
+  }
+
+  .record-tab__status {
+    padding: 8px;
+  }
+
+  .record-tab__timer {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  .record-tab__progress {
+    height: 6px;
   }
 }
