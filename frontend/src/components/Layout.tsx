@@ -64,6 +64,12 @@ export function Layout() {
 
           <span className="nav-separator" aria-hidden="true">|</span>
           <Link
+            to="/files"
+            className={isActive("/files") ? "nav-link active" : "nav-link"}
+          >
+            Files
+          </Link>
+          <Link
             to="/system"
             className={location.pathname.startsWith("/system") ? "nav-link active" : "nav-link"}
           >

@@ -1,0 +1,162 @@
+/* File browser component styles */
+
+.file-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.file-browser__filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.file-browser__type-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.file-browser__loading,
+.file-browser__error,
+.file-browser__empty {
+  padding: 32px;
+  text-align: center;
+  color: #666;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.file-browser__error {
+  color: #dc3545;
+  background: #fff5f5;
+}
+
+.file-browser__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-browser__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.file-browser__item:hover {
+  background: #e9ecef;
+}
+
+.file-browser__item-icon {
+  font-size: 24px;
+  width: 32px;
+  text-align: center;
+}
+
+.file-browser__item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-browser__item-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-browser__item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.file-browser__item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.file-browser__pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+.file-browser__page-info {
+  color: #666;
+  font-size: 14px;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .file-browser__type-select {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .file-browser__loading,
+  .file-browser__empty {
+    background: #2a2a2a;
+    color: #999;
+  }
+
+  .file-browser__error {
+    background: #3d2020;
+    color: #f08080;
+  }
+
+  .file-browser__item {
+    background: #2a2a2a;
+  }
+
+  .file-browser__item:hover {
+    background: #333;
+  }
+
+  .file-browser__item-meta {
+    color: #999;
+  }
+
+  .file-browser__pagination {
+    border-top-color: #444;
+  }
+
+  .file-browser__page-info {
+    color: #999;
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  .file-browser__item {
+    flex-wrap: wrap;
+  }
+
+  .file-browser__item-info {
+    flex-basis: calc(100% - 44px);
+  }
+
+  .file-browser__item-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+
+  .file-browser__item-meta {
+    flex-wrap: wrap;
+  }
+}

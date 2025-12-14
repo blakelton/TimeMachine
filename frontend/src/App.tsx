@@ -9,6 +9,7 @@ import { ToastContainer } from "./components/Toast";
 import { HomePage } from "./pages/HomePage";
 import { SystemPage } from "./pages/SystemPage";
 import { CameraPage } from "./pages/CameraPage";
+import { FilesPage } from "./pages/FilesPage";
 import {
   CamerasPanel,
   OutputConfigPanel,
@@ -29,6 +30,7 @@ function App() {
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
                 <Route path="camera/:cameraId/:tab?" element={<CameraPage />} />
+                <Route path="files" element={<FilesPage />} />
                 <Route path="system" element={<SystemPage />}>
                   <Route path="cameras" element={<CamerasPanel />} />
                   <Route path="output" element={<OutputConfigPanel />} />
