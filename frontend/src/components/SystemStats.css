@@ -14,6 +14,23 @@
   opacity: 0.6;
 }
 
+.system-stats.error {
+  background: #fff5f5;
+  border: 1px solid #ffcdd2;
+}
+
+.stats-error-message {
+  text-align: center;
+  color: #c62828;
+  padding: 1rem;
+  margin: 0;
+}
+
+.connection-status.error {
+  background: #ffebee;
+  color: #c62828;
+}
+
 .stats-header {
   display: flex;
   justify-content: space-between;
@@ -94,6 +111,12 @@
   font-weight: 600;
   color: #333;
   margin-bottom: 0.5rem;
+}
+
+.stat-detail {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
 }
 
 .stat-bar {

@@ -83,17 +83,26 @@ class RecordingService:
 
         job_id: int | None = None
         try:
-            # Generate filename if not provided
+            # Handle filename/path
             if not filename:
+                # Generate default filename with timestamp
                 timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
                 filename = f"camera{camera_id}_{timestamp}"
+                recording_path = Path(settings.media_path) / "recordings"
+                recording_path.mkdir(parents=True, exist_ok=True)
+                output_file = recording_path / f"{filename}.mp4"
+            elif filename.startswith("/"):
+                # Absolute path provided - use it directly (ensure parent exists)
+                output_file = Path(filename)
+                if not output_file.suffix:
+                    output_file = output_file.with_suffix(".mp4")
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                # Relative filename - put in recordings directory
+                recording_path = Path(settings.media_path) / "recordings"
+                recording_path.mkdir(parents=True, exist_ok=True)
+                output_file = recording_path / f"{filename}.mp4"
 
-            # Ensure recording base path exists
-            recording_path = Path(settings.media_path) / "recordings"
-            recording_path.mkdir(parents=True, exist_ok=True)
-
-            # Full output path
-            output_file = recording_path / f"{filename}.mp4"
             self._recording_files[camera_id] = str(output_file)
 
             # Create Job record if session provided

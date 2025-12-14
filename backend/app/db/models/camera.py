@@ -11,6 +11,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.db.models.job import Job
+    from app.db.models.observation import Observation
 
 
 class Camera(Base):
@@ -48,6 +49,9 @@ class Camera(Base):
     # Relationships
     jobs: Mapped[list["Job"]] = relationship(
         "Job", back_populates="camera", cascade="all, delete-orphan"
+    )
+    observations: Mapped[list["Observation"]] = relationship(
+        "Observation", back_populates="camera", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

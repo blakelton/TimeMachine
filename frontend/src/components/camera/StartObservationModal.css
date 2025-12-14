@@ -1,0 +1,182 @@
+/**
+ * Start Observation Modal styles
+ */
+
+.observation-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Type Selector */
+.observation-modal__type-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.observation-modal__type-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.observation-modal__type-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.observation-modal__type-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  background: #f8f9fa;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.observation-modal__type-option:hover {
+  border-color: #1971c2;
+  background: #e7f5ff;
+}
+
+.observation-modal__type-option--active {
+  border-color: #1971c2;
+  background: #e7f5ff;
+}
+
+.observation-modal__type-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.observation-modal__type-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.observation-modal__type-desc {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+/* Divider */
+.observation-modal__divider {
+  height: 1px;
+  background: #e9ecef;
+  margin: 4px 0;
+}
+
+/* Settings Section */
+.observation-modal__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.observation-modal__settings-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+/* Row for side-by-side fields */
+.observation-modal__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.observation-modal__field--narrow {
+  max-width: 100%;
+}
+
+/* Note */
+.observation-modal__note {
+  font-size: 13px;
+  color: #6c757d;
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 0;
+}
+
+/* Footer */
+.observation-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e9ecef;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .observation-modal__type-label,
+  .observation-modal__type-name,
+  .observation-modal__settings-title {
+    color: #e9ecef;
+  }
+
+  .observation-modal__type-desc {
+    color: #adb5bd;
+  }
+
+  .observation-modal__type-option {
+    border-color: #444;
+    background: #2a2a2a;
+  }
+
+  .observation-modal__type-option:hover,
+  .observation-modal__type-option--active {
+    border-color: #4dabf7;
+    background: #1a3a5c;
+  }
+
+  .observation-modal__divider {
+    background: #444;
+  }
+
+  .observation-modal__note {
+    background: #333;
+    color: #adb5bd;
+  }
+
+  .observation-modal__footer {
+    border-top-color: #444;
+  }
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .observation-modal__type-options {
+    grid-template-columns: 1fr;
+  }
+
+  .observation-modal__row {
+    grid-template-columns: 1fr;
+  }
+
+  .observation-modal__type-option {
+    flex-direction: row;
+    text-align: left;
+    gap: 12px;
+  }
+
+  .observation-modal__type-icon {
+    font-size: 24px;
+    margin: 0;
+  }
+
+  .observation-modal__type-option > :last-child {
+    flex: 1;
+  }
+}

@@ -22,15 +22,15 @@ async def stats_broadcast_loop() -> None:
     while True:
         try:
             if ws_manager.client_count > 0:
-                # Get current system stats
+                # Get current system stats (returns SystemStats dataclass)
                 stats = await get_system_stats()
 
-                # Create stats update message
+                # Create stats update message using dataclass attributes
                 message = WSStatsUpdate(
-                    cpu_percent=stats["cpu_percent"],
-                    memory_percent=stats["memory_percent"],
-                    disk_free_gb=stats["disk_free_gb"],
-                    temperature_celsius=stats.get("temperature_celsius"),
+                    cpu_percent=stats.cpu_percent,
+                    memory_percent=stats.memory.percent,
+                    disk_free_gb=stats.disk.free_gb,
+                    temperature_celsius=stats.temperature_celsius,
                 )
 
                 # Broadcast to all connected clients
@@ -39,8 +39,8 @@ async def stats_broadcast_loop() -> None:
                 logger.debug(
                     "stats_broadcast_sent",
                     clients=ws_manager.client_count,
-                    cpu=stats["cpu_percent"],
-                    memory=stats["memory_percent"],
+                    cpu=stats.cpu_percent,
+                    memory=stats.memory.percent,
                 )
         except Exception as e:
             logger.error("stats_broadcast_error", error=str(e))

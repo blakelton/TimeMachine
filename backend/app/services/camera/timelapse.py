@@ -247,6 +247,7 @@ class TimelapseService:
         camera_type: str,
         config: TimelapseConfig,
         session: AsyncSession | None = None,
+        frames_dir: Path | str | None = None,
     ) -> tuple[bool, str, int | None]:
         """Start a new timelapse capture session.
 
@@ -256,6 +257,8 @@ class TimelapseService:
             camera_type: Camera type ('csi' or 'usb')
             config: Timelapse configuration
             session: Database session for Job creation (optional)
+            frames_dir: Optional custom directory for storing frames.
+                        If not provided, creates a new directory in media_path/timelapses/
 
         Returns:
             Tuple of (success: bool, message: str, job_id: int | None)
@@ -273,10 +276,14 @@ class TimelapseService:
 
         job_id: int | None = None
         try:
-            # Create timelapse directory
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            timelapse_dir = Path(settings.media_path) / "timelapses" / f"camera{camera_id}_{timestamp}"
-            timelapse_dir.mkdir(parents=True, exist_ok=True)
+            # Use custom frames directory or create default timelapse directory
+            if frames_dir:
+                timelapse_dir = Path(frames_dir) if isinstance(frames_dir, str) else frames_dir
+                timelapse_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                timelapse_dir = Path(settings.media_path) / "timelapses" / f"camera{camera_id}_{timestamp}"
+                timelapse_dir.mkdir(parents=True, exist_ok=True)
 
             # Create Job record if session provided
             if session:

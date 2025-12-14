@@ -11,6 +11,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.db.models.camera import Camera
+    from app.db.models.observation import Observation
 
 
 class Job(Base):
@@ -54,6 +55,9 @@ class Job(Base):
 
     # Relationships
     camera: Mapped["Camera"] = relationship("Camera", back_populates="jobs")
+    observation: Mapped["Observation | None"] = relationship(
+        "Observation", back_populates="job", uselist=False
+    )
 
     def __repr__(self) -> str:
         return f"<Job(id={self.id}, type='{self.job_type}', status='{self.status}')>"

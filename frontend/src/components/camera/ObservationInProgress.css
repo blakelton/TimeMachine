@@ -1,0 +1,252 @@
+/**
+ * Observation In Progress component styles
+ */
+
+.observation-progress {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 12px;
+  padding: 24px;
+  color: #fff;
+}
+
+.observation-progress--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 200px;
+  color: #adb5bd;
+}
+
+.observation-progress--error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 200px;
+  color: #fa5252;
+  text-align: center;
+}
+
+.observation-progress__error-icon {
+  font-size: 32px;
+}
+
+.observation-progress__loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #444;
+  border-top-color: #4dabf7;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Header */
+.observation-progress__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.observation-progress__indicator {
+  width: 14px;
+  height: 14px;
+  background: #dc3545;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+}
+
+.observation-progress__title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+/* Stats Grid */
+.observation-progress__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.observation-progress__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.observation-progress__stat-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #adb5bd;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.observation-progress__stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Progress Bar */
+.observation-progress__bar-container {
+  grid-column: 1 / -1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  height: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.observation-progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, #228be6, #20c997);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.observation-progress__bar-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Preview Video */
+.observation-progress__preview {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.observation-progress__video {
+  width: 100%;
+  max-height: 300px;
+  display: block;
+}
+
+/* Actions */
+.observation-progress__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Confirmation Modal Content */
+.observation-progress__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.observation-progress__confirm p {
+  margin: 0;
+  color: #495057;
+  line-height: 1.5;
+}
+
+.observation-progress__confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .observation-progress {
+    padding: 16px;
+  }
+
+  .observation-progress__title {
+    font-size: 14px;
+  }
+
+  .observation-progress__stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .observation-progress__stat-value {
+    font-size: 16px;
+  }
+
+  .observation-progress__video {
+    max-height: 200px;
+  }
+}
+
+/* Small touchscreen */
+@media (max-width: 850px) and (max-height: 520px) {
+  .observation-progress {
+    padding: 12px;
+  }
+
+  .observation-progress__header {
+    margin-bottom: 12px;
+  }
+
+  .observation-progress__indicator {
+    width: 10px;
+    height: 10px;
+  }
+
+  .observation-progress__title {
+    font-size: 13px;
+  }
+
+  .observation-progress__stats {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .observation-progress__stat-label {
+    font-size: 10px;
+  }
+
+  .observation-progress__stat-value {
+    font-size: 14px;
+  }
+
+  .observation-progress__bar-container {
+    height: 20px;
+  }
+
+  .observation-progress__video {
+    max-height: 150px;
+  }
+}
+
+/* Dark mode already covered by default dark styling */
+@media (prefers-color-scheme: dark) {
+  .observation-progress__confirm p {
+    color: #adb5bd;
+  }
+}

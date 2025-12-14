@@ -8,12 +8,14 @@ from pathlib import Path
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.repositories.job import JobRepository
+from app.db.repositories.observation import ObservationRepository
 from app.db.session import AsyncSessionLocal
 from app.services.camera import (
     preview_service,
     recording_service,
     timelapse_service,
 )
+from app.services.observation import observation_service
 
 logger = get_logger(__name__)
 
@@ -35,6 +37,18 @@ async def cleanup_stale_jobs() -> int:
 
     if count > 0:
         logger.info("stale_jobs_cleaned", count=count)
+
+    return count
+
+
+async def cleanup_stale_observations() -> int:
+    """Mark any running observations as failed on startup.
+
+    Returns:
+        Number of observations cleaned up
+    """
+    async with AsyncSessionLocal() as session:
+        count = await observation_service.cleanup_stale_observations(session)
 
     return count
 
@@ -142,6 +156,7 @@ def ensure_media_directories() -> list[Path]:
         media_path / "recordings",
         media_path / "stills",
         media_path / "timelapses",
+        media_path / "observations",
     ]
 
     for directory in directories:
@@ -163,6 +178,7 @@ async def startup_cleanup() -> dict:
 
     summary = {
         "stale_jobs": 0,
+        "stale_observations": 0,
         "orphan_gstreamer": 0,
         "orphan_libcamera": 0,
         "directories_created": [],
@@ -175,6 +191,9 @@ async def startup_cleanup() -> dict:
 
     # Cleanup stale jobs in database
     summary["stale_jobs"] = await cleanup_stale_jobs()
+
+    # Cleanup stale observations
+    summary["stale_observations"] = await cleanup_stale_observations()
 
     # Cleanup orphan processes
     summary["orphan_gstreamer"] = await cleanup_orphan_gstreamer_processes()

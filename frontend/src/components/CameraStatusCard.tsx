@@ -1,20 +1,18 @@
 /**
- * Camera status card component with real-time updates
+ * Camera status card component with real-time job status
  */
 
-import { useState, useCallback, useEffect } from "react";
-import { wsClient } from "../lib/websocket";
-import { useWebSocketMessage } from "../hooks/useWebSocket";
-import type { WSCameraEvent } from "../types/websocket";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { apiClient } from "../api/client";
 import "./CameraStatusCard.css";
 
 interface Camera {
   id: number;
   name: string;
-  type: string;
+  camera_type: string;
   enabled: boolean;
-  status?: "online" | "offline" | "error";
-  currentOperation?: string;
+  device_path?: string;
 }
 
 interface CameraStatusCardProps {
@@ -22,113 +20,90 @@ interface CameraStatusCardProps {
 }
 
 export function CameraStatusCard({ camera }: CameraStatusCardProps) {
-  const [status, setStatus] = useState<"online" | "offline" | "error">(
-    camera.status || "offline"
-  );
-  const [lastEvent, setLastEvent] = useState<string | null>(null);
-
-  // Subscribe to camera events from WebSocket
-  const handleCameraEvent = useCallback(
-    (message: WSCameraEvent) => {
-      if (message.camera_id === camera.id) {
-        // Update status based on event
-        if (message.event === "online") {
-          setStatus("online");
-          setLastEvent("Camera online");
-        } else if (message.event === "offline") {
-          setStatus("offline");
-          setLastEvent("Camera offline");
-        } else if (message.event === "error") {
-          setStatus("error");
-          setLastEvent(message.message || "Camera error");
-        } else if (message.event === "recording_started") {
-          setLastEvent("Recording started");
-        } else if (message.event === "recording_stopped") {
-          setLastEvent("Recording stopped");
-        }
-      }
+  // Check for active jobs on this camera
+  const { data: jobsData } = useQuery({
+    queryKey: ["cameraJobs", camera.id],
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET("/api/v1/jobs/running", {
+        params: { query: { camera_id: camera.id } },
+      });
+      if (error) throw error;
+      return data;
     },
-    [camera.id]
+    refetchInterval: 5000, // Poll every 5 seconds
+  });
+
+  // Determine current activity
+  const activeJob = (jobsData?.jobs || []).find(
+    (job) => job.status === "running" || job.status === "pending"
   );
 
-  useWebSocketMessage(wsClient, "camera_event", handleCameraEvent);
-
-  // Clear last event after 5 seconds
-  useEffect(() => {
-    if (lastEvent) {
-      const timer = setTimeout(() => setLastEvent(null), 5000);
-      return () => clearTimeout(timer);
+  const getStatusInfo = () => {
+    if (!camera.enabled) {
+      return {
+        status: "disabled",
+        icon: "⏸️",
+        text: "Disabled",
+        color: "disabled",
+      };
     }
-  }, [lastEvent]);
 
-  const getStatusColor = () => {
-    if (!camera.enabled) return "disabled";
-    switch (status) {
-      case "online":
-        return "online";
-      case "offline":
-        return "offline";
-      case "error":
-        return "error";
-      default:
-        return "unknown";
+    if (activeJob) {
+      if (activeJob.job_type === "recording") {
+        return {
+          status: "recording",
+          icon: "🔴",
+          text: "Recording",
+          color: "recording",
+        };
+      }
+      if (activeJob.job_type === "timelapse") {
+        return {
+          status: "timelapse",
+          icon: "⏱️",
+          text: "Timelapse",
+          color: "timelapse",
+        };
+      }
     }
+
+    // Camera is available (enabled, no active job)
+    return {
+      status: "available",
+      icon: "✅",
+      text: "Available",
+      color: "available",
+    };
   };
 
-  const getStatusIcon = () => {
-    if (!camera.enabled) return "⏸️";
-    switch (status) {
-      case "online":
-        return "✅";
-      case "offline":
-        return "⭕";
-      case "error":
-        return "❌";
-      default:
-        return "❓";
-    }
-  };
-
-  const getStatusText = () => {
-    if (!camera.enabled) return "Disabled";
-    switch (status) {
-      case "online":
-        return "Online";
-      case "offline":
-        return "Offline";
-      case "error":
-        return "Error";
-      default:
-        return "Unknown";
-    }
-  };
+  const statusInfo = getStatusInfo();
 
   return (
-    <div className={`camera-status-card ${getStatusColor()}`}>
+    <Link
+      to={`/camera/${camera.id}`}
+      className={`camera-status-card ${statusInfo.color}`}
+    >
       <div className="camera-header">
         <div className="camera-info">
           <h3 className="camera-name">{camera.name}</h3>
-          <span className="camera-type">{camera.type}</span>
+          <span className="camera-type">{camera.camera_type.toUpperCase()}</span>
         </div>
         <div className="camera-status">
-          <span className="status-icon">{getStatusIcon()}</span>
-          <span className="status-text">{getStatusText()}</span>
+          <span className="status-icon">{statusInfo.icon}</span>
+          <span className="status-text">{statusInfo.text}</span>
         </div>
       </div>
 
-      {lastEvent && (
-        <div className="camera-event">
-          <span className="event-icon">📢</span>
-          <span className="event-text">{lastEvent}</span>
+      {activeJob && (
+        <div className="camera-activity">
+          <span className="activity-indicator" />
+          <span className="activity-text">
+            {activeJob.job_type === "recording"
+              ? "Recording in progress"
+              : "Timelapse capturing"}
+          </span>
         </div>
       )}
-
-      {camera.currentOperation && (
-        <div className="camera-operation">
-          <span className="operation-label">Current:</span>
-          <span className="operation-text">{camera.currentOperation}</span>
-        </div>
-      )}
-    </div>
+    </Link>
   );
 }

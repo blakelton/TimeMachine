@@ -1,0 +1,53 @@
+/**
+ * Camera action bar styles
+ */
+
+.camera-action-bar {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.camera-action-bar__button {
+  flex: 1;
+  min-width: 0;
+}
+
+.camera-action-bar__button--observation {
+  flex: 2;
+}
+
+/* Responsive - Tablet and mobile */
+@media (max-width: 768px) {
+  .camera-action-bar {
+    padding: 12px;
+    gap: 8px;
+  }
+}
+
+/* Responsive - Small touchscreen */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .camera-action-bar {
+    padding: 8px;
+    gap: 6px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+
+  .camera-action-bar__button {
+    padding: 10px 12px;
+    font-size: 13px;
+    min-height: 44px;
+  }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .camera-action-bar {
+    background: #2a2a2a;
+  }
+}

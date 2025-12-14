@@ -3,26 +3,30 @@
  */
 
 .camera-status-card {
+  display: block;
   background: white;
   border-radius: 8px;
   padding: 1.25rem;
   border: 2px solid #e9ecef;
   transition: all 0.3s ease;
+  text-decoration: none;
+  color: inherit;
 }
 
-.camera-status-card.online {
+/* Status-based colors */
+.camera-status-card.available {
   border-color: #28a745;
   background: #f1f9f4;
 }
 
-.camera-status-card.offline {
-  border-color: #6c757d;
-  background: #f8f9fa;
-}
-
-.camera-status-card.error {
+.camera-status-card.recording {
   border-color: #dc3545;
   background: #ffebee;
+}
+
+.camera-status-card.timelapse {
+  border-color: #17a2b8;
+  background: #e3f2fd;
 }
 
 .camera-status-card.disabled {
@@ -35,7 +39,6 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 0.75rem;
 }
 
 .camera-info {
@@ -76,79 +79,85 @@
   font-weight: 600;
 }
 
-.camera-status-card.online .status-text {
+.camera-status-card.available .status-text {
   color: #28a745;
 }
 
-.camera-status-card.offline .status-text {
-  color: #6c757d;
+.camera-status-card.recording .status-text {
+  color: #dc3545;
 }
 
-.camera-status-card.error .status-text {
-  color: #dc3545;
+.camera-status-card.timelapse .status-text {
+  color: #17a2b8;
 }
 
 .camera-status-card.disabled .status-text {
   color: #adb5bd;
 }
 
-.camera-event {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 4px;
-  margin-top: 0.75rem;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.event-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.event-text {
-  font-size: 0.875rem;
-  color: #856404;
-  flex: 1;
-}
-
-.camera-operation {
+/* Activity indicator (for recording/timelapse) */
+.camera-activity {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #dee2e6;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 0.875rem;
 }
 
-.operation-label {
-  font-size: 0.875rem;
-  color: #6c757d;
-  font-weight: 500;
+.activity-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #dc3545;
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
-.operation-text {
-  font-size: 0.875rem;
-  color: #333;
-  font-weight: 600;
+.camera-status-card.timelapse .activity-indicator {
+  background-color: #17a2b8;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.activity-text {
+  color: #666;
 }
 
 /* Hover effect for interactive cards */
 .camera-status-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive styles */
+@media (max-width: 480px) {
+  .camera-status-card {
+    padding: 1rem;
+  }
+
+  .camera-name {
+    font-size: 1rem;
+  }
+
+  .status-icon {
+    font-size: 1rem;
+  }
+
+  .status-text {
+    font-size: 0.8rem;
+  }
+
+  .camera-activity {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    font-size: 0.8rem;
+  }
 }

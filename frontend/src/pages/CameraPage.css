@@ -51,75 +51,39 @@
   color: #2b8a3e;
 }
 
-/* Live preview section - always visible */
+/* Live preview section */
 .camera-page__preview {
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
-/* Operations section with tabs */
-.camera-page__operations {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-/* Legacy support - can be removed later */
-.camera-page__tabs {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.camera-page__tab-nav {
+/* Preview placeholder (when preview is stopped) */
+.camera-page__preview-placeholder {
   display: flex;
-  border-bottom: 1px solid #e9ecef;
-  background-color: #f8f9fa;
-  overflow-x: auto;
-}
-
-.camera-page__tab-button {
-  flex: 1;
-  min-width: 120px;
-  padding: 16px 24px;
-  border: none;
-  background: none;
-  font-size: 14px;
-  font-weight: 600;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.camera-page__tab-button:hover {
-  background-color: #e9ecef;
-  color: #333;
-}
-
-.camera-page__tab-button--active {
-  color: #1971c2;
-  background-color: #fff;
-}
-
-.camera-page__tab-button--active::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background-color: #1971c2;
-}
-
-.camera-page__tab-content {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  color: #fff;
+  text-align: center;
   padding: 24px;
-  min-height: 500px;
+}
+
+.camera-page__preview-placeholder span {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.camera-page__preview-placeholder p {
+  margin: 0;
+  font-size: 14px;
+  color: #888;
 }
 
 /* Dark mode support */
@@ -142,39 +106,6 @@
     background-color: #2a2a2a;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
-
-  .camera-page__operations {
-    background-color: #2a2a2a;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
-
-  .camera-page__tabs {
-    background-color: #2a2a2a;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
-
-  .camera-page__tab-nav {
-    background-color: #1a1a1a;
-    border-bottom-color: #444;
-  }
-
-  .camera-page__tab-button {
-    color: #aaa;
-  }
-
-  .camera-page__tab-button:hover {
-    background-color: #333;
-    color: #fff;
-  }
-
-  .camera-page__tab-button--active {
-    color: #4dabf7;
-    background-color: #2a2a2a;
-  }
-
-  .camera-page__tab-button--active::after {
-    background-color: #4dabf7;
-  }
 }
 
 /* Responsive - Tablet */
@@ -185,21 +116,6 @@
 
   .camera-page__title {
     font-size: 24px;
-  }
-
-  .camera-page__tab-nav {
-    flex-wrap: nowrap;
-  }
-
-  .camera-page__tab-button {
-    min-width: 100px;
-    padding: 12px 16px;
-    font-size: 13px;
-  }
-
-  .camera-page__tab-content {
-    padding: 16px;
-    min-height: 400px;
   }
 }
 
@@ -242,26 +158,17 @@
     border-radius: 4px;
   }
 
-  .camera-page__operations {
-    border-radius: 4px;
+  .camera-page__preview-placeholder {
+    min-height: 120px;
+    padding: 16px;
   }
 
-  .camera-page__tab-nav {
-    background-color: #f8f9fa;
-  }
-
-  .camera-page__tab-button {
-    flex: 1;
-    min-width: 0;
-    padding: 12px 8px;
+  .camera-page__preview-placeholder span {
     font-size: 14px;
-    /* Touch-friendly minimum height */
-    min-height: 44px;
   }
 
-  .camera-page__tab-content {
-    padding: 12px;
-    min-height: auto;
+  .camera-page__preview-placeholder p {
+    font-size: 12px;
   }
 }
 
@@ -284,22 +191,6 @@
     margin-bottom: 4px;
     overflow: hidden;
   }
-
-  .camera-page__operations {
-    flex-shrink: 0;
-    max-height: 140px;
-    overflow-y: auto;
-  }
-
-  .camera-page__tab-button {
-    padding: 8px 6px;
-    min-height: 36px;
-    font-size: 13px;
-  }
-
-  .camera-page__tab-content {
-    padding: 8px;
-  }
 }
 
 /* Mobile portrait - stack everything vertically */
@@ -307,9 +198,5 @@
   .camera-page__header {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .camera-page__tab-content {
-    min-height: 200px;
   }
 }
