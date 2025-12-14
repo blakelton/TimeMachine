@@ -21,7 +21,6 @@ interface StorageStats {
 
 export function FilesPage() {
   const [stats, setStats] = useState<StorageStats | null>(null);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
     fetchStats();
@@ -36,8 +35,6 @@ export function FilesPage() {
       }
     } catch (err) {
       console.error("Failed to fetch storage stats:", err);
-    } finally {
-      setIsLoadingStats(false);
     }
   };
 

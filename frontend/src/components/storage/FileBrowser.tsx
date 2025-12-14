@@ -3,7 +3,6 @@
  */
 
 import { useState, useEffect } from "react";
-import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
 import { VideoPlayer, type MediaFile } from "../media/VideoPlayer";
