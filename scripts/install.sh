@@ -364,6 +364,7 @@ rm -rf /opt/timemachine/static.old
 
 DB_PATH="/var/lib/timemachine/timemachine.db"
 ALEMBIC="/opt/timemachine/venv/bin/alembic"
+BACKEND_DIR="/opt/timemachine/backend"
 
 # Ensure alembic is installed
 if [ ! -f "$ALEMBIC" ]; then
@@ -371,37 +372,42 @@ if [ ! -f "$ALEMBIC" ]; then
   /opt/timemachine/venv/bin/pip install alembic
 fi
 
+# Helper function to run alembic with proper PYTHONPATH
+run_alembic() {
+  cd "$BACKEND_DIR"
+  PYTHONPATH="$BACKEND_DIR" "$ALEMBIC" "$@"
+}
+
 if [ -f "$DB_PATH" ]; then
   echo "💾 Database already exists"
-  cd /opt/timemachine/backend
 
   # Check if database has been stamped with alembic version
-  CURRENT_REV=$("$ALEMBIC" current 2>/dev/null || echo "")
+  CURRENT_REV=$(run_alembic current 2>/dev/null || echo "")
 
   if [ -z "$CURRENT_REV" ] || echo "$CURRENT_REV" | grep -q "(head)"; then
     if [ -z "$CURRENT_REV" ]; then
       echo "  🔖 Stamping existing database with initial migration..."
       # Stamp database as having initial schema (created via create_all)
-      "$ALEMBIC" stamp 0001_initial
+      run_alembic stamp 0001_initial
     fi
     echo "  🔄 Checking for pending migrations..."
-    "$ALEMBIC" upgrade head
+    run_alembic upgrade head
     echo "  ✓ Database migrations complete"
   else
     echo "  🔄 Running database migrations..."
-    "$ALEMBIC" upgrade head
+    run_alembic upgrade head
     echo "  ✓ Database migrations complete"
   fi
 else
   echo "💾 Initializing database..."
-  cd /opt/timemachine/backend
+  cd "$BACKEND_DIR"
 
   # Create tables via SQLAlchemy (ensures all tables exist)
-  /opt/timemachine/venv/bin/python -c "import asyncio; from app.db.session import init_db; asyncio.run(init_db())"
+  PYTHONPATH="$BACKEND_DIR" /opt/timemachine/venv/bin/python -c "import asyncio; from app.db.session import init_db; asyncio.run(init_db())"
 
   # Stamp with latest migration so future upgrades work correctly
   echo "  🔖 Stamping database with current migration version..."
-  "$ALEMBIC" stamp head
+  run_alembic stamp head
   echo "  ✓ Database initialized and stamped"
 fi
 
