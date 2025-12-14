@@ -83,9 +83,9 @@ export function CameraPage() {
         )}
       </div>
 
-      {/* Live preview - always visible */}
+      {/* Live preview - always visible, auto-starts when no active observation */}
       <div className="camera-page__preview">
-        <PreviewTab cameraId={cameraIdNum} />
+        <PreviewTab cameraId={cameraIdNum} autoStart />
       </div>
 
       {/* Operation tabs below preview */}
