@@ -1,0 +1,71 @@
+/* Job progress bar styles */
+
+.job-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.job-progress__bar {
+  flex: 1;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.job-progress__fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.job-progress--pending .job-progress__fill {
+  background: #9ca3af;
+}
+
+.job-progress--running .job-progress__fill {
+  background: #3b82f6;
+  animation: progress-pulse 2s infinite;
+}
+
+.job-progress--completed .job-progress__fill {
+  background: #10b981;
+  width: 100% !important;
+}
+
+.job-progress--failed .job-progress__fill {
+  background: #ef4444;
+}
+
+.job-progress--interrupted .job-progress__fill {
+  background: #f59e0b;
+}
+
+.job-progress__label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  min-width: 60px;
+  text-align: right;
+  text-transform: capitalize;
+}
+
+@keyframes progress-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .job-progress__bar {
+    background: #374151;
+  }
+
+  .job-progress__label {
+    color: #9ca3af;
+  }
+}

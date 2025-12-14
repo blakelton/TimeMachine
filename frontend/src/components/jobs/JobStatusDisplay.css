@@ -1,0 +1,118 @@
+/* Job status display styles */
+
+.job-status-display {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.job-status-display__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.job-status-display__title {
+  margin: 0;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.job-status-display__running-badge {
+  background: #10b981;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: normal;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.job-status-display__filters {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.job-status-display__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.job-status-display__empty,
+.job-status-display__loading,
+.job-status-display__error {
+  text-align: center;
+  padding: 1rem;
+  color: #6b7280;
+}
+
+.job-status-display__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Compact mode */
+.job-status-display--compact {
+  padding: 0.5rem;
+  background: transparent;
+}
+
+.job-status-display__running-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.job-status-display__dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .job-status-display {
+    background: #1f2937;
+  }
+
+  .job-status-display__empty,
+  .job-status-display__loading {
+    color: #9ca3af;
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+  .job-status-display__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .job-status-display__filters {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+}

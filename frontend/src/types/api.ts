@@ -1058,35 +1058,35 @@ export interface components {
          */
         OutputConfigResponse: {
             /**
-             * Recording Base Path
+             * Recordings Path
              * @description Base directory for recordings
-             * @default /var/lib/timemachine/recordings
+             * @default /var/lib/timemachine/media/recordings
              */
-            recording_base_path: string;
+            recordings_path: string;
             /**
-             * Still Base Path
+             * Stills Path
              * @description Base directory for still captures
-             * @default /var/lib/timemachine/stills
+             * @default /var/lib/timemachine/media/stills
              */
-            still_base_path: string;
+            stills_path: string;
             /**
-             * Timelapse Base Path
+             * Timelapse Path
              * @description Base directory for timelapses
-             * @default /var/lib/timemachine/timelapse
+             * @default /var/lib/timemachine/media/timelapse
              */
-            timelapse_base_path: string;
+            timelapse_path: string;
             /**
              * Retention Days
              * @description Number of days to retain recordings
-             * @default 7
+             * @default 30
              */
             retention_days: number;
             /**
-             * Max Storage Gb
+             * Retention Max Gb
              * @description Maximum storage usage in GB
              * @default 50
              */
-            max_storage_gb: number;
+            retention_max_gb: number;
             /**
              * Id
              * @description Configuration ID
@@ -1098,16 +1098,16 @@ export interface components {
          * @description Schema for updating output configuration (all fields optional).
          */
         OutputConfigUpdate: {
-            /** Recording Base Path */
-            recording_base_path?: string | null;
-            /** Still Base Path */
-            still_base_path?: string | null;
-            /** Timelapse Base Path */
-            timelapse_base_path?: string | null;
+            /** Recordings Path */
+            recordings_path?: string | null;
+            /** Stills Path */
+            stills_path?: string | null;
+            /** Timelapse Path */
+            timelapse_path?: string | null;
             /** Retention Days */
             retention_days?: number | null;
-            /** Max Storage Gb */
-            max_storage_gb?: number | null;
+            /** Retention Max Gb */
+            retention_max_gb?: number | null;
         };
         /**
          * RecordingStatusResponse

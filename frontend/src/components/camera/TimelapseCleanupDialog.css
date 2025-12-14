@@ -1,0 +1,74 @@
+/**
+ * Timelapse Cleanup Dialog styles
+ */
+
+.timelapse-cleanup-dialog {
+  padding: 0.5rem 0;
+}
+
+.timelapse-cleanup-dialog__info {
+  margin-bottom: 1.5rem;
+}
+
+.timelapse-cleanup-dialog__info p {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-secondary, #4b5563);
+}
+
+.timelapse-cleanup-dialog__info p:last-child {
+  margin-bottom: 0;
+}
+
+.timelapse-cleanup-dialog__options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.timelapse-cleanup-dialog__option {
+  padding: 1rem;
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+}
+
+.timelapse-cleanup-dialog__option h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+}
+
+.timelapse-cleanup-dialog__option p {
+  margin: 0 0 1rem 0;
+  font-size: 0.875rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.timelapse-cleanup-dialog__option--danger {
+  background: var(--color-danger-bg, #fef2f2);
+  border-color: var(--color-danger-border, #fecaca);
+}
+
+.timelapse-cleanup-dialog__option--danger h4 {
+  color: var(--color-danger, #dc2626);
+}
+
+.timelapse-cleanup-dialog__button {
+  width: 100%;
+}
+
+.timelapse-cleanup-dialog__divider {
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.timelapse-cleanup-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}

@@ -2,12 +2,14 @@
  * Timelapse tab - Timelapse controls and management
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { FormField } from "../FormField";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { DiskSpaceWarning } from "./DiskSpaceWarning";
+import { TimelapseResumeBar, type InterruptedTimelapse } from "./TimelapseResumeBar";
+import { TimelapseCleanupDialog } from "./TimelapseCleanupDialog";
 import { useToast } from "../../contexts/ToastContext";
 import { wsClient } from "../../lib/websocket";
 import { useWebSocketMessage } from "../../hooks/useWebSocket";
@@ -28,6 +30,9 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
   const [diskFreeGB, setDiskFreeGB] = useState<number>(0);
   const [diskTotalGB, setDiskTotalGB] = useState<number>(0);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [interrupted, setInterrupted] = useState<InterruptedTimelapse | null>(null);
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false);
+  const [resumeLoading, setResumeLoading] = useState(false);
   const toast = useToast();
 
   // Subscribe to WebSocket stats updates for disk space
@@ -73,6 +78,106 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
       setTotalFrames(estimatedFrames);
     }
   }, [interval, duration]);
+
+  // Check for interrupted timelapse on mount
+  const checkInterrupted = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/v1/cameras/${cameraId}/timelapse/interrupted`
+      );
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (data.has_interrupted) {
+        setInterrupted({
+          job_id: data.job_id,
+          frame_count: data.frame_count,
+          disk_usage_human: data.disk_usage_human,
+          started_at: data.started_at,
+          interrupted_at: data.interrupted_at,
+          original_config: data.original_config,
+        });
+      } else {
+        setInterrupted(null);
+      }
+    } catch (error) {
+      console.error("Failed to check interrupted timelapse:", error);
+    }
+  }, [cameraId]);
+
+  useEffect(() => {
+    checkInterrupted();
+  }, [checkInterrupted]);
+
+  const handleResume = async () => {
+    setResumeLoading(true);
+    try {
+      const response = await fetch(
+        `/api/v1/cameras/${cameraId}/timelapse/resume`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to resume timelapse");
+      }
+
+      toast.success("Timelapse resumed");
+      setInterrupted(null);
+      setIsRunning(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to resume");
+    } finally {
+      setResumeLoading(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    setResumeLoading(true);
+    try {
+      const response = await fetch(
+        `/api/v1/cameras/${cameraId}/timelapse/finalize`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to generate video");
+      }
+
+      toast.success("Video generation started");
+      setInterrupted(null);
+      setShowCleanupDialog(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to finalize");
+    } finally {
+      setResumeLoading(false);
+    }
+  };
+
+  const handleCleanup = async () => {
+    setResumeLoading(true);
+    try {
+      const response = await fetch(
+        `/api/v1/cameras/${cameraId}/timelapse/cleanup`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to cleanup");
+      }
+
+      const data = await response.json();
+      toast.success(`Deleted ${data.frames_deleted} frames, freed ${data.space_freed_human}`);
+      setInterrupted(null);
+      setShowCleanupDialog(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to cleanup");
+    } finally {
+      setResumeLoading(false);
+    }
+  };
 
   const handleStartTimelapse = async () => {
     // Validate inputs
@@ -173,6 +278,16 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
         criticalThresholdPercent={5}
       />
 
+      {interrupted && (
+        <TimelapseResumeBar
+          interrupted={interrupted}
+          onResume={handleResume}
+          onFinalize={handleFinalize}
+          onCleanup={() => setShowCleanupDialog(true)}
+          loading={resumeLoading}
+        />
+      )}
+
       <div className="timelapse-tab__controls">
         <FormField
           label="Interval (seconds)"
@@ -257,6 +372,16 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
         variant="danger"
         onConfirm={handleStopTimelapse}
         onClose={() => setShowStopConfirm(false)}
+      />
+
+      <TimelapseCleanupDialog
+        isOpen={showCleanupDialog}
+        frameCount={interrupted?.frame_count || 0}
+        diskUsage={interrupted?.disk_usage_human || "0 B"}
+        onFinalize={handleFinalize}
+        onDelete={handleCleanup}
+        onCancel={() => setShowCleanupDialog(false)}
+        loading={resumeLoading}
       />
     </div>
   );

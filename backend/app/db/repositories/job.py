@@ -150,6 +150,27 @@ class JobRepository(BaseRepository[Job]):
         """
         return await self.update(job_id, timelapse_progress=frame_count)
 
+    async def get_interrupted_timelapse(self, camera_id: int) -> Job | None:
+        """Get interrupted timelapse job for camera.
+
+        Args:
+            camera_id: Camera ID to check for interrupted timelapse.
+
+        Returns:
+            Interrupted timelapse job or None.
+        """
+        result = await self.session.execute(
+            select(Job)
+            .where(
+                Job.camera_id == camera_id,
+                Job.job_type == "timelapse",
+                Job.status == "interrupted",
+            )
+            .order_by(Job.started_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def cleanup_stale_running_jobs(self) -> int:
         """Mark all running jobs as interrupted (for startup cleanup).
 

@@ -936,3 +936,202 @@ async def get_timelapse_status(
         total_frames=total_frames,
         job_id=job_id,
     )
+
+
+@router.get("/{camera_id}/timelapse/interrupted")
+async def check_interrupted_timelapse(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    """Check for interrupted timelapse on this camera.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Interrupted timelapse info or has_interrupted=False
+
+    Raises:
+        HTTPException: 404 if camera not found
+    """
+    from app.db.repositories.job import JobRepository
+
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("timelapse_interrupted_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    job_repo = JobRepository(session)
+    interrupted_job = await job_repo.get_interrupted_timelapse(camera_id)
+
+    if not interrupted_job:
+        return {"has_interrupted": False}
+
+    # Get frame info from filesystem
+    frame_info = await timelapse_service.get_interrupted_frame_info(
+        interrupted_job.id, interrupted_job.timelapse_dir or ""
+    )
+
+    return {
+        "has_interrupted": True,
+        "job_id": interrupted_job.id,
+        "frame_count": frame_info["frame_count"],
+        "frames_directory": frame_info["directory"],
+        "disk_usage_bytes": frame_info["disk_usage_bytes"],
+        "disk_usage_human": frame_info["disk_usage_human"],
+        "started_at": interrupted_job.started_at.isoformat() if interrupted_job.started_at else None,
+        "interrupted_at": interrupted_job.completed_at.isoformat() if interrupted_job.completed_at else None,
+        "original_config": interrupted_job.timelapse_config,
+    }
+
+
+@router.post("/{camera_id}/timelapse/resume", response_model=OperationResponse)
+async def resume_timelapse(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> OperationResponse:
+    """Resume an interrupted timelapse.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Resume status with job ID
+
+    Raises:
+        HTTPException: 404 if camera or interrupted timelapse not found,
+                       409 if another timelapse is running
+    """
+    from app.db.repositories.job import JobRepository
+
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("timelapse_resume_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Check for interrupted timelapse
+    job_repo = JobRepository(session)
+    interrupted_job = await job_repo.get_interrupted_timelapse(camera_id)
+
+    if not interrupted_job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No interrupted timelapse found",
+        )
+
+    # Resume using the service
+    success, message = await timelapse_service.resume_timelapse(
+        job_id=interrupted_job.id,
+        device_path=camera.device_path,
+        camera_type=camera.camera_type,
+        session=session,
+    )
+
+    if not success:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "not found" in message.lower()
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=status_code, detail=message)
+
+    return OperationResponse(
+        success=True,
+        message=message,
+        job_id=interrupted_job.id,
+    )
+
+
+@router.post("/{camera_id}/timelapse/finalize", response_model=OperationResponse)
+async def finalize_timelapse(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    output_fps: int = 30,
+) -> OperationResponse:
+    """Generate video from interrupted timelapse frames.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+        output_fps: Output video FPS (default 30)
+
+    Returns:
+        Finalize status with job ID
+
+    Raises:
+        HTTPException: 404 if camera not found, 400 if no frames
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        logger.warning("timelapse_finalize_camera_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    success, message, job_id = await timelapse_service.finalize_interrupted(
+        camera_id=camera_id,
+        session=session,
+        output_fps=output_fps,
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=message,
+        )
+
+    return OperationResponse(
+        success=True,
+        message=message,
+        job_id=job_id,
+    )
+
+
+@router.delete("/{camera_id}/timelapse/cleanup", response_model=OperationResponse)
+async def cleanup_timelapse(
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    """Delete frames from interrupted timelapse.
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Cleanup stats with frames deleted and space freed
+
+    Raises:
+        HTTPException: 404 if no interrupted timelapse found
+    """
+    success, message, stats = await timelapse_service.cleanup_interrupted(
+        camera_id=camera_id,
+        session=session,
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=message,
+        )
+
+    return {
+        "success": True,
+        "message": message,
+        **stats,
+    }

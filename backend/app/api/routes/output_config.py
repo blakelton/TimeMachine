@@ -34,7 +34,7 @@ async def get_output_config(
     logger.info(
         "output_config_retrieved",
         config_id=config.id,
-        recording_path=config.recording_base_path,
+        recordings_path=config.recordings_path,
     )
 
     return OutputConfigResponse.model_validate(config)

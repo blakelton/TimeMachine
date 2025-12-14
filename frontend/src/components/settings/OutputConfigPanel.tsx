@@ -15,11 +15,11 @@ type OutputConfigResponse = components["schemas"]["OutputConfigResponse"];
 type OutputConfigUpdate = components["schemas"]["OutputConfigUpdate"];
 
 interface OutputConfigFormData {
-  recording_base_path: string;
-  still_base_path: string;
-  timelapse_base_path: string;
+  recordings_path: string;
+  stills_path: string;
+  timelapse_path: string;
   retention_days: number;
-  max_storage_gb: number;
+  retention_max_gb: number;
 }
 
 export function OutputConfigPanel() {
@@ -39,11 +39,11 @@ export function OutputConfigPanel() {
 
   // Initialize form data from loaded config, or use defaults
   const [formData, setFormData] = useState<OutputConfigFormData>(() => ({
-    recording_base_path: "/var/lib/timemachine/recordings",
-    still_base_path: "/var/lib/timemachine/stills",
-    timelapse_base_path: "/var/lib/timemachine/timelapse",
-    retention_days: 7,
-    max_storage_gb: 50,
+    recordings_path: "/var/lib/timemachine/media/recordings",
+    stills_path: "/var/lib/timemachine/media/stills",
+    timelapse_path: "/var/lib/timemachine/media/timelapse",
+    retention_days: 30,
+    retention_max_gb: 50,
   }));
 
   const [errors, setErrors] = useState<Partial<Record<keyof OutputConfigFormData, string>>>({});
@@ -54,11 +54,11 @@ export function OutputConfigPanel() {
   useEffect(() => {
     if (configData) {
       setFormData({
-        recording_base_path: configData.recording_base_path,
-        still_base_path: configData.still_base_path,
-        timelapse_base_path: configData.timelapse_base_path,
+        recordings_path: configData.recordings_path,
+        stills_path: configData.stills_path,
+        timelapse_path: configData.timelapse_path,
         retention_days: configData.retention_days,
-        max_storage_gb: configData.max_storage_gb,
+        retention_max_gb: configData.retention_max_gb,
       });
       setHasChanges(false);
     }
@@ -91,7 +91,7 @@ export function OutputConfigPanel() {
    */
   const validationRules = [
     {
-      field: "recording_base_path" as keyof OutputConfigFormData,
+      field: "recordings_path" as keyof OutputConfigFormData,
       validators: [
         {
           check: (value: string | number) => !String(value).trim(),
@@ -104,7 +104,7 @@ export function OutputConfigPanel() {
       ],
     },
     {
-      field: "still_base_path" as keyof OutputConfigFormData,
+      field: "stills_path" as keyof OutputConfigFormData,
       validators: [
         {
           check: (value: string | number) => !String(value).trim(),
@@ -117,7 +117,7 @@ export function OutputConfigPanel() {
       ],
     },
     {
-      field: "timelapse_base_path" as keyof OutputConfigFormData,
+      field: "timelapse_path" as keyof OutputConfigFormData,
       validators: [
         {
           check: (value: string | number) => !String(value).trim(),
@@ -143,7 +143,7 @@ export function OutputConfigPanel() {
       ],
     },
     {
-      field: "max_storage_gb" as keyof OutputConfigFormData,
+      field: "retention_max_gb" as keyof OutputConfigFormData,
       validators: [
         {
           check: (value: string | number) => Number(value) < 1,
@@ -198,11 +198,11 @@ export function OutputConfigPanel() {
     }
 
     const updateData: OutputConfigUpdate = {
-      recording_base_path: formData.recording_base_path,
-      still_base_path: formData.still_base_path,
-      timelapse_base_path: formData.timelapse_base_path,
+      recordings_path: formData.recordings_path,
+      stills_path: formData.stills_path,
+      timelapse_path: formData.timelapse_path,
       retention_days: formData.retention_days,
-      max_storage_gb: formData.max_storage_gb,
+      retention_max_gb: formData.retention_max_gb,
     };
 
     await updateMutation.mutateAsync(updateData);
@@ -211,11 +211,11 @@ export function OutputConfigPanel() {
   const handleReset = () => {
     if (configData) {
       setFormData({
-        recording_base_path: configData.recording_base_path,
-        still_base_path: configData.still_base_path,
-        timelapse_base_path: configData.timelapse_base_path,
+        recordings_path: configData.recordings_path,
+        stills_path: configData.stills_path,
+        timelapse_path: configData.timelapse_path,
         retention_days: configData.retention_days,
-        max_storage_gb: configData.max_storage_gb,
+        retention_max_gb: configData.retention_max_gb,
       });
       setHasChanges(false);
       setErrors({});
@@ -258,24 +258,24 @@ export function OutputConfigPanel() {
             </p>
 
             <FormField
-              label="Recording Base Path"
+              label="Recordings Path"
               type="text"
-              value={formData.recording_base_path}
-              onChange={(e) => handleChange("recording_base_path", e.target.value)}
-              error={errors.recording_base_path}
-              placeholder="/var/lib/timemachine/recordings"
+              value={formData.recordings_path}
+              onChange={(e) => handleChange("recordings_path", e.target.value)}
+              error={errors.recordings_path}
+              placeholder="/var/lib/timemachine/media/recordings"
               helperText="Directory for video recordings"
               required
               disabled={updateMutation.isPending}
             />
 
             <FormField
-              label="Still Captures Path"
+              label="Stills Path"
               type="text"
-              value={formData.still_base_path}
-              onChange={(e) => handleChange("still_base_path", e.target.value)}
-              error={errors.still_base_path}
-              placeholder="/var/lib/timemachine/stills"
+              value={formData.stills_path}
+              onChange={(e) => handleChange("stills_path", e.target.value)}
+              error={errors.stills_path}
+              placeholder="/var/lib/timemachine/media/stills"
               helperText="Directory for still image captures"
               required
               disabled={updateMutation.isPending}
@@ -284,10 +284,10 @@ export function OutputConfigPanel() {
             <FormField
               label="Timelapse Path"
               type="text"
-              value={formData.timelapse_base_path}
-              onChange={(e) => handleChange("timelapse_base_path", e.target.value)}
-              error={errors.timelapse_base_path}
-              placeholder="/var/lib/timemachine/timelapse"
+              value={formData.timelapse_path}
+              onChange={(e) => handleChange("timelapse_path", e.target.value)}
+              error={errors.timelapse_path}
+              placeholder="/var/lib/timemachine/media/timelapse"
               helperText="Directory for timelapse videos"
               required
               disabled={updateMutation.isPending}
@@ -316,9 +316,9 @@ export function OutputConfigPanel() {
             <FormField
               label="Maximum Storage (GB)"
               type="number"
-              value={formData.max_storage_gb}
-              onChange={(e) => handleChange("max_storage_gb", parseInt(e.target.value) || 0)}
-              error={errors.max_storage_gb}
+              value={formData.retention_max_gb}
+              onChange={(e) => handleChange("retention_max_gb", parseInt(e.target.value) || 0)}
+              error={errors.retention_max_gb}
               min={1}
               max={1000}
               helperText="Maximum storage usage in gigabytes (1-1000)"

@@ -6,6 +6,8 @@ import { useState, useEffect } from "react";
 import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
+import { VideoPlayer, type MediaFile } from "../media/VideoPlayer";
+import { ImageLightbox } from "../media/ImageLightbox";
 import "./FileBrowser.css";
 
 interface StoredFile {
@@ -40,6 +42,8 @@ export function FileBrowser({
   const [selectedType, setSelectedType] = useState<string | undefined>(fileType);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  const [previewFile, setPreviewFile] = useState<MediaFile | null>(null);
+  const [previewType, setPreviewType] = useState<"video" | "image" | null>(null);
   const toast = useToast();
 
   const fetchFiles = async () => {
@@ -83,6 +87,30 @@ export function FileBrowser({
     link.href = file.download_url;
     link.download = file.filename;
     link.click();
+  };
+
+  const handlePreview = (file: StoredFile) => {
+    const mediaFile: MediaFile = {
+      filename: file.filename,
+      path: file.download_url,
+      size_bytes: file.size_bytes,
+      size_display: file.size_display,
+      file_type: file.file_type,
+      camera_id: file.camera_id,
+      created_at: file.created_at,
+    };
+    setPreviewFile(mediaFile);
+
+    if (file.file_type === "still") {
+      setPreviewType("image");
+    } else {
+      setPreviewType("video");
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewFile(null);
+    setPreviewType(null);
   };
 
   const handleDelete = async (file: StoredFile) => {
@@ -175,7 +203,15 @@ export function FileBrowser({
                 </div>
                 <div className="file-browser__item-actions">
                   <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handlePreview(file)}
+                  >
+                    {file.file_type === "still" ? "View" : "Play"}
+                  </Button>
+                  <Button
                     variant="secondary"
+                    size="sm"
                     onClick={() => handleDownload(file)}
                   >
                     Download
@@ -183,6 +219,7 @@ export function FileBrowser({
                   {showDelete && (
                     <Button
                       variant="danger"
+                      size="sm"
                       onClick={() => handleDelete(file)}
                     >
                       Delete
@@ -214,6 +251,20 @@ export function FileBrowser({
           </div>
         </>
       )}
+
+      {/* Video Player Modal */}
+      <VideoPlayer
+        file={previewFile}
+        isOpen={previewType === "video"}
+        onClose={closePreview}
+      />
+
+      {/* Image Lightbox Modal */}
+      <ImageLightbox
+        file={previewFile}
+        isOpen={previewType === "image"}
+        onClose={closePreview}
+      />
     </div>
   );
 }

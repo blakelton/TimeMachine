@@ -1,6 +1,7 @@
 """Timelapse capture and assembly service with Job tracking."""
 
 import asyncio
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
@@ -508,6 +509,154 @@ class TimelapseService:
             True if running
         """
         return camera_id in self._sessions and self._sessions[camera_id].is_running
+
+    async def get_interrupted_frame_info(self, job_id: int, timelapse_dir: str) -> dict:
+        """Get information about frames from an interrupted timelapse.
+
+        Args:
+            job_id: Job ID
+            timelapse_dir: Timelapse directory path
+
+        Returns:
+            Dict with frame_count, directory, disk_usage_bytes, disk_usage_human
+        """
+        frames_dir = Path(timelapse_dir)
+
+        if not frames_dir.exists():
+            return {
+                "frame_count": 0,
+                "directory": timelapse_dir,
+                "disk_usage_bytes": 0,
+                "disk_usage_human": "0 B",
+            }
+
+        frames = list(frames_dir.glob("frame_*.jpg"))
+        total_size = sum(f.stat().st_size for f in frames)
+
+        return {
+            "frame_count": len(frames),
+            "directory": timelapse_dir,
+            "disk_usage_bytes": total_size,
+            "disk_usage_human": self._format_size(total_size),
+        }
+
+    def _format_size(self, size_bytes: int) -> str:
+        """Format bytes as human-readable size.
+
+        Args:
+            size_bytes: Size in bytes
+
+        Returns:
+            Human-readable size string
+        """
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+    async def finalize_interrupted(
+        self,
+        camera_id: int,
+        session: AsyncSession,
+        output_fps: int = 30,
+    ) -> tuple[bool, str, int | None]:
+        """Generate video from interrupted timelapse frames.
+
+        Args:
+            camera_id: Camera database ID
+            session: Database session
+            output_fps: Output video FPS
+
+        Returns:
+            Tuple of (success: bool, message: str, job_id: int | None)
+        """
+        job_repo = JobRepository(session)
+        interrupted_job = await job_repo.get_interrupted_timelapse(camera_id)
+
+        if not interrupted_job:
+            return False, "No interrupted timelapse found", None
+
+        if not interrupted_job.timelapse_dir:
+            return False, "Job has no timelapse directory", None
+
+        timelapse_dir = Path(interrupted_job.timelapse_dir)
+        if not timelapse_dir.exists():
+            return False, "Timelapse directory no longer exists", None
+
+        frame_info = await self.get_interrupted_frame_info(
+            interrupted_job.id, interrupted_job.timelapse_dir
+        )
+        if frame_info["frame_count"] == 0:
+            return False, "No frames to process", None
+
+        # Generate video
+        output_path = await self._assemble_video(
+            timelapse_dir=timelapse_dir,
+            fps=output_fps,
+            camera_id=camera_id,
+        )
+
+        if output_path:
+            # Mark original job as completed
+            await job_repo.mark_completed(interrupted_job.id, output_path)
+            await session.commit()
+            return True, f"Video generated: {output_path}", interrupted_job.id
+        else:
+            return False, "Failed to generate video", interrupted_job.id
+
+    async def cleanup_interrupted(
+        self,
+        camera_id: int,
+        session: AsyncSession,
+    ) -> tuple[bool, str, dict]:
+        """Delete frames from interrupted timelapse.
+
+        Args:
+            camera_id: Camera database ID
+            session: Database session
+
+        Returns:
+            Tuple of (success: bool, message: str, stats: dict)
+        """
+        job_repo = JobRepository(session)
+        interrupted_job = await job_repo.get_interrupted_timelapse(camera_id)
+
+        if not interrupted_job:
+            return False, "No interrupted timelapse found", {}
+
+        timelapse_dir = interrupted_job.timelapse_dir
+        frame_info = await self.get_interrupted_frame_info(
+            interrupted_job.id,
+            timelapse_dir or "",
+        )
+
+        # Delete frames directory
+        if timelapse_dir:
+            frames_dir = Path(timelapse_dir)
+            if frames_dir.exists():
+                shutil.rmtree(frames_dir)
+
+        # Mark job as failed/cleaned
+        await job_repo.mark_failed(interrupted_job.id, "Cleaned up by user")
+        await session.commit()
+
+        logger.info(
+            "timelapse_cleanup_completed",
+            camera_id=camera_id,
+            job_id=interrupted_job.id,
+            frames_deleted=frame_info["frame_count"],
+            space_freed=frame_info["disk_usage_human"],
+        )
+
+        return True, "Timelapse frames deleted", {
+            "frames_deleted": frame_info["frame_count"],
+            "space_freed_bytes": frame_info["disk_usage_bytes"],
+            "space_freed_human": frame_info["disk_usage_human"],
+        }
 
     async def stop_all_timelapses(
         self, session: AsyncSession | None = None
