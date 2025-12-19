@@ -152,11 +152,18 @@ apt-get install -y \
 
 # Install Node.js 22.x (required for Vite 6.x which needs Node.js 20.19+ or 22.12+)
 NODE_REQUIRED_MAJOR=22
-NODE_CURRENT_VERSION=$(node --version 2>/dev/null | sed 's/v//' || echo "0.0.0")
-NODE_CURRENT_MAJOR=$(echo "$NODE_CURRENT_VERSION" | cut -d. -f1)
+
+# Check if node is installed and get version
+if command -v node &> /dev/null; then
+  NODE_CURRENT_VERSION=$(node --version | sed 's/v//')
+  NODE_CURRENT_MAJOR=$(echo "$NODE_CURRENT_VERSION" | cut -d. -f1)
+else
+  NODE_CURRENT_VERSION="not installed"
+  NODE_CURRENT_MAJOR=0
+fi
 
 if [ "$NODE_CURRENT_MAJOR" -lt "$NODE_REQUIRED_MAJOR" ]; then
-  echo "📦 Installing Node.js ${NODE_REQUIRED_MAJOR}.x (current: v${NODE_CURRENT_VERSION})..."
+  echo "📦 Installing Node.js ${NODE_REQUIRED_MAJOR}.x (current: ${NODE_CURRENT_VERSION})..."
   # Remove old nodejs if present
   apt-get remove -y nodejs npm 2>/dev/null || true
   # Install Node.js 22.x from NodeSource
