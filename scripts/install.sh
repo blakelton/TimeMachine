@@ -295,13 +295,16 @@ if [ "$BACKEND_STARTED" = true ]; then
     npm install
   fi
 
-  echo "  Generating TypeScript types..."
-  npx openapi-typescript http://127.0.0.1:8765/api/openapi.json -o src/types/api.ts
-
-  if [ -f "src/types/api.ts" ]; then
-    echo "  ✓ TypeScript types generated successfully"
+  echo "  Generating TypeScript types (timeout: 60s)..."
+  if timeout 60 npx openapi-typescript http://127.0.0.1:8765/api/openapi.json -o src/types/api.ts 2>/dev/null; then
+    if [ -f "src/types/api.ts" ]; then
+      echo "  ✓ TypeScript types generated successfully"
+    else
+      echo "  ⚠️  Warning: Type generation may have failed"
+    fi
   else
-    echo "  ⚠️  Warning: Type generation may have failed"
+    echo "  ⚠️  Warning: Type generation timed out or failed"
+    echo "  ⚠️  Using existing types (if available) or run manually after installation"
   fi
 else
   echo "  ⚠️  Warning: Could not start backend temporarily for type generation"
