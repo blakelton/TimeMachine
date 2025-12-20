@@ -26,56 +26,70 @@ class CameraDiscovery:
 
     @staticmethod
     async def discover_csi_cameras() -> list[CameraInfo]:
-        """Discover CSI cameras using libcamera or v4l2 fallback.
+        """Discover CSI cameras using libcamera/rpicam or v4l2 fallback.
 
         Returns:
             List of detected CSI cameras.
         """
         cameras = []
 
-        try:
-            # Try libcamera-hello first
-            proc = await asyncio.create_subprocess_exec(
-                "libcamera-hello",
-                "--list-cameras",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
-            output = stdout.decode() if stdout else stderr.decode()
-
-            # Parse output for camera info
-            # Example: "0 : imx219 [3280x2464] (/base/soc/i2c0mux/i2c@1/imx219@10)"
-            camera_pattern = re.compile(r"(\d+)\s*:\s*(\w+)")
-
-            for match in camera_pattern.finditer(output):
-                camera_id = match.group(1)
-                sensor_name = match.group(2)
-                device_path = f"/dev/video{camera_id}"
-
-                # Make name specific: include sensor model and device path
-                camera = CameraInfo(
-                    device_path=device_path,
-                    camera_type="csi",
-                    name=f"CSI {sensor_name.upper()} - {device_path}",
-                    capabilities={"sensor": sensor_name},
-                )
-                cameras.append(camera)
-                logger.info(
-                    "csi_camera_discovered",
-                    device=camera.device_path,
-                    sensor=sensor_name,
+        # Try rpicam-hello first (newer Raspberry Pi OS), then libcamera-hello (older)
+        for cmd in ["rpicam-hello", "libcamera-hello"]:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    cmd,
+                    "--list-cameras",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
 
-        except FileNotFoundError:
-            logger.info("libcamera_not_found", message="Trying v4l2 fallback for CSI detection")
-            # Fallback: detect CSI camera via v4l2 unicam driver
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+                output = stdout.decode() if stdout else stderr.decode()
+
+                # Parse output for camera info
+                # Example: "0 : ov5647 [2592x1944 10-bit GBRG] (/base/soc/...)"
+                camera_pattern = re.compile(r"(\d+)\s*:\s*(\w+)")
+
+                for match in camera_pattern.finditer(output):
+                    camera_id = match.group(1)
+                    sensor_name = match.group(2)
+                    # CSI cameras use libcamera, not /dev/videoN directly
+                    # Use camera index for libcamera
+                    device_path = f"libcamera:{camera_id}"
+
+                    # Make name specific: include sensor model and device path
+                    camera = CameraInfo(
+                        device_path=device_path,
+                        camera_type="csi",
+                        name=f"CSI {sensor_name.upper()} - Camera {camera_id}",
+                        capabilities={"sensor": sensor_name},
+                    )
+                    cameras.append(camera)
+                    logger.info(
+                        "csi_camera_discovered",
+                        device=camera.device_path,
+                        sensor=sensor_name,
+                        command=cmd,
+                    )
+
+                # If we found cameras with this command, don't try the next one
+                if cameras:
+                    return cameras
+
+            except FileNotFoundError:
+                logger.debug("csi_command_not_found", command=cmd)
+                continue  # Try next command
+            except asyncio.TimeoutError:
+                logger.warning("csi_command_timeout", command=cmd, message=f"{cmd} timed out")
+                continue
+            except Exception as e:
+                logger.error("csi_discovery_error", command=cmd, error=str(e))
+                continue
+
+        # If no libcamera command worked, try v4l2 fallback
+        if not cameras:
+            logger.info("libcamera_not_available", message="Trying v4l2 fallback for CSI detection")
             cameras = await CameraDiscovery._discover_csi_via_v4l2()
-        except asyncio.TimeoutError:
-            logger.warning("libcamera_timeout", message="libcamera-hello timed out")
-        except Exception as e:
-            logger.error("csi_discovery_error", error=str(e))
 
         return cameras
 
@@ -88,6 +102,7 @@ class CameraDiscovery:
         """
         cameras = []
         video_devices = list(Path("/dev").glob("video*"))
+        csi_index = 0  # Track CSI camera index for libcamera device path
 
         for device_path in video_devices:
             device_str = str(device_path)
@@ -110,28 +125,31 @@ class CameraDiscovery:
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
                 output = stdout.decode() if stdout else ""
 
-                # Check for unicam driver (CSI camera)
-                # Note: Use non-greedy match and stop at newline
+                # Check for unicam or rp1-cfe driver (CSI camera)
+                # unicam: Pi 3/4, rp1-cfe: Pi 5
                 driver_match = re.search(r"Driver name\s*:\s*(.+?)(?:\n|$)", output, re.IGNORECASE)
                 driver_name = driver_match.group(1).strip() if driver_match else ""
 
-                if driver_name == "unicam":
+                if driver_name in ["unicam", "rp1-cfe"]:
                     # Extract card type for sensor name
                     card_match = re.search(r"Card type\s*:\s*(.+?)(?:\n|$)", output, re.IGNORECASE)
                     card_name = card_match.group(1).strip() if card_match else "CSI Camera"
 
+                    # Use libcamera device path for consistency
                     camera = CameraInfo(
-                        device_path=device_str,
+                        device_path=f"libcamera:{csi_index}",
                         camera_type="csi",
-                        name=f"CSI {card_name.upper()} - {device_str}",
+                        name=f"CSI {card_name.upper()} - Camera {csi_index}",
                         capabilities={"driver": driver_name},
                     )
                     cameras.append(camera)
                     logger.info(
                         "csi_camera_discovered_v4l2",
                         device=device_str,
+                        libcamera_path=f"libcamera:{csi_index}",
                         driver=driver_name,
                     )
+                    csi_index += 1
 
             except Exception as e:
                 logger.debug("csi_v4l2_check_failed", device=device_str, error=str(e))
