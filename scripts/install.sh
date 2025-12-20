@@ -555,44 +555,35 @@ chown timemachine:timemachine /opt/timemachine/.installed_version
 # SERVICE STARTUP
 # ============================================================================
 
+echo ""
+echo "🚀 Starting services..."
+safe_start_service nginx.service
+safe_start_service timemachine.service
+
 if [ "$INSTALL_TYPE" = "upgrade" ]; then
-  echo ""
-  echo "🚀 Starting services..."
-  safe_start_service nginx.service
-  safe_start_service timemachine.service
   echo ""
   echo "╔══════════════════════════════════════════════════════════╗"
   echo "║              Upgrade Complete!                           ║"
   echo "╚══════════════════════════════════════════════════════════╝"
   echo ""
   echo "📝 Version upgraded: $PREVIOUS_VERSION → $CURRENT_VERSION"
-  echo ""
-  echo "✓ Services have been restarted"
-  echo ""
-  echo "📊 Check status:"
-  echo "     sudo systemctl status timemachine"
-  echo "     sudo journalctl -u timemachine -f"
-  echo ""
-  echo "🌐 Access web interface:"
-  echo "     http://$(hostname -I | awk '{print $1}')"
-  echo ""
 else
   echo ""
   echo "╔══════════════════════════════════════════════════════════╗"
   echo "║              Installation Complete!                      ║"
   echo "╚══════════════════════════════════════════════════════════╝"
   echo ""
-  echo "📝 Next steps:"
-  echo "  1. Edit configuration: sudo nano /etc/timemachine/timemachine.env"
-  echo "  2. Start services:"
-  echo "       sudo systemctl start timemachine"
-  echo "       sudo systemctl start nginx"
-  echo "  3. Check status:"
-  echo "       sudo systemctl status timemachine"
-  echo "       sudo journalctl -u timemachine -f"
-  echo "  4. Access web interface:"
-  echo "       http://$(hostname -I | awk '{print $1}')"
-  echo ""
-  echo "📚 Documentation: $PROJECT_ROOT/docs/README.md"
-  echo ""
+  echo "📝 Version installed: $CURRENT_VERSION"
 fi
+
+echo ""
+echo "✓ Services are running"
+echo ""
+echo "📊 Check status:"
+echo "     sudo systemctl status timemachine"
+echo "     sudo journalctl -u timemachine -f"
+echo ""
+echo "🌐 Access web interface:"
+echo "     http://$(hostname -I | awk '{print $1}')"
+echo ""
+
