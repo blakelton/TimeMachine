@@ -247,20 +247,20 @@ python3 -m venv /opt/timemachine/venv --system-site-packages
 
 echo "📝 Generating frontend TypeScript types from backend OpenAPI schema..."
 
+# Ensure environment file exists FIRST (needed for database init)
+if [ ! -f /etc/timemachine/timemachine.env ]; then
+  echo "  📝 Creating environment configuration..."
+  cp "$PROJECT_ROOT/deploy/timemachine.env.example" /etc/timemachine/timemachine.env
+  chown root:timemachine /etc/timemachine/timemachine.env
+  chmod 640 /etc/timemachine/timemachine.env
+fi
+
 # Ensure database exists before starting backend
 DB_PATH="/var/lib/timemachine/timemachine.db"
 if [ ! -f "$DB_PATH" ]; then
   echo "  📦 Initializing database for type generation..."
   cd /opt/timemachine/backend
-  sudo -u timemachine /opt/timemachine/venv/bin/python -c "import asyncio; from app.db.session import init_db; asyncio.run(init_db())" 2>/dev/null || true
-fi
-
-# Ensure environment file exists
-if [ ! -f /etc/timemachine/timemachine.env ]; then
-  echo "  📝 Creating temporary environment configuration..."
-  cp "$PROJECT_ROOT/deploy/timemachine.env.example" /etc/timemachine/timemachine.env
-  chown root:timemachine /etc/timemachine/timemachine.env
-  chmod 640 /etc/timemachine/timemachine.env
+  sudo -u timemachine bash -c "export \$(grep -v '^#' /etc/timemachine/timemachine.env | xargs) && PYTHONPATH=/opt/timemachine/backend /opt/timemachine/venv/bin/python -c 'import asyncio; from app.db.session import init_db; asyncio.run(init_db())'" 2>/dev/null || true
 fi
 
 # Temporarily start backend to generate OpenAPI schema
@@ -268,8 +268,8 @@ cd /opt/timemachine/backend
 TEMP_PID_FILE="/tmp/timemachine_temp_backend.pid"
 TEMP_LOG_FILE="/tmp/timemachine_temp_backend.log"
 
-# Start backend in background with environment
-sudo -u timemachine bash -c "export $(grep -v '^#' /etc/timemachine/timemachine.env | xargs) && /opt/timemachine/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765" > "$TEMP_LOG_FILE" 2>&1 &
+# Start backend in background with environment (escape $ to prevent expansion in outer shell)
+sudo -u timemachine bash -c "export \$(grep -v '^#' /etc/timemachine/timemachine.env | xargs) && /opt/timemachine/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765" > "$TEMP_LOG_FILE" 2>&1 &
 TEMP_BACKEND_PID=$!
 echo $TEMP_BACKEND_PID > "$TEMP_PID_FILE"
 
