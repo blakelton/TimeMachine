@@ -194,6 +194,10 @@ else
   echo "✓ User timemachine already exists"
 fi
 
+# Ensure /opt/timemachine is world-readable for nginx to serve static files
+# useradd -m creates home with 700 permissions by default
+chmod 755 /opt/timemachine
+
 # ============================================================================
 # DIRECTORY STRUCTURE
 # ============================================================================
