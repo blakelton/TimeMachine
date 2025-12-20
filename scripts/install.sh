@@ -527,7 +527,16 @@ fi
 cp "$PROJECT_ROOT/deploy/nginx.conf" /etc/nginx/sites-available/timemachine
 ln -sf /etc/nginx/sites-available/timemachine /etc/nginx/sites-enabled/timemachine
 rm -f /etc/nginx/sites-enabled/default
-nginx -t
+
+# Test and reload nginx
+if nginx -t; then
+  echo "  ✓ Nginx configuration valid"
+  systemctl reload nginx || systemctl restart nginx
+  echo "  ✓ Nginx reloaded"
+else
+  echo "  ❌ Nginx configuration test failed"
+  exit 1
+fi
 systemctl enable nginx
 
 # ============================================================================
