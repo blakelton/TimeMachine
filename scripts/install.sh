@@ -382,10 +382,10 @@ if [ ! -f "$ALEMBIC" ]; then
   /opt/timemachine/venv/bin/pip install alembic
 fi
 
-# Helper function to run alembic with proper PYTHONPATH
+# Helper function to run alembic with proper PYTHONPATH and environment
 run_alembic() {
   cd "$BACKEND_DIR"
-  PYTHONPATH="$BACKEND_DIR" "$ALEMBIC" "$@"
+  sudo -u timemachine bash -c "export \$(grep -v '^#' /etc/timemachine/timemachine.env | xargs) && PYTHONPATH='$BACKEND_DIR' '$ALEMBIC' $*"
 }
 
 if [ -f "$DB_PATH" ]; then
@@ -412,8 +412,8 @@ else
   echo "💾 Initializing database..."
   cd "$BACKEND_DIR"
 
-  # Create tables via SQLAlchemy (ensures all tables exist)
-  PYTHONPATH="$BACKEND_DIR" /opt/timemachine/venv/bin/python -c "import asyncio; from app.db.session import init_db; asyncio.run(init_db())"
+  # Create tables via SQLAlchemy (ensures all tables exist) - run as timemachine user
+  sudo -u timemachine bash -c "export \$(grep -v '^#' /etc/timemachine/timemachine.env | xargs) && PYTHONPATH='$BACKEND_DIR' /opt/timemachine/venv/bin/python -c 'import asyncio; from app.db.session import init_db; asyncio.run(init_db())'"
 
   # Stamp with latest migration so future upgrades work correctly
   echo "  🔖 Stamping database with current migration version..."
