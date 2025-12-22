@@ -44,6 +44,11 @@ class CameraBase(BaseModel):
 class CameraCreate(CameraBase):
     """Schema for creating a camera."""
 
+    hardware_id: str | None = Field(
+        None,
+        max_length=500,
+        description="Stable hardware identifier (by-path for USB, libcamera:N for CSI)",
+    )
     capabilities: CameraCapabilities | None = Field(
         None, description="Camera capabilities"
     )
@@ -56,6 +61,9 @@ class CameraUpdate(BaseModel):
     """Schema for updating a camera (all fields optional)."""
 
     name: str | None = Field(None, min_length=1, max_length=100)
+    device_path: str | None = Field(
+        None, min_length=1, max_length=255, description="Device path (e.g., /dev/video0)"
+    )
     enabled: bool | None = None
     default_settings: CameraSettings | None = None
 
@@ -64,6 +72,9 @@ class CameraResponse(CameraBase):
     """Schema for camera response."""
 
     id: int = Field(..., description="Camera ID")
+    hardware_id: str | None = Field(
+        None, description="Stable hardware identifier for persistent camera identification"
+    )
     capabilities: CameraCapabilities | None = None
     default_settings: CameraSettings | None = None
 
@@ -83,4 +94,21 @@ class DiscoveredCameraResponse(BaseModel):
     name: str = Field(..., description="Camera name")
     device_path: str = Field(..., description="Device path")
     camera_type: str = Field(..., description="Camera type: 'csi' or 'usb'")
+    hardware_id: str | None = Field(
+        None, description="Stable hardware identifier for persistent identification"
+    )
     capabilities: dict | None = Field(None, description="Camera capabilities")
+
+
+class CameraHealthResponse(BaseModel):
+    """Schema for camera health check response."""
+
+    camera_id: int = Field(..., description="Camera ID")
+    name: str = Field(..., description="Camera name")
+    device_path: str = Field(..., description="Device path")
+    camera_type: str = Field(..., description="Camera type")
+    healthy: bool = Field(..., description="Whether camera is healthy and accessible")
+    device_exists: bool = Field(..., description="Whether device path exists")
+    device_accessible: bool = Field(..., description="Whether device is accessible")
+    error: str | None = Field(None, description="Error message if unhealthy")
+    details: dict | None = Field(None, description="Additional diagnostic details")

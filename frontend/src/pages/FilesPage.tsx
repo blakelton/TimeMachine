@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { apiClient } from "../api/client";
 import { FileBrowser } from "../components/storage/FileBrowser";
 import "./FilesPage.css";
 
@@ -28,10 +29,9 @@ export function FilesPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch("/api/v1/storage/stats");
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
+      const { data, error } = await apiClient.GET("/api/v1/storage/stats");
+      if (data && !error) {
+        setStats(data as StorageStats);
       }
     } catch (err) {
       console.error("Failed to fetch storage stats:", err);

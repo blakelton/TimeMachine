@@ -19,10 +19,58 @@ class CameraInfo:
     camera_type: str  # "csi" or "usb"
     name: str
     capabilities: dict | None = None
+    hardware_id: str | None = None  # Stable identifier for persistent identification
 
 
 class CameraDiscovery:
     """Service for discovering available cameras on the system."""
+
+    @staticmethod
+    def _get_by_path_for_device(device_path: str) -> str | None:
+        """Get the /dev/v4l/by-path symlink name for a device.
+
+        The by-path symlink is stable across reboots as it's based on
+        the physical USB port location, not enumeration order.
+
+        Args:
+            device_path: e.g., /dev/video1
+
+        Returns:
+            by-path symlink name (just the filename, not full path) or None
+        """
+        by_path_dir = Path("/dev/v4l/by-path")
+        if not by_path_dir.exists():
+            return None
+
+        try:
+            device_real = Path(device_path).resolve()
+
+            for symlink in by_path_dir.iterdir():
+                if symlink.is_symlink():
+                    try:
+                        target = symlink.resolve()
+                        if target == device_real:
+                            name = symlink.name
+                            # Prefer non-usbv2 variant and video-index0 (main capture)
+                            if "video-index0" in name and not name.startswith("platform-") or "usb-" in name:
+                                return name
+                    except OSError:
+                        continue
+
+            # Second pass: accept any video-index0 match
+            for symlink in by_path_dir.iterdir():
+                if symlink.is_symlink():
+                    try:
+                        target = symlink.resolve()
+                        if target == device_real and "video-index0" in symlink.name:
+                            return symlink.name
+                    except OSError:
+                        continue
+
+        except Exception as e:
+            logger.debug("by_path_lookup_failed", device=device_path, error=str(e))
+
+        return None
 
     @staticmethod
     async def discover_csi_cameras() -> list[CameraInfo]:
@@ -58,11 +106,13 @@ class CameraDiscovery:
                     device_path = f"libcamera:{camera_id}"
 
                     # Make name specific: include sensor model and device path
+                    # CSI cameras use libcamera:N which is already stable
                     camera = CameraInfo(
                         device_path=device_path,
                         camera_type="csi",
                         name=f"CSI {sensor_name.upper()} - Camera {camera_id}",
                         capabilities={"sensor": sensor_name},
+                        hardware_id=device_path,  # libcamera:N is stable
                     )
                     cameras.append(camera)
                     logger.info(
@@ -136,11 +186,13 @@ class CameraDiscovery:
                     card_name = card_match.group(1).strip() if card_match else "CSI Camera"
 
                     # Use libcamera device path for consistency
+                    libcamera_path = f"libcamera:{csi_index}"
                     camera = CameraInfo(
-                        device_path=f"libcamera:{csi_index}",
+                        device_path=libcamera_path,
                         camera_type="csi",
                         name=f"CSI {card_name.upper()} - Camera {csi_index}",
                         capabilities={"driver": driver_name},
+                        hardware_id=libcamera_path,  # libcamera:N is stable
                     )
                     cameras.append(camera)
                     logger.info(
@@ -277,12 +329,16 @@ class CameraDiscovery:
                         device_str
                     )
 
+                    # Get stable hardware identifier (by-path symlink)
+                    hardware_id = CameraDiscovery._get_by_path_for_device(device_str)
+
                     # Make name specific: include model and device path
                     camera = CameraInfo(
                         device_path=device_str,
                         camera_type="usb",
                         name=f"USB {card_name} - {device_str}",
                         capabilities=capabilities,
+                        hardware_id=hardware_id,
                     )
                     cameras.append(camera)
                     logger.info(

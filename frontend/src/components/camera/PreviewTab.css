@@ -9,6 +9,15 @@
   height: 100%;
 }
 
+/* When controls are hidden, remove gap and let display fill */
+.preview-tab--no-controls {
+  gap: 0;
+}
+
+.preview-tab--no-controls .preview-tab__display {
+  border-radius: 0;
+}
+
 .preview-tab__controls {
   display: flex;
   gap: 12px;

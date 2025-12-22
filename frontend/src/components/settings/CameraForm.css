@@ -60,3 +60,60 @@
     width: 100%;
   }
 }
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .camera-form {
+    gap: 1rem;
+  }
+
+  .checkbox-label {
+    gap: 0.375rem;
+    min-height: 44px;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  .form-actions {
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+  }
+
+  .form-actions .btn {
+    min-height: 44px;
+  }
+}
+
+/* Landscape-specific for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .camera-form {
+    gap: 0.75rem;
+  }
+
+  .checkbox-label {
+    min-height: 36px;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+
+  .form-actions {
+    flex-direction: row;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+  }
+
+  .form-actions .btn {
+    min-height: 36px;
+    min-width: 80px;
+    flex: 0;
+    width: auto;
+  }
+}

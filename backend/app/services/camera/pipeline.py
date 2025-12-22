@@ -95,7 +95,7 @@ class ManagedPipeline:
 
             # Wait briefly to detect immediate failures
             # GStreamer pipelines often fail instantly if there's a problem
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.15)
 
             # Check if process exited immediately (indicates failure)
             if self.process.returncode is not None:

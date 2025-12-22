@@ -1,0 +1,242 @@
+# Project Configuration for Claude Orchestration System
+#
+# This file defines project-specific settings that guide agent behavior.
+# Modify this file to match your project's requirements.
+#
+# See CLAUDE.md for full documentation of the orchestration system.
+
+# =============================================================================
+# PROJECT METADATA
+# =============================================================================
+
+project:
+  name: "TimeMachine"
+  description: "Temperature-controlled observation chamber management system for Raspberry Pi. Web-based control for camera management (CSI/USB), recording, timelapse creation, and temperature control."
+  version: "1.0.0"
+  repository: "https://github.com/yourusername/TimeMachine"
+  target_platform: "Raspberry Pi 3B+"
+
+# =============================================================================
+# ACTIVE DOMAINS
+# =============================================================================
+# Enable/disable domain-specific agents. Set to true/false.
+# Only enabled domains will have their agents available.
+
+domains:
+  embedded: false      # Enable for firmware/embedded development
+  python: true         # Enable for Python development
+  web: true           # Enable for web frontend development
+
+# =============================================================================
+# EMBEDDED DOMAIN CONFIGURATION
+# =============================================================================
+# Only applies when domains.embedded is true
+
+embedded:
+  # Target platform
+  target:
+    chip: "ESP32"                    # e.g., ESP32, ESP32-C3, STM32F4, RP2040
+    variant: ""                       # e.g., ESP32-C61, STM32F407VG
+    architecture: "xtensa"            # e.g., xtensa, riscv, arm-cortex-m4
+
+  # Development framework
+  framework:
+    name: "ESP-IDF"                   # e.g., ESP-IDF, Zephyr, bare-metal, Arduino
+    version: "5.x"                    # Framework version
+
+  # Memory constraints
+  memory:
+    stack_limit_per_task: 4096        # Max bytes per FreeRTOS task stack
+    heap_type: "internal"             # internal, external, psram
+    psram_enabled: false              # Whether PSRAM is available
+
+    # Heap allocation policy
+    # Describes how heap memory should be allocated
+    allocation_policy: |
+      Use standard malloc/free for small allocations.
+      For buffers >512 bytes, consider static allocation.
+      Document any large dynamic allocations.
+
+  # Build system
+  build:
+    command: "idf.py build"           # Build command
+    clean_command: "idf.py clean"     # Clean command
+
+  # Flashing policy
+  flash:
+    command: "idf.py flash"           # Flash command
+    auto_flash: false                 # If false, Claude provides command but doesn't execute
+
+    # IMPORTANT: Set to false if you want Claude to suggest flash commands
+    # but have the user execute them manually (recommended for safety)
+
+  # Monitoring
+  monitor:
+    command: "idf.py monitor"         # Monitor command
+    baud_rate: 115200                 # Serial baud rate
+
+  # Project-specific constraints
+  constraints:
+    - "All blocking operations must have timeouts"
+    - "No indefinite waits (portMAX_DELAY)"
+    - "Use HAL abstractions for hardware access"
+
+# =============================================================================
+# PYTHON DOMAIN CONFIGURATION
+# =============================================================================
+# Only applies when domains.python is true
+
+python:
+  # Python version
+  version: "3.11"
+
+  # Code style
+  style:
+    line_length: 120                  # Max line length
+    formatter: "black"                # black, ruff, autopep8, none
+    linter: "ruff"                    # ruff, pylint, flake8, none
+    import_sorter: "isort"            # isort, ruff, none
+
+  # Type checking
+  type_checking:
+    tool: "mypy"                      # mypy, pyright, none
+    strict: true                      # Enable strict mode
+
+  # Testing
+  testing:
+    framework: "pytest"               # pytest, unittest
+    coverage_target: 80               # Target coverage percentage
+    command: "pytest"                 # Test command
+
+  # Dependencies
+  dependencies:
+    manager: "pip"                    # pip, poetry, uv, pipenv
+    requirements_file: "requirements.txt"
+    dev_requirements_file: "requirements-dev.txt"
+
+  # Project-specific constraints
+  constraints:
+    - "All public functions must have type annotations"
+    - "All public functions must have docstrings"
+    - "Maximum cyclomatic complexity: 10"
+
+# =============================================================================
+# WEB DOMAIN CONFIGURATION
+# =============================================================================
+# Only applies when domains.web is true
+
+web:
+  # Framework
+  framework:
+    name: "react"                     # react, vue, angular, svelte, vanilla
+    version: "19"                     # Framework version
+
+  # Language
+  language: "typescript"              # typescript, javascript
+
+  # Styling approach
+  styling:
+    method: "css"                     # css, scss, tailwind, styled-components, css-modules
+
+  # State management
+  state_management: "tanstack-query"  # redux, zustand, context, tanstack-query, pinia, none
+
+  # Testing
+  testing:
+    unit:
+      framework: "vitest"             # jest, vitest, mocha
+      command: "npm run test"
+    e2e:
+      framework: "playwright"         # playwright, cypress, none
+      command: "npm run test:e2e"
+
+  # Build system
+  build:
+    bundler: "vite"                   # vite, webpack, esbuild, parcel
+    command: "npm run build"
+    dev_command: "npm run dev"
+
+  # Project-specific constraints
+  constraints:
+    - "All components must have TypeScript props interfaces"
+    - "Maximum component size: 200 lines"
+    - "All interactive elements must be keyboard accessible"
+
+# =============================================================================
+# QUALITY STANDARDS
+# =============================================================================
+# Applies across all domains
+
+quality:
+  # Code complexity limits
+  complexity:
+    max_cyclomatic: 10                # Max CC per function
+    max_function_lines: 50            # Max lines per function
+    max_nesting_depth: 4              # Max nesting levels
+
+  # DRY thresholds
+  dry:
+    max_duplication_lines: 5          # Flag duplication over this many lines
+
+  # Quality gate requirements
+  gates:
+    require_quality_evaluation: true   # Always run quality evaluator after changes
+    block_on_critical: true           # Block completion on CRITICAL issues
+    block_on_high: false              # Optionally block on HIGH issues
+
+# =============================================================================
+# GIT POLICIES
+# =============================================================================
+
+git:
+  # Commit policy
+  commit:
+    auto_commit: false                # If false, Claude provides message but user commits
+    require_conventional: true        # Use conventional commit format
+
+  # Branch policy
+  branch:
+    main_branch: "main"               # main or master
+    feature_prefix: "feature/"        # Prefix for feature branches
+    bugfix_prefix: "fix/"             # Prefix for bugfix branches
+
+# =============================================================================
+# CUSTOM AGENTS
+# =============================================================================
+# Define project-specific agents here
+# These supplement the standard agents
+
+custom_agents:
+  # Example: Database migration agent
+  # database-migrator:
+  #   path: ".claude/agents/custom/database-migrator.md"
+  #   description: "Handles database schema migrations"
+  #   spawnable_by: ["python-developer"]
+
+# =============================================================================
+# CUSTOM COMMANDS
+# =============================================================================
+# Define project-specific slash commands here
+# These supplement the standard commands
+
+custom_commands:
+  # Example: Deploy command
+  # deploy:
+  #   path: ".claude/commands/deploy.md"
+  #   description: "Deploy to staging or production"
+
+# =============================================================================
+# NOTES
+# =============================================================================
+#
+# This configuration file is read by all agents to understand project context.
+#
+# To customize:
+# 1. Enable relevant domains (embedded, python, web)
+# 2. Configure each enabled domain's settings
+# 3. Adjust quality standards as needed
+# 4. Set git policies to match your workflow
+# 5. Add custom agents and commands as your project grows
+#
+# After modifying this file, Claude will automatically pick up the changes
+# in the next interaction.

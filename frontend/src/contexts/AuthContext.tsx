@@ -23,8 +23,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setAuthHeader(username, password);
 
-      // Test the credentials with a health check
-      const response = await fetch("http://localhost:8000/api/v1/health", {
+      // Test the credentials with a health check using relative URL
+      const response = await fetch("/api/v1/health", {
         headers: {
           Authorization: `Basic ${btoa(`${username}:${password}`)}`,
         },
@@ -58,7 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/health");
+      // Use relative URL for production compatibility
+      const response = await fetch("/api/v1/health");
       const authenticated = response.ok;
       setIsAuthenticated(authenticated);
       return authenticated;

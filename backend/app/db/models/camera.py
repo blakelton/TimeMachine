@@ -21,11 +21,17 @@ class Camera(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    device_path: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    device_path: Mapped[str] = mapped_column(String(255), nullable=False)
     camera_type: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # "csi" or "usb"
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Stable hardware identifier (by-path symlink for USB, libcamera:N for CSI)
+    # This is used to resolve device_path at runtime after reboots
+    hardware_id: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, unique=True, index=True
+    )
 
     # Camera capabilities (JSON)
     # Example: {"resolutions": ["1920x1080", "1280x720"], "max_fps": 30}

@@ -1,11 +1,15 @@
 /**
  * Camera page styles
+ * Optimized for 800x480 touchscreen with maximized preview area
  */
 
 .camera-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  height: 100%;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 .camera-page__error {
@@ -15,75 +19,86 @@
   font-size: 18px;
 }
 
+/* Header: Title + badges on left, controls on right */
 .camera-page__header {
-  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.camera-page__title-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .camera-page__title {
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0 0 8px 0;
-  color: #333;
-}
-
-.camera-page__info {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.camera-page__type,
-.camera-page__status {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.camera-page__type {
-  background-color: #e7f5ff;
-  color: #1971c2;
-}
-
-.camera-page__status {
-  background-color: #d3f9d8;
-  color: #2b8a3e;
-}
-
-/* Live preview section */
-.camera-page__preview {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-/* Preview placeholder (when preview is stopped) */
-.camera-page__preview-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  background: #1a1a1a;
-  border-radius: 8px;
-  color: #fff;
-  text-align: center;
-  padding: 24px;
-}
-
-.camera-page__preview-placeholder span {
   font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 8px;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
+  white-space: nowrap;
 }
 
-.camera-page__preview-placeholder p {
-  margin: 0;
-  font-size: 14px;
-  color: #888;
+.camera-page__badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.camera-page__badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.camera-page__badge--type {
+  background-color: #1971c2;
+  color: #e7f5ff;
+}
+
+.camera-page__badge--enabled {
+  background-color: #2b8a3e;
+  color: #d3f9d8;
+}
+
+.camera-page__badge--disabled {
+  background-color: #868e96;
+  color: #f1f3f5;
+}
+
+/* Preview area - maximized to fill remaining space */
+.camera-page__preview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Make PreviewTab fill the container */
+.camera-page__preview .preview-tab {
+  width: 100%;
+  height: 100%;
+}
+
+.camera-page__preview .preview-tab--no-controls {
+  gap: 0;
+}
+
+.camera-page__preview .preview-tab__display {
+  flex: 1;
+  min-height: 0;
 }
 
 /* Dark mode support */
@@ -91,112 +106,82 @@
   .camera-page__title {
     color: #fff;
   }
+}
 
-  .camera-page__type {
-    background-color: #1971c2;
-    color: #e7f5ff;
+/* Light mode override for title */
+@media (prefers-color-scheme: light) {
+  .camera-page__title {
+    color: #333;
   }
 
-  .camera-page__status {
-    background-color: #2b8a3e;
-    color: #d3f9d8;
+  .camera-page__badge--type {
+    background-color: #e7f5ff;
+    color: #1971c2;
   }
 
-  .camera-page__preview {
-    background-color: #2a2a2a;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  .camera-page__badge--enabled {
+    background-color: #d3f9d8;
+    color: #2b8a3e;
   }
 }
 
-/* Responsive - Tablet */
-@media (max-width: 768px) {
+/* Desktop - larger screens */
+@media (min-width: 1024px) {
   .camera-page {
+    max-width: 1200px;
+    margin: 0 auto;
     padding: 16px;
+  }
+
+  .camera-page__header {
+    margin-bottom: 12px;
   }
 
   .camera-page__title {
     font-size: 24px;
   }
-}
 
-/* Responsive - Small touchscreen (800x480) and mobile */
-@media (max-width: 850px) and (max-height: 520px),
-       (max-width: 480px) {
-  .camera-page {
-    padding: 8px;
-    max-width: 100%;
-  }
-
-  .camera-page__header {
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  .camera-page__title {
-    font-size: 18px;
-    margin: 0;
-  }
-
-  .camera-page__info {
-    gap: 6px;
-  }
-
-  .camera-page__type,
-  .camera-page__status {
-    padding: 2px 8px;
-    font-size: 10px;
-    border-radius: 8px;
-  }
-
-  .camera-page__preview {
-    padding: 8px;
-    margin-bottom: 8px;
-    border-radius: 4px;
-  }
-
-  .camera-page__preview-placeholder {
-    min-height: 120px;
-    padding: 16px;
-  }
-
-  .camera-page__preview-placeholder span {
-    font-size: 14px;
-  }
-
-  .camera-page__preview-placeholder p {
+  .camera-page__badge {
+    padding: 3px 10px;
     font-size: 12px;
   }
 }
 
-/* Landscape-specific adjustments for 800x480 touchscreen */
+/* Small touchscreen (800x480) and mobile - landscape */
 @media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
   .camera-page {
-    display: flex;
-    flex-direction: column;
-    height: calc(100vh - 60px); /* Account for header */
-    overflow: hidden;
+    height: calc(100vh - 44px); /* Account for nav header */
+    padding: 4px 8px;
   }
 
   .camera-page__header {
-    flex-shrink: 0;
+    margin-bottom: 4px;
+    gap: 8px;
+  }
+
+  .camera-page__title {
+    font-size: 14px;
+  }
+
+  .camera-page__badge {
+    padding: 1px 6px;
+    font-size: 10px;
   }
 
   .camera-page__preview {
-    flex: 1;
-    min-height: 0;
-    margin-bottom: 4px;
-    overflow: hidden;
+    margin-bottom: 0;
   }
 }
 
-/* Mobile portrait - stack everything vertically */
+/* Mobile portrait */
 @media (max-width: 480px) and (orientation: portrait) {
   .camera-page__header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
+  }
+
+  .camera-page__title-section {
+    width: 100%;
   }
 }

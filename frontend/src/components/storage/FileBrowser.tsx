@@ -3,10 +3,12 @@
  */
 
 import { useState, useEffect } from "react";
+import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
 import { VideoPlayer, type MediaFile } from "../media/VideoPlayer";
 import { ImageLightbox } from "../media/ImageLightbox";
+import { formatDate } from "../../utils/formatters";
 import "./FileBrowser.css";
 
 interface StoredFile {
@@ -57,17 +59,16 @@ export function FileBrowser({
       if (selectedType) params.file_type = selectedType;
       if (cameraId) params.camera_id = cameraId;
 
-      const response = await fetch(
-        `/api/v1/storage/files?${new URLSearchParams(params)}`
-      );
+      const { data, error } = await apiClient.GET("/api/v1/storage/files", {
+        params: { query: params as Record<string, string | number> },
+      });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch files: ${response.statusText}`);
+      if (error || !data) {
+        throw new Error("Failed to fetch files");
       }
 
-      const data = await response.json();
-      setFiles(data.files);
-      setTotal(data.total);
+      setFiles((data as { files: StoredFile[]; total: number }).files);
+      setTotal((data as { files: StoredFile[]; total: number }).total);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load files";
       setError(message);
@@ -118,11 +119,11 @@ export function FileBrowser({
     }
 
     try {
-      const response = await fetch(`/api/v1/storage/files/${file.file_id}`, {
-        method: "DELETE",
+      const { error } = await apiClient.DELETE("/api/v1/storage/files/{file_id}", {
+        params: { path: { file_id: file.file_id } },
       });
 
-      if (!response.ok) {
+      if (error) {
         throw new Error("Failed to delete file");
       }
 
@@ -131,10 +132,6 @@ export function FileBrowser({
     } catch (err) {
       toast.error("Failed to delete file");
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString();
   };
 
   const getTypeIcon = (type: string) => {

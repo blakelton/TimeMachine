@@ -4,6 +4,7 @@ import asyncio
 
 import structlog
 
+from app.core.constants import STATS_BROADCAST_INTERVAL_SECONDS
 from app.models.schemas.websocket import WSStatsUpdate
 from app.services.system.stats import get_system_stats
 from app.services.websocket.manager import ws_manager
@@ -45,5 +46,4 @@ async def stats_broadcast_loop() -> None:
         except Exception as e:
             logger.error("stats_broadcast_error", error=str(e))
 
-        # Broadcast every 2 seconds
-        await asyncio.sleep(2)
+        await asyncio.sleep(STATS_BROADCAST_INTERVAL_SECONDS)

@@ -1,18 +1,18 @@
 /**
  * Camera page with live preview and observation controls
  *
- * Layout:
- * - Header with camera name and status
- * - Live preview (or observation in progress view)
- * - Action bar: Preview, Capture, Start Observation
+ * Layout (optimized for 800x480 touchscreen):
+ * - Header row: Title + badges (left), controls (right)
+ * - Full-size preview area below
  */
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "../api/client";
 import { PreviewTab } from "../components/camera/PreviewTab";
-import { CameraActionBar } from "../components/camera/CameraActionBar";
+import type { PreviewTabHandle } from "../components/camera/PreviewTab";
+import { CameraControls } from "../components/camera/CameraControls";
 import { StartObservationModal } from "../components/camera/StartObservationModal";
 import { ObservationInProgress } from "../components/camera/ObservationInProgress";
 import "./CameraPage.css";
@@ -25,11 +25,9 @@ interface ActiveObservation {
 
 export function CameraPage() {
   const { cameraId } = useParams<{ cameraId: string }>();
-
   const cameraIdNum = parseInt(cameraId || "0");
+  const previewRef = useRef<PreviewTabHandle>(null);
 
-  // Local state for preview
-  const [isPreviewActive, setIsPreviewActive] = useState(true);
   const [showObservationModal, setShowObservationModal] = useState(false);
 
   // Fetch camera details
@@ -76,10 +74,6 @@ export function CameraPage() {
     );
   }
 
-  const handleTogglePreview = () => {
-    setIsPreviewActive(!isPreviewActive);
-  };
-
   const handleStartObservation = () => {
     setShowObservationModal(true);
   };
@@ -94,55 +88,45 @@ export function CameraPage() {
 
   return (
     <div className="camera-page">
-      {/* Header */}
+      {/* Header with title, badges, and controls */}
       <div className="camera-page__header">
-        <h1 className="camera-page__title">
-          {isLoading ? "Loading..." : camera?.name || `Camera ${cameraId}`}
-        </h1>
-        {camera && (
-          <div className="camera-page__info">
-            <span className="camera-page__type">
-              {camera.camera_type?.toUpperCase()}
-            </span>
-            <span className="camera-page__status">
-              {camera.enabled ? "Enabled" : "Disabled"}
-            </span>
-          </div>
+        <div className="camera-page__title-section">
+          <h1 className="camera-page__title">
+            {isLoading ? "Loading..." : camera?.name || `Camera ${cameraId}`}
+          </h1>
+          {camera && (
+            <div className="camera-page__badges">
+              <span className="camera-page__badge camera-page__badge--type">
+                {camera.camera_type?.toUpperCase()}
+              </span>
+              <span className={`camera-page__badge camera-page__badge--status ${camera.enabled ? 'camera-page__badge--enabled' : 'camera-page__badge--disabled'}`}>
+                {camera.enabled ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Controls - only show when no observation active */}
+        {!isObservationActive && (
+          <CameraControls
+            cameraId={cameraIdNum}
+            previewRef={previewRef}
+            onStartObservation={handleStartObservation}
+          />
         )}
       </div>
 
-      {/* Main content area */}
+      {/* Main content area - maximized preview */}
       {isObservationActive && activeObservation ? (
-        // Show Observation In Progress
         <ObservationInProgress
           observationId={activeObservation.id}
           cameraId={cameraIdNum}
           onStopped={handleObservationStopped}
         />
       ) : (
-        // Show Preview and Action Bar
-        <>
-          {/* Live Preview */}
-          <div className="camera-page__preview">
-            {isPreviewActive ? (
-              <PreviewTab cameraId={cameraIdNum} autoStart />
-            ) : (
-              <div className="camera-page__preview-placeholder">
-                <span>Preview Stopped</span>
-                <p>Click "Preview" to start the camera preview</p>
-              </div>
-            )}
-          </div>
-
-          {/* Action Bar */}
-          <CameraActionBar
-            cameraId={cameraIdNum}
-            isPreviewActive={isPreviewActive}
-            isObservationActive={isObservationActive}
-            onTogglePreview={handleTogglePreview}
-            onStartObservation={handleStartObservation}
-          />
-        </>
+        <div className="camera-page__preview">
+          <PreviewTab ref={previewRef} cameraId={cameraIdNum} autoStart hideControls />
+        </div>
       )}
 
       {/* Start Observation Modal */}

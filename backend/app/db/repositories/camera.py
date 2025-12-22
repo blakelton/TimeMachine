@@ -51,3 +51,36 @@ class CameraRepository(BaseRepository[Camera]):
             select(Camera).where(Camera.camera_type == camera_type)
         )
         return list(result.scalars().all())
+
+    async def get_by_hardware_id(self, hardware_id: str) -> Camera | None:
+        """Get camera by hardware ID.
+
+        Args:
+            hardware_id: The stable hardware identifier.
+
+        Returns:
+            Camera instance or None if not found.
+        """
+        result = await self.session.execute(
+            select(Camera).where(Camera.hardware_id == hardware_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def update_device_path(self, camera_id: int, device_path: str) -> bool:
+        """Update a camera's device path.
+
+        Used during startup reconciliation when hardware_id resolves
+        to a different device path than stored.
+
+        Args:
+            camera_id: The camera ID.
+            device_path: The new device path.
+
+        Returns:
+            True if updated, False if camera not found.
+        """
+        camera = await self.get(camera_id)
+        if camera:
+            camera.device_path = device_path
+            return True
+        return False

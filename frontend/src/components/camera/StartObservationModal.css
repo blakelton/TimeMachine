@@ -180,3 +180,129 @@
     flex: 1;
   }
 }
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .observation-modal {
+    gap: 12px;
+  }
+
+  .observation-modal__type-selector {
+    gap: 6px;
+  }
+
+  .observation-modal__type-label {
+    font-size: 13px;
+  }
+
+  .observation-modal__type-options {
+    gap: 8px;
+  }
+
+  .observation-modal__type-option {
+    padding: 10px 8px;
+    min-height: 44px;
+  }
+
+  .observation-modal__type-icon {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+
+  .observation-modal__type-name {
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  .observation-modal__type-desc {
+    font-size: 11px;
+  }
+
+  .observation-modal__divider {
+    margin: 2px 0;
+  }
+
+  .observation-modal__settings {
+    gap: 10px;
+  }
+
+  .observation-modal__settings-title {
+    font-size: 14px;
+  }
+
+  .observation-modal__row {
+    gap: 8px;
+  }
+
+  .observation-modal__note {
+    font-size: 12px;
+    padding: 8px;
+  }
+
+  .observation-modal__footer {
+    gap: 8px;
+    padding-top: 10px;
+  }
+}
+
+/* Landscape-specific for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .observation-modal {
+    gap: 8px;
+  }
+
+  .observation-modal__type-options {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .observation-modal__type-option {
+    padding: 8px;
+    flex-direction: row;
+    text-align: left;
+    gap: 8px;
+    min-height: 36px;
+  }
+
+  .observation-modal__type-icon {
+    font-size: 18px;
+    margin: 0;
+  }
+
+  .observation-modal__type-name {
+    font-size: 13px;
+  }
+
+  .observation-modal__type-desc {
+    font-size: 10px;
+    display: none; /* Hide descriptions to save space */
+  }
+
+  .observation-modal__divider {
+    display: none;
+  }
+
+  .observation-modal__settings {
+    gap: 8px;
+  }
+
+  .observation-modal__settings-title {
+    font-size: 13px;
+  }
+
+  .observation-modal__row {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .observation-modal__note {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .observation-modal__footer {
+    gap: 6px;
+    padding-top: 8px;
+  }
+}

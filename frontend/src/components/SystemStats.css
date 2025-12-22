@@ -157,3 +157,136 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .system-stats {
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .stats-header {
+    margin-bottom: 0.75rem;
+  }
+
+  .stats-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .connection-status {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .stat-card {
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .stat-icon {
+    font-size: 1.25rem;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    margin-bottom: 0.125rem;
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-detail {
+    font-size: 0.65rem;
+  }
+
+  .stat-bar {
+    height: 4px;
+  }
+
+  .stats-footer {
+    padding-top: 0.5rem;
+  }
+
+  .last-update {
+    font-size: 0.75rem;
+  }
+}
+
+/* Landscape-specific for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .system-stats {
+    padding: 0.5rem;
+    margin-bottom: 0;
+    flex-shrink: 0;
+    width: 280px; /* Fixed width for side panel */
+    min-width: 280px;
+    height: fit-content;
+    max-height: 100%;
+    overflow-y: auto;
+  }
+
+  .stats-header {
+    margin-bottom: 0.375rem;
+  }
+
+  .stats-header h2 {
+    font-size: 0.9rem;
+  }
+
+  .connection-status {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.65rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr); /* 2 columns in side panel */
+    gap: 0.375rem;
+    margin-bottom: 0;
+  }
+
+  .stat-card {
+    padding: 0.375rem;
+    gap: 0.25rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stat-icon {
+    font-size: 0.9rem;
+    display: none; /* Hide icons to save space */
+  }
+
+  .stat-label {
+    font-size: 0.6rem;
+    margin-bottom: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-value {
+    font-size: 0.85rem;
+    margin-bottom: 0.125rem;
+  }
+
+  .stat-detail {
+    font-size: 0.55rem;
+    display: none; /* Hide details in landscape to save space */
+  }
+
+  .stat-bar {
+    height: 3px;
+  }
+
+  .stats-footer {
+    display: none; /* Hide footer in landscape to save space */
+  }
+}

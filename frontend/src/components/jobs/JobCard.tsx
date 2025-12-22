@@ -4,6 +4,7 @@
 
 import { JobProgress } from "./JobProgress";
 import { Button } from "../Button";
+import { formatDate, formatDuration } from "../../utils/formatters";
 import "./JobCard.css";
 
 export interface Job {
@@ -68,19 +69,12 @@ export function JobCard({
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleString();
-  };
-
-  const formatDuration = () => {
+  const getJobDuration = () => {
     if (!job.started_at) return null;
     const start = new Date(job.started_at);
     const end = job.completed_at ? new Date(job.completed_at) : new Date();
     const seconds = Math.floor((end.getTime() - start.getTime()) / 1000);
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return formatDuration(seconds);
   };
 
   const getOutputFilename = () => {
@@ -135,10 +129,10 @@ export function JobCard({
             <span className="job-card__value">{formatDate(job.completed_at)}</span>
           </div>
         )}
-        {formatDuration() && (
+        {getJobDuration() && (
           <div className="job-card__detail">
             <span className="job-card__label">Duration:</span>
-            <span className="job-card__value">{formatDuration()}</span>
+            <span className="job-card__value">{getJobDuration()}</span>
           </div>
         )}
       </div>

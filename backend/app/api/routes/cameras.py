@@ -12,6 +12,7 @@ from app.db.repositories.camera import CameraRepository
 from app.db.session import get_session
 from app.schemas.camera import (
     CameraCreate,
+    CameraHealthResponse,
     CameraListResponse,
     CameraResponse,
     CameraUpdate,
@@ -111,6 +112,155 @@ async def get_camera(
     return CameraResponse.model_validate(camera)
 
 
+@router.get("/{camera_id}/health", response_model=CameraHealthResponse)
+async def check_camera_health(
+    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+) -> CameraHealthResponse:
+    """Check camera health and accessibility.
+
+    Performs hardware-level checks to detect issues like:
+    - Missing device files
+    - I2C communication failures (CSI cameras)
+    - Permission issues
+    - Hardware disconnection
+
+    Args:
+        camera_id: Camera ID
+        session: Database session
+
+    Returns:
+        Camera health status with diagnostic details
+    """
+    import os
+    import subprocess
+
+    repo = CameraRepository(session)
+    camera = await repo.get(camera_id)
+
+    if camera is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    device_path = camera.device_path
+    camera_type = camera.camera_type
+    details: dict = {}
+    error: str | None = None
+
+    # Check if device exists
+    device_exists = os.path.exists(device_path)
+    details["device_exists"] = device_exists
+
+    # Check if device is accessible (readable)
+    device_accessible = False
+    if device_exists:
+        try:
+            device_accessible = os.access(device_path, os.R_OK)
+            details["device_readable"] = device_accessible
+        except Exception as e:
+            details["access_error"] = str(e)
+
+    # For CSI cameras, check libcamera/rpicam availability
+    if camera_type == "csi":
+        try:
+            result = subprocess.run(
+                ["rpicam-hello", "--list-cameras"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            details["rpicam_available"] = result.returncode == 0
+
+            if result.returncode == 0:
+                # Parse output to check if camera is listed
+                if "ov5647" in result.stdout.lower() or "imx" in result.stdout.lower():
+                    details["csi_camera_detected"] = True
+                else:
+                    details["csi_camera_detected"] = False
+                    error = "CSI camera not detected by libcamera"
+            else:
+                error = f"rpicam-hello failed: {result.stderr[:200]}"
+
+            # Check dmesg for I2C errors (common CSI camera issue)
+            dmesg_result = subprocess.run(
+                ["dmesg"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if dmesg_result.returncode == 0:
+                recent_lines = dmesg_result.stdout.split("\n")[-100:]
+                i2c_errors = [
+                    line for line in recent_lines
+                    if "i2c" in line.lower() and ("error" in line.lower() or "-110" in line)
+                ]
+                if i2c_errors:
+                    details["i2c_errors_detected"] = True
+                    details["i2c_error_sample"] = i2c_errors[-1][:200] if i2c_errors else None
+                    if not error:
+                        error = "I2C communication errors detected - check CSI cable connection"
+
+        except subprocess.TimeoutExpired:
+            error = "Camera check timed out - camera may be hung"
+            details["timeout"] = True
+        except FileNotFoundError:
+            details["rpicam_available"] = False
+            error = "rpicam-hello not installed"
+        except Exception as e:
+            error = f"Health check failed: {str(e)}"
+
+    # For USB cameras, try v4l2-ctl
+    elif camera_type == "usb":
+        if device_exists and device_accessible:
+            try:
+                result = subprocess.run(
+                    ["v4l2-ctl", "-d", device_path, "--all"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    details["v4l2_accessible"] = True
+                    # Extract driver info
+                    for line in result.stdout.split("\n"):
+                        if "Driver name" in line:
+                            details["driver"] = line.split(":")[-1].strip()
+                        elif "Card type" in line:
+                            details["card_type"] = line.split(":")[-1].strip()
+                else:
+                    details["v4l2_accessible"] = False
+                    error = f"v4l2-ctl failed: {result.stderr[:100]}"
+            except subprocess.TimeoutExpired:
+                error = "v4l2-ctl timed out - device may be busy"
+            except FileNotFoundError:
+                details["v4l2_available"] = False
+            except Exception as e:
+                error = f"USB camera check failed: {str(e)}"
+
+    # Determine overall health
+    healthy = device_exists and device_accessible and error is None
+
+    logger.info(
+        "camera_health_checked",
+        camera_id=camera_id,
+        healthy=healthy,
+        error=error,
+    )
+
+    return CameraHealthResponse(
+        camera_id=camera_id,
+        name=camera.name,
+        device_path=device_path,
+        camera_type=camera_type,
+        healthy=healthy,
+        device_exists=device_exists,
+        device_accessible=device_accessible,
+        error=error,
+        details=details if details else None,
+    )
+
+
 @router.post("", response_model=CameraResponse, status_code=status.HTTP_201_CREATED)
 async def create_camera(
     camera_data: CameraCreate, session: Annotated[AsyncSession, Depends(get_session)]
@@ -129,7 +279,21 @@ async def create_camera(
     """
     repo = CameraRepository(session)
 
-    # Check if device_path already exists
+    # Check if hardware_id already exists (preferred unique identifier)
+    if camera_data.hardware_id:
+        existing_hw = await repo.get_by_hardware_id(camera_data.hardware_id)
+        if existing_hw:
+            logger.warning(
+                "camera_creation_conflict_hardware_id",
+                hardware_id=camera_data.hardware_id,
+                existing_id=existing_hw.id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Camera with hardware ID '{camera_data.hardware_id}' already exists",
+            )
+
+    # Check if device_path already exists (fallback check)
     existing = await repo.get_by_device_path(camera_data.device_path)
     if existing:
         logger.warning(
@@ -271,14 +435,18 @@ async def discover_cameras(
         )
         raise
 
-    # Get existing camera device paths to filter them out
+    # Get existing cameras to filter out already-configured ones
+    # Use hardware_id for matching (preferred) and device_path as fallback
     repo = CameraRepository(session)
     existing_cameras = await repo.get_all()
     existing_paths = {cam.device_path for cam in existing_cameras}
+    existing_hardware_ids = {cam.hardware_id for cam in existing_cameras if cam.hardware_id}
 
-    # Filter out already-configured cameras
+    # Filter out already-configured cameras by hardware_id or device_path
     available_cameras = [
-        cam for cam in discovered if cam.device_path not in existing_paths
+        cam for cam in discovered
+        if (cam.hardware_id not in existing_hardware_ids if cam.hardware_id else True)
+        and cam.device_path not in existing_paths
     ]
 
     logger.info(
@@ -288,6 +456,7 @@ async def discover_cameras(
         available=len(available_cameras),
         filtered=len(discovered) - len(available_cameras),
         existing_paths=list(existing_paths),
+        existing_hardware_ids=list(existing_hardware_ids),
     )
 
     return [
@@ -295,6 +464,7 @@ async def discover_cameras(
             name=cam.name,
             device_path=cam.device_path,
             camera_type=cam.camera_type,
+            hardware_id=cam.hardware_id,
             capabilities=cam.capabilities if cam.capabilities else None,
         )
         for cam in available_cameras

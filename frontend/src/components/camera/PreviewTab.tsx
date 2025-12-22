@@ -5,9 +5,10 @@
  * - Auto-start preview when camera tab opens
  * - Exponential backoff retry for stream connection
  * - Automatic reconnection on stream errors
+ * - Exposes control methods via ref for external control
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
@@ -15,19 +16,40 @@ import "./PreviewTab.css";
 
 /** Retry configuration for stream connection */
 const RETRY_CONFIG = {
+  /** Max retries for image load failures */
   maxRetries: 5,
-  initialDelayMs: 500,
-  maxDelayMs: 4000,
-  backoffMultiplier: 2,
+  /** Initial delay between retries (ms) */
+  initialDelayMs: 200,
+  /** Maximum delay between retries (ms) */
+  maxDelayMs: 2000,
+  /** Multiplier for exponential backoff */
+  backoffMultiplier: 1.5,
+  /** How long to poll for stream readiness after starting (ms) */
+  streamReadyTimeout: 5000,
+  /** Interval between stream ready checks (ms) */
+  streamReadyInterval: 100,
 };
 
 export interface PreviewTabProps {
   cameraId: number;
   /** Auto-start preview when component mounts (if no active observation running) */
   autoStart?: boolean;
+  /** Hide the internal start/stop controls (when controls are external) */
+  hideControls?: boolean;
 }
 
-export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
+/** Handle exposed by PreviewTab for external control */
+export interface PreviewTabHandle {
+  startPreview: () => void;
+  stopPreview: () => void;
+  isPreviewActive: boolean;
+  isLoading: boolean;
+}
+
+export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function PreviewTab(
+  { cameraId, autoStart = false, hideControls = false },
+  ref
+) {
   const [isPreviewActive, setIsPreviewActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -91,40 +113,82 @@ export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
   }, [cameraId]);
 
   /**
-   * Wait for stream to be ready by polling the stream endpoint
-   * Returns true if stream becomes available within timeout
+   * Check camera health and return a user-friendly error message if unhealthy.
+   */
+  const checkCameraHealth = useCallback(async (): Promise<string | null> => {
+    try {
+      const { data, error } = await apiClient.GET(
+        "/api/v1/cameras/{camera_id}/health",
+        {
+          params: { path: { camera_id: cameraId } },
+        }
+      );
+
+      if (error || !data) {
+        return null; // Can't determine health, continue anyway
+      }
+
+      if (!data.healthy) {
+        // Return user-friendly error based on the issue detected
+        if (data.error?.includes("I2C")) {
+          return "Camera connection error - please check the CSI ribbon cable is properly connected";
+        }
+        if (data.error?.includes("timed out")) {
+          return "Camera is not responding - it may need to be reconnected or the Pi restarted";
+        }
+        if (!data.device_exists) {
+          return "Camera device not found - the camera may be disconnected";
+        }
+        if (!data.device_accessible) {
+          return "Cannot access camera - permission denied";
+        }
+        return data.error || "Camera is unhealthy";
+      }
+
+      return null; // Camera is healthy
+    } catch {
+      return null; // Can't determine health, continue anyway
+    }
+  }, [cameraId]);
+
+  /**
+   * Wait for stream to be ready by polling the preview status endpoint.
+   * This is much faster than the old HEAD request approach which timed out.
    */
   const waitForStreamReady = useCallback(async (): Promise<boolean> => {
-    const baseUrl = `/api/v1/cameras/${cameraId}/preview/stream`;
+    const startTime = Date.now();
+    const statusUrl = `/api/v1/cameras/${cameraId}/preview/status`;
 
-    for (let attempt = 0; attempt < RETRY_CONFIG.maxRetries; attempt++) {
+    while (Date.now() - startTime < RETRY_CONFIG.streamReadyTimeout) {
       if (!mountedRef.current) return false;
 
       try {
-        // Try a HEAD request to check if stream is available
-        const response = await fetch(baseUrl, {
-          method: "HEAD",
-          // Short timeout for each attempt
-          signal: AbortSignal.timeout(2000),
+        const response = await fetch(statusUrl, {
+          signal: AbortSignal.timeout(1000),
         });
 
         if (response.ok) {
-          return true;
+          const data = await response.json();
+          // Check if the preview state is "running"
+          if (data.state === "running") {
+            return true;
+          }
         }
       } catch {
-        // Stream not ready yet, continue retrying
+        // Status check failed, continue polling
       }
 
-      // Wait with exponential backoff before next attempt
-      const delay = getRetryDelay(attempt);
+      // Short fixed interval - no exponential backoff needed for status polling
       await new Promise(resolve => {
-        retryTimeoutRef.current = setTimeout(resolve, delay);
+        retryTimeoutRef.current = setTimeout(resolve, RETRY_CONFIG.streamReadyInterval);
       });
       retryTimeoutRef.current = null;
     }
 
+    // Timeout reached, but we'll still try to show the stream
+    // The image onLoad/onError handlers will manage from here
     return false;
-  }, [cameraId, getRetryDelay]);
+  }, [cameraId]);
 
   /**
    * Start preview and wait for stream to be ready
@@ -166,8 +230,14 @@ export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
           toast.success("Preview started");
         }
       } else {
-        // Stream didn't become ready, but pipeline might still be starting
-        // Show preview anyway - the img onError handler will manage retries
+        // Stream didn't become ready - check camera health for better error message
+        const healthError = await checkCameraHealth();
+        if (healthError) {
+          throw new Error(healthError);
+        }
+
+        // No health issue detected, try showing preview anyway
+        // The img onError handler will manage retries
         setIsPreviewActive(true);
         setStreamKey(prev => prev + 1);
         if (showToast) {
@@ -190,7 +260,7 @@ export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
         setIsConnecting(false);
       }
     }
-  }, [cameraId, waitForStreamReady, toast]);
+  }, [cameraId, waitForStreamReady, checkCameraHealth, toast]);
 
   /**
    * Handle image load error with retry logic
@@ -245,17 +315,23 @@ export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
    */
   const checkPreviewStatus = useCallback(async () => {
     try {
-      const streamUrl = `/api/v1/cameras/${cameraId}/preview/stream`;
-      const response = await fetch(streamUrl, {
-        method: "HEAD",
-        signal: AbortSignal.timeout(2000),
+      const statusUrl = `/api/v1/cameras/${cameraId}/preview/status`;
+      const response = await fetch(statusUrl, {
+        signal: AbortSignal.timeout(1000),
       });
-      const previewActive = response.ok;
-      setIsPreviewActive(previewActive);
-      if (previewActive) {
-        setStreamKey(prev => prev + 1);
+
+      if (response.ok) {
+        const data = await response.json();
+        const previewActive = data.state === "running";
+        setIsPreviewActive(previewActive);
+        if (previewActive) {
+          setStreamKey(prev => prev + 1);
+        }
+        return previewActive;
       }
-      return previewActive;
+
+      setIsPreviewActive(false);
+      return false;
     } catch {
       setIsPreviewActive(false);
       return false;
@@ -362,6 +438,14 @@ export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
     startPreviewWithRetry(true);
   };
 
+  // Expose control methods via ref
+  useImperativeHandle(ref, () => ({
+    startPreview: handleStartPreview,
+    stopPreview: handleStopPreview,
+    isPreviewActive,
+    isLoading,
+  }), [isPreviewActive, isLoading]);
+
   // Determine display message for connecting state
   const connectingMessage = isConnecting
     ? (errorMessage || "Connecting to camera...")
@@ -370,26 +454,29 @@ export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
       : "";
 
   return (
-    <div className="preview-tab">
-      <div className="preview-tab__controls">
-        {!isPreviewActive ? (
-          <Button
-            variant="primary"
-            onClick={handleStartPreview}
-            disabled={isLoading}
-          >
-            {isLoading ? "Starting..." : "Start Preview"}
-          </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            onClick={handleStopPreview}
-            disabled={isLoading}
-          >
-            {isLoading ? "Stopping..." : "Stop Preview"}
-          </Button>
-        )}
-      </div>
+    <div className={`preview-tab ${hideControls ? 'preview-tab--no-controls' : ''}`}>
+      {/* Only show controls if not hidden */}
+      {!hideControls && (
+        <div className="preview-tab__controls">
+          {!isPreviewActive ? (
+            <Button
+              variant="primary"
+              onClick={handleStartPreview}
+              disabled={isLoading}
+            >
+              {isLoading ? "Starting..." : "Start Preview"}
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={handleStopPreview}
+              disabled={isLoading}
+            >
+              {isLoading ? "Stopping..." : "Stop Preview"}
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="preview-tab__display">
         {isPreviewActive ? (
@@ -434,11 +521,11 @@ export function PreviewTab({ cameraId, autoStart = false }: PreviewTabProps) {
                 </Button>
               </div>
             ) : (
-              <p>Preview not running. Click "Start Preview" to begin.</p>
+              <p>{hideControls ? "Preview not running" : "Preview not running. Click \"Start Preview\" to begin."}</p>
             )}
           </div>
         )}
       </div>
     </div>
   );
-}
+});

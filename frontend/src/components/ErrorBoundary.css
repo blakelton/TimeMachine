@@ -1,0 +1,102 @@
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: var(--bg-secondary, #1a1a2e);
+}
+
+.error-boundary-content {
+  max-width: 500px;
+  text-align: center;
+  padding: 2rem;
+  background-color: var(--bg-primary, #16162a);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #2a2a4a);
+}
+
+.error-boundary-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.5rem;
+  border-radius: 50%;
+  background-color: var(--color-error, #ef4444);
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error-boundary h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: var(--text-primary, #ffffff);
+}
+
+.error-boundary-message {
+  margin: 0 0 1.5rem;
+  color: var(--text-secondary, #a0a0c0);
+}
+
+.error-boundary-details {
+  margin-bottom: 1.5rem;
+  text-align: left;
+  background-color: var(--bg-tertiary, #0f0f1e);
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.error-boundary-details summary {
+  cursor: pointer;
+  padding: 0.5rem;
+  color: var(--text-secondary, #a0a0c0);
+  font-size: 0.875rem;
+}
+
+.error-boundary-details pre {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary, #a0a0c0);
+}
+
+.error-boundary-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.error-boundary-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+.error-boundary-button.primary {
+  background-color: var(--color-primary, #6366f1);
+  color: white;
+  border: none;
+}
+
+.error-boundary-button.primary:hover {
+  opacity: 0.9;
+}
+
+.error-boundary-button.secondary {
+  background-color: transparent;
+  color: var(--text-primary, #ffffff);
+  border: 1px solid var(--border-color, #2a2a4a);
+}
+
+.error-boundary-button.secondary:hover {
+  background-color: var(--bg-tertiary, #0f0f1e);
+}

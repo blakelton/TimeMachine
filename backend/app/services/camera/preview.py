@@ -77,16 +77,9 @@ class PreviewService:
         # Store pipeline reference
         self._previews[camera_id] = pipeline
 
-        # Wait for TCP port to be ready (GStreamer needs time to initialize tcpserversink)
-        port_ready = await self._wait_for_port(port, timeout=3.0)
-        if not port_ready:
-            logger.warning(
-                "preview_port_not_ready",
-                camera_id=camera_id,
-                port=port,
-                message="TCP port not ready after timeout, stream may not be available yet",
-            )
-            # Don't fail - the pipeline might still be starting
+        # Quick check if port is already ready (non-blocking, short timeout)
+        # Don't block here - let the frontend poll for stream readiness
+        port_ready = await self._wait_for_port(port, timeout=0.5)
 
         logger.info(
             "preview_started",
@@ -195,24 +188,26 @@ class PreviewService:
     def _build_csi_preview_pipeline(
         self, camera_id: int, device_path: str, port: int
     ) -> str:
-        """Build GStreamer pipeline for CSI camera preview.
+        """Build pipeline for CSI camera preview using rpicam-vid.
+
+        Uses rpicam-vid which properly handles libcamera integration,
+        then pipes MJPEG output to a GStreamer pipeline for TCP serving.
 
         Args:
             camera_id: Camera ID
-            device_path: Device path
+            device_path: Device path (not used for CSI, libcamera auto-detects)
             port: HTTP port
 
         Returns:
-            GStreamer pipeline command
+            Shell command to start the preview pipeline
         """
-        # CSI camera using libcamerasrc
-        # Output: MJPEG over HTTP
+        # Use rpicam-vid for CSI cameras - it handles libcamera properly
+        # Output MJPEG to stdout, pipe to GStreamer for TCP serving
+        # The -n flag disables preview window, -t 0 runs indefinitely
         return (
-            f"gst-launch-1.0 -v "
-            f"libcamerasrc ! "
-            f"video/x-raw,width=1280,height=720,framerate=15/1 ! "
-            f"videoconvert ! "
-            f"jpegenc quality=50 ! "
+            f"rpicam-vid -n -t 0 --width 640 --height 480 --framerate 15 "
+            f"--codec mjpeg -o - 2>/dev/null | "
+            f"gst-launch-1.0 -v fdsrc ! jpegparse ! "
             f"multipartmux boundary=--frame ! "
             f"tcpserversink host=0.0.0.0 port={port}"
         )

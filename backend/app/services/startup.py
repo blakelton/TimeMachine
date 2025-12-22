@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.db.repositories.camera import CameraRepository
 from app.db.repositories.job import JobRepository
 from app.db.repositories.observation import ObservationRepository
 from app.db.session import AsyncSessionLocal
@@ -15,6 +16,7 @@ from app.services.camera import (
     recording_service,
     timelapse_service,
 )
+from app.services.camera.resolver import CameraResolver
 from app.services.observation import observation_service
 
 logger = get_logger(__name__)
@@ -168,6 +170,65 @@ def ensure_media_directories() -> list[Path]:
     return created
 
 
+async def reconcile_camera_device_paths() -> dict:
+    """Reconcile stored camera hardware_ids to current device paths.
+
+    USB cameras can have different /dev/videoN paths after reboots.
+    This function resolves each camera's hardware_id to its current
+    device path and updates the database.
+
+    Returns:
+        Summary: {resolved: N, updated: N, unavailable: N, legacy: N}
+    """
+    summary = {"resolved": 0, "updated": 0, "unavailable": 0, "legacy": 0}
+
+    async with AsyncSessionLocal() as session:
+        repo = CameraRepository(session)
+        cameras = await repo.get_all()
+
+        for camera in cameras:
+            if not camera.hardware_id:
+                # Legacy camera without hardware_id - skip reconciliation
+                summary["legacy"] += 1
+                continue
+
+            # Resolve current device path from hardware_id
+            current_path = await CameraResolver.resolve_hardware_id(camera.hardware_id)
+
+            if current_path:
+                summary["resolved"] += 1
+                if current_path != camera.device_path:
+                    # Device path changed - update it
+                    old_path = camera.device_path
+                    await repo.update_device_path(camera.id, current_path)
+                    summary["updated"] += 1
+                    logger.info(
+                        "camera_device_path_updated",
+                        camera_id=camera.id,
+                        camera_name=camera.name,
+                        hardware_id=camera.hardware_id,
+                        old_path=old_path,
+                        new_path=current_path,
+                    )
+            else:
+                # Camera not currently available
+                summary["unavailable"] += 1
+                logger.warning(
+                    "camera_unavailable",
+                    camera_id=camera.id,
+                    camera_name=camera.name,
+                    hardware_id=camera.hardware_id,
+                    stored_path=camera.device_path,
+                )
+
+        await session.commit()
+
+    if summary["updated"] > 0 or summary["unavailable"] > 0:
+        logger.info("camera_reconciliation_complete", **summary)
+
+    return summary
+
+
 async def startup_cleanup() -> dict:
     """Perform all startup cleanup tasks.
 
@@ -182,6 +243,7 @@ async def startup_cleanup() -> dict:
         "orphan_gstreamer": 0,
         "orphan_libcamera": 0,
         "directories_created": [],
+        "camera_reconciliation": {},
     }
 
     # Ensure media directories exist
@@ -198,6 +260,9 @@ async def startup_cleanup() -> dict:
     # Cleanup orphan processes
     summary["orphan_gstreamer"] = await cleanup_orphan_gstreamer_processes()
     summary["orphan_libcamera"] = await cleanup_orphan_libcamera_processes()
+
+    # Reconcile camera device paths (resolve hardware_id -> current device_path)
+    summary["camera_reconciliation"] = await reconcile_camera_device_paths()
 
     logger.info("startup_cleanup_complete", **summary)
 
