@@ -12,7 +12,13 @@ logger = get_logger(__name__)
 
 
 class CaptureService:
-    """Service for capturing still images from cameras."""
+    """Service for capturing still images from cameras.
+
+    Note: For timelapse observations, the ObservationService is responsible
+    for stopping/restarting the preview stream at the observation boundaries.
+    This service does NOT automatically manage the preview - it assumes the
+    caller has already ensured the device is available.
+    """
 
     async def capture_image(
         self,
@@ -113,9 +119,10 @@ class CaptureService:
             Command string
         """
         # Use libcamera-still for CSI cameras
+        # --timeout is in ms: need 2000ms for sensor init + exposure + capture
         return (
             f"libcamera-still "
-            f"--timeout 1 "
+            f"--timeout 2000 "
             f"--width 1920 --height 1080 "
             f"--output {output_file} "
             f"--nopreview"

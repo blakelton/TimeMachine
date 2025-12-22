@@ -77,9 +77,10 @@ class PreviewService:
         # Store pipeline reference
         self._previews[camera_id] = pipeline
 
-        # Quick check if port is already ready (non-blocking, short timeout)
-        # Don't block here - let the frontend poll for stream readiness
-        port_ready = await self._wait_for_port(port, timeout=0.5)
+        # Wait for port to be ready - CSI cameras need longer due to rpicam initialization
+        # USB cameras are quick (~0.5s), CSI cameras need ~2s for libcamera init
+        port_timeout = 2.5 if camera_type == "csi" else 0.8
+        port_ready = await self._wait_for_port(port, timeout=port_timeout)
 
         logger.info(
             "preview_started",

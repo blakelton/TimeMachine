@@ -1,6 +1,7 @@
 """GStreamer pipeline management with crash recovery."""
 
 import asyncio
+import os
 import signal
 from dataclasses import dataclass
 from datetime import datetime
@@ -83,19 +84,21 @@ class ManagedPipeline:
 
         try:
             # Start the GStreamer pipeline process
+            # Use start_new_session=True so we can kill the entire process group
+            # (shell + child gst-launch) with os.killpg()
             self.process = await asyncio.create_subprocess_shell(
                 self.config.pipeline_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                preexec_fn=lambda: signal.signal(signal.SIGTERM, signal.SIG_DFL),
+                start_new_session=True,
             )
 
             self.pid = self.process.pid
             self.started_at = datetime.utcnow()
 
-            # Wait briefly to detect immediate failures
-            # GStreamer pipelines often fail instantly if there's a problem
-            await asyncio.sleep(0.15)
+            # Wait briefly to detect immediate failures (e.g., missing device)
+            # Reduced from 150ms to 50ms - balance between detection and speed
+            await asyncio.sleep(0.05)
 
             # Check if process exited immediately (indicates failure)
             if self.process.returncode is not None:
@@ -240,8 +243,12 @@ class ManagedPipeline:
                             self.process.kill()
                             await self.process.wait()
                 else:
-                    # Standard graceful shutdown with SIGTERM
-                    self.process.terminate()
+                    # Standard graceful shutdown with SIGTERM to the process group
+                    # This ensures child processes (gst-launch) are also terminated
+                    try:
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass  # Process already gone
                     try:
                         await asyncio.wait_for(self.process.wait(), timeout=5.0)
                     except asyncio.TimeoutError:
@@ -250,7 +257,10 @@ class ManagedPipeline:
                             camera_id=self.config.camera_id,
                             pid=self.pid,
                         )
-                        self.process.kill()
+                        try:
+                            os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
                         await self.process.wait()
 
             # Cancel monitor task

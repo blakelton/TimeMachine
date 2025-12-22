@@ -20,6 +20,7 @@ from app.schemas.observation import (
     StartObservationRequest,
     TimelapseObservationConfig,
 )
+from app.services.camera.preview import preview_service
 from app.services.camera.recording import recording_service
 from app.services.camera.timelapse import TimelapseConfig, timelapse_service
 
@@ -86,11 +87,19 @@ class ObservationService:
 
     Observations are stored in organized folders with metadata files,
     notes, and media output.
+
+    For USB cameras running timelapse observations, this service automatically
+    stops the preview stream to allow frame capture, and restarts it when
+    the observation stops.
     """
 
     def __init__(self):
         self._active_observations: Dict[int, int] = {}  # camera_id -> observation_id
         self._progress_tasks: Dict[int, asyncio.Task] = {}  # observation_id -> task
+        # Track cameras whose preview was stopped for observation
+        self._preview_stopped_for: Dict[int, dict] = {}  # camera_id -> {port, device_path, camera_type}
+        # Track live preview generation tasks for timelapse observations
+        self._preview_gen_tasks: Dict[int, asyncio.Task] = {}  # observation_id -> task
 
     def _get_observations_base_path(self) -> Path:
         """Get the base path for observations."""
@@ -280,6 +289,27 @@ class ObservationService:
             output_fps=config.output_fps,
         )
 
+        # For USB cameras, stop the preview stream to free the device for capture
+        # The preview will be restarted when the observation stops
+        if camera.camera_type == "usb":
+            preview_state = preview_service.get_preview_state(camera.id)
+            if preview_state is not None:
+                preview_port = preview_service.get_preview_port(camera.id)
+                logger.info(
+                    "observation_stopping_preview",
+                    camera_id=camera.id,
+                    reason="timelapse_capture_requires_device",
+                )
+                await preview_service.stop_preview(camera.id)
+                # Track so we can restart when observation stops
+                self._preview_stopped_for[camera.id] = {
+                    "port": preview_port,
+                    "device_path": camera.device_path,
+                    "camera_type": camera.camera_type,
+                }
+                # Give the device time to be released
+                await asyncio.sleep(0.5)
+
         # Create observation record first
         obs_repo = ObservationRepository(session)
         observation = await obs_repo.create(
@@ -313,6 +343,8 @@ class ObservationService:
             # Mark observation as failed
             await obs_repo.mark_failed(observation.id, message)
             await session.commit()
+            # Restart preview if we stopped it
+            await self._restart_preview_if_stopped(camera.id)
             return False, message, None
 
         # Link job to observation
@@ -325,6 +357,10 @@ class ObservationService:
         # Start progress tracking task
         self._start_progress_tracker(observation.id, camera.id, session)
 
+        # Start live preview generator for real-time timelapse preview
+        # Generate preview every 2 seconds (fast enough to feel responsive)
+        self._start_live_preview_generator(observation.id, folder_path, interval_seconds=2.0)
+
         logger.info(
             "timelapse_observation_started",
             observation_id=observation.id,
@@ -332,6 +368,7 @@ class ObservationService:
             folder=str(folder_path),
             interval=interval_seconds,
             total_frames=total_frames,
+            preview_stopped=camera.id in self._preview_stopped_for,
         )
 
         return True, "Timelapse observation started", observation
@@ -445,6 +482,9 @@ class ObservationService:
         # Stop progress tracker
         self._stop_progress_tracker(observation_id)
 
+        # Stop live preview generator if running
+        self._stop_live_preview_generator(observation_id)
+
         # Stop underlying service
         if observation.observation_type == "timelapse":
             success, message, output_path = await timelapse_service.stop_timelapse(
@@ -474,6 +514,9 @@ class ObservationService:
         if camera_id in self._active_observations:
             del self._active_observations[camera_id]
 
+        # Restart preview if we stopped it for this observation
+        await self._restart_preview_if_stopped(camera_id)
+
         logger.info(
             "observation_stopped",
             observation_id=observation_id,
@@ -483,6 +526,45 @@ class ObservationService:
         )
 
         return success, message, output_path
+
+    async def _restart_preview_if_stopped(self, camera_id: int) -> None:
+        """Restart preview stream if it was stopped for observation.
+
+        Args:
+            camera_id: Camera ID to check and restart preview for
+        """
+        if camera_id not in self._preview_stopped_for:
+            return
+
+        preview_info = self._preview_stopped_for.pop(camera_id)
+        try:
+            # Small delay to ensure capture process has fully released the device
+            await asyncio.sleep(0.3)
+
+            logger.info(
+                "observation_restarting_preview",
+                camera_id=camera_id,
+                port=preview_info["port"],
+            )
+
+            await preview_service.start_preview(
+                camera_id=camera_id,
+                device_path=preview_info["device_path"],
+                camera_type=preview_info["camera_type"],
+                port=preview_info["port"],
+            )
+
+            logger.info(
+                "observation_preview_restarted",
+                camera_id=camera_id,
+                port=preview_info["port"],
+            )
+        except Exception as e:
+            logger.error(
+                "observation_preview_restart_failed",
+                camera_id=camera_id,
+                error=str(e),
+            )
 
     async def get_observation_status(
         self,
@@ -582,6 +664,171 @@ class ObservationService:
         if observation_id in self._progress_tasks:
             self._progress_tasks[observation_id].cancel()
             del self._progress_tasks[observation_id]
+
+    def _start_live_preview_generator(
+        self,
+        observation_id: int,
+        folder_path: Path,
+        interval_seconds: float = 2.0,
+    ) -> None:
+        """Start background task to generate live preview video during timelapse.
+
+        The preview video is regenerated periodically from the latest captured frames,
+        allowing users to see the timelapse progress in real-time.
+
+        Args:
+            observation_id: Observation ID
+            folder_path: Path to observation folder
+            interval_seconds: How often to regenerate preview (default 2s)
+        """
+        if observation_id in self._preview_gen_tasks:
+            # Already running
+            return
+
+        task = asyncio.create_task(
+            self._live_preview_loop(observation_id, folder_path, interval_seconds)
+        )
+        self._preview_gen_tasks[observation_id] = task
+        logger.info(
+            "live_preview_generator_started",
+            observation_id=observation_id,
+            interval=interval_seconds,
+        )
+
+    def _stop_live_preview_generator(self, observation_id: int) -> None:
+        """Stop the live preview generation task."""
+        if observation_id in self._preview_gen_tasks:
+            self._preview_gen_tasks[observation_id].cancel()
+            del self._preview_gen_tasks[observation_id]
+            logger.info("live_preview_generator_stopped", observation_id=observation_id)
+
+    async def _live_preview_loop(
+        self,
+        observation_id: int,
+        folder_path: Path,
+        interval_seconds: float,
+    ) -> None:
+        """Background loop that regenerates preview video from timelapse frames.
+
+        Args:
+            observation_id: Observation ID
+            folder_path: Path to observation folder
+            interval_seconds: How often to regenerate
+        """
+        frames_dir = folder_path / "frames"
+        preview_path = folder_path / "preview.mp4"
+        last_frame_count = 0
+
+        # Wait a bit for first frames to be captured
+        await asyncio.sleep(3.0)
+
+        while True:
+            try:
+                # Check how many frames we have
+                frames = sorted(frames_dir.glob("frame_*.jpg"))
+                frame_count = len(frames)
+
+                # Only regenerate if we have new frames (and at least 2 frames)
+                if frame_count >= 2 and frame_count > last_frame_count:
+                    await self._generate_quick_preview(
+                        frames_dir, preview_path, frames, max_frames=30, fps=10
+                    )
+                    last_frame_count = frame_count
+
+                await asyncio.sleep(interval_seconds)
+
+            except asyncio.CancelledError:
+                logger.debug("live_preview_loop_cancelled", observation_id=observation_id)
+                break
+            except Exception as e:
+                logger.warning(
+                    "live_preview_loop_error",
+                    observation_id=observation_id,
+                    error=str(e),
+                )
+                await asyncio.sleep(interval_seconds)
+
+    async def _generate_quick_preview(
+        self,
+        frames_dir: Path,
+        preview_path: Path,
+        frames: list,
+        max_frames: int = 30,
+        fps: int = 10,
+    ) -> bool:
+        """Generate a quick preview video from the latest frames.
+
+        Uses the last N frames to create a short preview video.
+        Optimized for speed over quality.
+
+        Args:
+            frames_dir: Directory containing frame images
+            preview_path: Output path for preview video
+            frames: Sorted list of frame files
+            max_frames: Maximum frames to include
+            fps: Output video FPS
+
+        Returns:
+            True if successful
+        """
+        # Use the last N frames for preview
+        preview_frames = frames[-max_frames:] if len(frames) > max_frames else frames
+
+        # Create temporary concat file
+        concat_file = frames_dir / ".preview_frames.txt"
+        temp_output = preview_path.with_suffix(".tmp.mp4")
+
+        try:
+            # Write frame list for ffmpeg concat demuxer
+            with open(concat_file, "w") as f:
+                for frame in preview_frames:
+                    f.write(f"file '{frame.name}'\n")
+
+            # Build fast ffmpeg command (ultrafast preset, low quality for speed)
+            cmd = (
+                f"ffmpeg -y -f concat -safe 0 -i '{concat_file}' "
+                f"-framerate {fps} "
+                f"-vf 'scale=640:360:force_original_aspect_ratio=decrease,"
+                f"pad=640:360:(ow-iw)/2:(oh-ih)/2' "
+                f"-c:v libx264 -preset ultrafast -crf 35 "
+                f"-pix_fmt yuv420p "
+                f"-movflags +faststart "
+                f"'{temp_output}' 2>/dev/null"
+            )
+
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                cwd=str(frames_dir),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+
+            await asyncio.wait_for(proc.communicate(), timeout=30.0)
+
+            if proc.returncode == 0 and temp_output.exists():
+                # Atomic rename to avoid partial reads
+                temp_output.rename(preview_path)
+                return True
+            else:
+                if temp_output.exists():
+                    temp_output.unlink()
+                return False
+
+        except asyncio.TimeoutError:
+            logger.warning("quick_preview_timeout")
+            return False
+        except Exception as e:
+            logger.warning("quick_preview_error", error=str(e))
+            return False
+        finally:
+            # Clean up temp files
+            try:
+                if concat_file.exists():
+                    concat_file.unlink()
+                if temp_output.exists():
+                    temp_output.unlink()
+            except Exception:
+                pass
 
     async def generate_timelapse_preview(
         self,
