@@ -787,8 +787,9 @@ class ObservationService:
                 is_running = False
 
                 if observation_type == "timelapse":
-                    progress = timelapse_service.get_timelapse_progress(camera_id)
-                    is_running = progress is not None
+                    # Use is_running() which checks if the capture task is actually active
+                    # get_timelapse_progress() returns data even after the task completes
+                    is_running = timelapse_service.is_running(camera_id)
                 else:  # recording
                     state = recording_service.get_recording_state(camera_id)
                     is_running = state == PipelineState.RUNNING
@@ -799,14 +800,21 @@ class ObservationService:
                         obs_repo = ObservationRepository(session)
                         obs = await obs_repo.get_by_id(observation_id)
 
-                        if obs and obs.progress_total and obs.progress_current >= obs.progress_total:
+                        # For timelapse, get actual frame count from service (DB may not have latest)
+                        actual_progress = obs.progress_current if obs else 0
+                        if observation_type == "timelapse":
+                            progress = timelapse_service.get_timelapse_progress(camera_id)
+                            if progress:
+                                actual_progress = progress[0]
+
+                        if obs and obs.progress_total and actual_progress >= obs.progress_total:
                             # Timelapse/recording reached its target - mark as completed
                             logger.info(
                                 "observation_completed",
                                 observation_id=observation_id,
                                 camera_id=camera_id,
                                 observation_type=observation_type,
-                                progress_current=obs.progress_current,
+                                progress_current=actual_progress,
                                 progress_total=obs.progress_total,
                             )
 
