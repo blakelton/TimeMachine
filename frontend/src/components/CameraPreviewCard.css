@@ -1,0 +1,283 @@
+/**
+ * Camera preview card styles with live feed support
+ */
+
+.camera-preview-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border-light);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Status-based border colors */
+.camera-preview-card.available {
+  border-color: var(--color-success);
+}
+
+.camera-preview-card.recording {
+  border-color: var(--color-danger);
+}
+
+.camera-preview-card.timelapse {
+  border-color: var(--color-info);
+}
+
+.camera-preview-card.disabled {
+  border-color: var(--color-border);
+  opacity: 0.7;
+}
+
+/* Hover effect */
+.camera-preview-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Focus styles for keyboard navigation */
+.camera-preview-card:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.camera-preview-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Preview Area */
+.preview-area {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: var(--color-bg-tertiary);
+  overflow: hidden;
+}
+
+.observation-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  gap: 0.25rem;
+}
+
+.preview-placeholder-icon {
+  font-size: 2rem;
+  opacity: 0.4;
+}
+
+.preview-error-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-danger-text);
+}
+
+/* Observation Progress Overlay */
+.observation-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: 1rem 0.75rem 0.5rem;
+}
+
+.observation-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.375rem;
+}
+
+.observation-type {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.observation-progress-text {
+  font-size: var(--font-size-xs);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.progress-bar-container {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--color-info);
+  transition: width 0.3s ease;
+}
+
+.camera-preview-card.recording .progress-bar-fill {
+  background: var(--color-danger);
+}
+
+/* Indeterminate progress animation */
+.progress-bar-fill.indeterminate {
+  width: 30%;
+  animation: indeterminate-progress 1.5s ease-in-out infinite;
+}
+
+@keyframes indeterminate-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* Card Footer */
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  gap: 0.5rem;
+}
+
+.camera-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.camera-name {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.camera-type-badge {
+  flex-shrink: 0;
+  padding: 0.1rem 0.375rem;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.camera-status {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.status-icon {
+  font-size: var(--font-size-base);
+}
+
+.status-text {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.camera-preview-card.available .status-text {
+  color: var(--color-success-text);
+}
+
+.camera-preview-card.recording .status-text {
+  color: var(--color-danger-text);
+}
+
+.camera-preview-card.timelapse .status-text {
+  color: var(--color-info-text);
+}
+
+.camera-preview-card.disabled .status-text {
+  color: var(--color-text-muted);
+}
+
+/* Responsive styles for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .preview-area {
+    aspect-ratio: 16/9;
+  }
+
+  .preview-placeholder-icon {
+    font-size: 1.5rem;
+  }
+
+  .card-footer {
+    padding: 0.5rem;
+  }
+
+  .camera-name {
+    font-size: var(--font-size-sm);
+  }
+
+  .camera-type-badge {
+    font-size: 0.6rem;
+    padding: 0.05rem 0.25rem;
+  }
+
+  .observation-overlay {
+    padding: 0.5rem 0.5rem 0.375rem;
+  }
+
+  .observation-type,
+  .observation-progress-text {
+    font-size: 0.6rem;
+  }
+
+  .progress-bar-container {
+    height: 3px;
+  }
+
+  /* Reduce hover effect on touch */
+  .camera-preview-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+/* Landscape-specific for 800x480 touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .card-footer {
+    padding: 0.375rem 0.5rem;
+  }
+
+  .camera-info {
+    gap: 0.375rem;
+  }
+
+  .camera-name {
+    font-size: var(--font-size-xs);
+  }
+
+  .status-icon {
+    font-size: var(--font-size-sm);
+  }
+
+  .status-text {
+    font-size: 0.6rem;
+  }
+}

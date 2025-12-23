@@ -13,8 +13,8 @@
 .settings-sidebar {
   width: 200px;
   min-width: 200px;
-  background: white;
-  border-right: 1px solid #e9ecef;
+  background: var(--color-bg-primary);
+  border-right: 1px solid var(--color-border-light);
   overflow-y: auto;
   flex-shrink: 0;
 }
@@ -24,14 +24,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .sidebar-header h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 /* Sidebar Navigation */
@@ -44,7 +44,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  color: #6c757d;
+  color: var(--color-text-muted);
   text-decoration: none;
   transition: all 0.2s ease;
   border-left: 3px solid transparent;
@@ -53,30 +53,30 @@
 }
 
 .sidebar-link:hover {
-  background: #f8f9fa;
-  color: #333;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
 }
 
 .sidebar-link.active {
-  background: #e7f3ff;
-  color: #007bff;
-  border-left-color: #007bff;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-left-color: var(--color-primary);
 }
 
 .sidebar-icon {
-  font-size: 1.1rem;
+  font-size: var(--font-size-base);
   line-height: 1;
 }
 
 .sidebar-label {
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
 }
 
 /* Main Content Area */
 .settings-content {
   flex: 1;
   padding: 1rem;
-  background: #f8f9fa;
+  background: var(--color-bg-secondary);
   overflow-y: auto;
 }
 
@@ -92,7 +92,7 @@
   }
 
   .sidebar-header h2 {
-    font-size: 1rem;
+    font-size: var(--font-size-sm);
   }
 
   .sidebar-link {
@@ -101,11 +101,11 @@
   }
 
   .sidebar-icon {
-    font-size: 1rem;
+    font-size: var(--font-size-sm);
   }
 
   .sidebar-label {
-    font-size: 0.8rem;
+    font-size: var(--font-size-xs);
   }
 
   .settings-content {
@@ -130,7 +130,7 @@
   }
 
   .sidebar-header h2 {
-    font-size: 0.9rem;
+    font-size: var(--font-size-xs);
   }
 
   .sidebar-link {
@@ -140,11 +140,11 @@
   }
 
   .sidebar-icon {
-    font-size: 0.9rem;
+    font-size: var(--font-size-xs);
   }
 
   .sidebar-label {
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
   }
 
   .settings-content {
@@ -164,7 +164,7 @@
   }
 
   .sidebar-header h2 {
-    font-size: 0.85rem;
+    font-size: var(--font-size-xs);
   }
 
   .sidebar-link {
@@ -173,11 +173,11 @@
   }
 
   .sidebar-icon {
-    font-size: 0.85rem;
+    font-size: var(--font-size-xs);
   }
 
   .sidebar-label {
-    font-size: 0.7rem;
+    font-size: var(--font-size-xs);
   }
 
   .settings-content {

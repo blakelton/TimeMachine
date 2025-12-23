@@ -3,10 +3,10 @@
  */
 
 .system-stats {
-  background: white;
-  border-radius: 8px;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
   padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
   margin-bottom: 1.5rem;
 }
 
@@ -15,20 +15,21 @@
 }
 
 .system-stats.error {
-  background: #fff5f5;
-  border: 1px solid #ffcdd2;
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
 }
 
 .stats-error-message {
   text-align: center;
-  color: #c62828;
+  color: var(--color-danger-text);
   padding: 1rem;
   margin: 0;
+  font-size: var(--font-size-base);
 }
 
 .connection-status.error {
-  background: #ffebee;
-  color: #c62828;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 .stats-header {
@@ -40,21 +41,21 @@
 
 .stats-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .connection-status {
   padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
 .connection-status.connected {
-  background: #d4edda;
-  color: #155724;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .stats-grid {
@@ -69,25 +70,25 @@
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
-  border-radius: 6px;
-  background: #f8f9fa;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
   border: 2px solid transparent;
   transition: all 0.3s ease;
 }
 
 .stat-card.ok {
-  border-color: #28a745;
-  background: #f1f9f4;
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
 }
 
 .stat-card.warning {
-  border-color: #ffc107;
-  background: #fff9e6;
+  border-color: var(--color-warning);
+  background: var(--color-warning-bg);
 }
 
 .stat-card.critical {
-  border-color: #dc3545;
-  background: #ffebee;
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
 }
 
 .stat-icon {
@@ -101,54 +102,54 @@
 }
 
 .stat-label {
-  font-size: 0.875rem;
-  color: #6c757d;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
   margin-bottom: 0.25rem;
 }
 
 .stat-value {
-  font-size: 1.5rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 0.5rem;
 }
 
 .stat-detail {
-  font-size: 0.75rem;
-  color: #6c757d;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
   margin-top: 0.25rem;
 }
 
 .stat-bar {
   height: 6px;
-  background: #e9ecef;
+  background: var(--color-bg-tertiary);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .stat-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #28a745, #20c997);
+  background: linear-gradient(90deg, var(--color-success), #20c997);
   transition: width 0.3s ease;
 }
 
 .stat-card.warning .stat-bar-fill {
-  background: linear-gradient(90deg, #ffc107, #ff9800);
+  background: linear-gradient(90deg, var(--color-warning), #ff9800);
 }
 
 .stat-card.critical .stat-bar-fill {
-  background: linear-gradient(90deg, #dc3545, #c82333);
+  background: linear-gradient(90deg, var(--color-danger), #a71d2a);
 }
 
 .stats-footer {
   padding-top: 1rem;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--color-border-light);
   text-align: right;
 }
 
 .last-update {
-  font-size: 0.875rem;
-  color: #6c757d;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
 /* Responsive design */
@@ -171,12 +172,12 @@
   }
 
   .stats-header h2 {
-    font-size: 1.1rem;
+    font-size: var(--font-size-base);
   }
 
   .connection-status {
     padding: 0.2rem 0.5rem;
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
   }
 
   .stats-grid {
@@ -195,17 +196,17 @@
   }
 
   .stat-label {
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
     margin-bottom: 0.125rem;
   }
 
   .stat-value {
-    font-size: 1.1rem;
+    font-size: var(--font-size-base);
     margin-bottom: 0.25rem;
   }
 
   .stat-detail {
-    font-size: 0.65rem;
+    font-size: var(--font-size-xs);
   }
 
   .stat-bar {
@@ -217,7 +218,7 @@
   }
 
   .last-update {
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
   }
 }
 
@@ -239,12 +240,12 @@
   }
 
   .stats-header h2 {
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
   }
 
   .connection-status {
     padding: 0.15rem 0.4rem;
-    font-size: 0.65rem;
+    font-size: var(--font-size-xs);
   }
 
   .stats-grid {
@@ -261,24 +262,24 @@
   }
 
   .stat-icon {
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
     display: none; /* Hide icons to save space */
   }
 
   .stat-label {
-    font-size: 0.6rem;
+    font-size: var(--font-size-xs);
     margin-bottom: 0;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   .stat-value {
-    font-size: 0.85rem;
+    font-size: var(--font-size-xs);
     margin-bottom: 0.125rem;
   }
 
   .stat-detail {
-    font-size: 0.55rem;
+    font-size: var(--font-size-xs);
     display: none; /* Hide details in landscape to save space */
   }
 

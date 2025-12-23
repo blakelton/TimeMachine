@@ -175,3 +175,37 @@ class StopObservationResponse(BaseModel):
         None, description="Updated observation"
     )
     output_path: str | None = Field(None, description="Path to output file")
+
+
+# Completed observation browser schemas
+class CompletedObservationResponse(BaseModel):
+    """Response schema for a completed observation in the browser."""
+
+    id: int = Field(..., description="Observation ID")
+    camera_id: int = Field(..., description="Camera ID")
+    camera_name: str = Field(..., description="Camera name")
+    observation_type: str = Field(..., description="Type: timelapse, recording, or still")
+    status: str = Field(..., description="Status: completed, stopped, or failed")
+
+    started_at: datetime = Field(..., description="Start timestamp")
+    completed_at: datetime | None = Field(None, description="Completion timestamp")
+    duration_seconds: float = Field(..., description="Duration in seconds")
+
+    frame_count: int | None = Field(None, description="Number of frames (timelapse only)")
+    size_bytes: int = Field(..., description="Total size in bytes")
+    size_display: str = Field(..., description="Human-readable size")
+
+    notes: str | None = Field(None, description="User notes")
+    thumbnail_url: str = Field(..., description="URL to thumbnail image")
+    media_url: str = Field(..., description="URL to full media file")
+
+    model_config = {"from_attributes": True}
+
+
+class CompletedObservationListResponse(BaseModel):
+    """List of completed observations for the browser."""
+
+    observations: list[CompletedObservationResponse] = Field(default_factory=list)
+    total: int = Field(..., description="Total count matching filters")
+    limit: int = Field(..., description="Requested limit")
+    offset: int = Field(..., description="Requested offset")

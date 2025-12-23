@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 
 
 class Observation(Base):
-    """Observation tracking for recordings and timelapses.
+    """Observation tracking for recordings, timelapses, and still captures.
 
-    An observation represents a complete recording or timelapse session,
+    An observation represents a capture session (still image, recording, or timelapse),
     stored in an organized folder with metadata, notes, and media files.
     """
 
@@ -29,7 +29,7 @@ class Observation(Base):
     )
     observation_type: Mapped[str] = mapped_column(
         String(20), nullable=False, index=True
-    )  # "timelapse" | "recording"
+    )  # "timelapse" | "recording" | "still"
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, index=True
     )  # "running" | "completed" | "failed" | "stopped"

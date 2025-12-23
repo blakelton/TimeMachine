@@ -112,3 +112,36 @@ class CameraHealthResponse(BaseModel):
     device_accessible: bool = Field(..., description="Whether device is accessible")
     error: str | None = Field(None, description="Error message if unhealthy")
     details: dict | None = Field(None, description="Additional diagnostic details")
+
+
+class CameraDashboardObservation(BaseModel):
+    """Active observation info for dashboard."""
+
+    id: int = Field(..., description="Observation ID")
+    observation_type: str = Field(..., description="'timelapse' or 'recording'")
+    progress_current: int = Field(..., description="Current frame/second count")
+    progress_total: int | None = Field(None, description="Total frames/seconds expected")
+    has_preview: bool = Field(False, description="Whether preview.mp4 is available")
+    preview_url: str | None = Field(None, description="URL to preview video if available")
+
+
+class CameraDashboardItem(BaseModel):
+    """Single camera data for dashboard display."""
+
+    camera_id: int = Field(..., description="Camera ID")
+    name: str = Field(..., description="Camera name")
+    camera_type: str = Field(..., description="'csi' or 'usb'")
+    enabled: bool = Field(..., description="Whether camera is enabled")
+    preview_state: str = Field(..., description="'idle', 'running', 'error'")
+    preview_url: str | None = Field(None, description="URL to MJPEG stream if running")
+    has_active_observation: bool = Field(False, description="Whether observation is running")
+    observation: CameraDashboardObservation | None = Field(
+        None, description="Active observation details if any"
+    )
+
+
+class CameraDashboardResponse(BaseModel):
+    """Response for dashboard batch endpoint."""
+
+    cameras: list[CameraDashboardItem] = Field(default_factory=list)
+    timestamp: str = Field(..., description="ISO timestamp of response")

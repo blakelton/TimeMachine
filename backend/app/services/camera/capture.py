@@ -26,6 +26,7 @@ class CaptureService:
         device_path: str,
         camera_type: str,
         filename: str | None = None,
+        output_path: str | None = None,
     ) -> tuple[bool, str, str | None]:
         """Capture a still image from a camera.
 
@@ -33,7 +34,8 @@ class CaptureService:
             camera_id: Camera database ID
             device_path: Camera device path
             camera_type: Camera type ('csi' or 'usb')
-            filename: Optional custom filename (without extension)
+            filename: Optional custom filename (without extension), ignored if output_path set
+            output_path: Optional full path for output file (with or without .jpg extension)
 
         Returns:
             Tuple of (success: bool, message: str, filepath: str | None)
@@ -45,17 +47,25 @@ class CaptureService:
         if not resources_ok:
             return False, reason, None
 
-        # Generate filename if not provided
-        if not filename:
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            filename = f"camera{camera_id}_{timestamp}"
+        # Determine output file path
+        if output_path:
+            # Use provided path
+            output_file = Path(output_path)
+            if not output_file.suffix:
+                output_file = output_file.with_suffix(".jpg")
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            # Generate default path
+            if not filename:
+                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                filename = f"camera{camera_id}_{timestamp}"
 
-        # Ensure still base path exists
-        still_path = Path(settings.media_path) / "stills"
-        still_path.mkdir(parents=True, exist_ok=True)
+            # Ensure still base path exists
+            still_path = Path(settings.media_path) / "stills"
+            still_path.mkdir(parents=True, exist_ok=True)
 
-        # Full output path
-        output_file = still_path / f"{filename}.jpg"
+            # Full output path
+            output_file = still_path / f"{filename}.jpg"
 
         # Build capture command based on camera type
         if camera_type == "csi":

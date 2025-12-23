@@ -17,6 +17,7 @@ sudo -u "$KIOSK_USER" \
     XDG_RUNTIME_DIR="/run/user/$(id -u $KIOSK_USER)" \
     WAYLAND_DISPLAY=wayland-0 \
     DISPLAY=:0 \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $KIOSK_USER)/bus" \
     /usr/bin/chromium \
         --kiosk \
         --noerrdialogs \
@@ -24,13 +25,18 @@ sudo -u "$KIOSK_USER" \
         --disable-session-crashed-bubble \
         --disable-restore-session-state \
         --start-fullscreen \
-        --force-dark-mode \
-        --enable-features=WebContentsForceDark,OverlayScrollbar \
+        --enable-features=OverlayScrollbar \
         --password-store=basic \
         --hide-scrollbars \
+        --disable-background-networking \
+        --disable-sync \
+        --disable-translate \
+        --disable-extensions \
+        --disable-default-apps \
+        --disable-component-update \
         --window-size=800,480 \
         --window-position=0,0 \
-        "$KIOSK_URL" &
+        "$KIOSK_URL" 2>/dev/null &
 
 sleep 3
 

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Integer, String
+from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -30,6 +30,14 @@ class OutputConfig(Base):
     # Retention settings
     retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     retention_max_gb: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
+
+    # Dashboard preview settings
+    dashboard_preview_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    dashboard_preview_fps: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=10
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

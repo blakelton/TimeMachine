@@ -22,7 +22,12 @@ class PreviewService:
         self._previews: Dict[int, ManagedPipeline] = {}
 
     async def start_preview(
-        self, camera_id: int, device_path: str, camera_type: str, port: int = 8080
+        self,
+        camera_id: int,
+        device_path: str,
+        camera_type: str,
+        port: int = 8080,
+        fps: int = 10,
     ) -> tuple[bool, str]:
         """Start preview stream for a camera.
 
@@ -31,10 +36,13 @@ class PreviewService:
             device_path: Camera device path
             camera_type: Camera type ('csi' or 'usb')
             port: HTTP port for MJPEG stream
+            fps: Framerate for preview stream (1-30)
 
         Returns:
             Tuple of (success: bool, message: str)
         """
+        # Clamp FPS to valid range
+        fps = max(1, min(30, fps))
         # Check if preview already running
         if camera_id in self._previews:
             pipeline = self._previews[camera_id]
@@ -51,11 +59,11 @@ class PreviewService:
         # Build GStreamer pipeline based on camera type
         if camera_type == "csi":
             pipeline_cmd = self._build_csi_preview_pipeline(
-                camera_id, device_path, port
+                camera_id, device_path, port, fps
             )
         else:  # usb
             pipeline_cmd = self._build_usb_preview_pipeline(
-                camera_id, device_path, port
+                camera_id, device_path, port, fps
             )
 
         # Create managed pipeline
@@ -187,7 +195,7 @@ class PreviewService:
             await self.stop_preview(camera_id)
 
     def _build_csi_preview_pipeline(
-        self, camera_id: int, device_path: str, port: int
+        self, camera_id: int, device_path: str, port: int, fps: int = 10
     ) -> str:
         """Build pipeline for CSI camera preview using rpicam-vid.
 
@@ -198,6 +206,7 @@ class PreviewService:
             camera_id: Camera ID
             device_path: Device path (not used for CSI, libcamera auto-detects)
             port: HTTP port
+            fps: Framerate (1-30)
 
         Returns:
             Shell command to start the preview pipeline
@@ -206,7 +215,7 @@ class PreviewService:
         # Output MJPEG to stdout, pipe to GStreamer for TCP serving
         # The -n flag disables preview window, -t 0 runs indefinitely
         return (
-            f"rpicam-vid -n -t 0 --width 640 --height 480 --framerate 15 "
+            f"rpicam-vid -n -t 0 --width 640 --height 480 --framerate {fps} "
             f"--codec mjpeg -o - 2>/dev/null | "
             f"gst-launch-1.0 -v fdsrc ! jpegparse ! "
             f"multipartmux boundary=--frame ! "
@@ -214,7 +223,7 @@ class PreviewService:
         )
 
     def _build_usb_preview_pipeline(
-        self, camera_id: int, device_path: str, port: int
+        self, camera_id: int, device_path: str, port: int, fps: int = 10
     ) -> str:
         """Build GStreamer pipeline for USB camera preview.
 
@@ -222,17 +231,19 @@ class PreviewService:
             camera_id: Camera ID
             device_path: Device path
             port: HTTP port
+            fps: Framerate (1-30)
 
         Returns:
             GStreamer pipeline command
         """
         # USB camera using v4l2src
         # Most USB cameras support YUYV - convert to JPEG for streaming
-        # Use 640x480 resolution, let camera choose native framerate
+        # Use 640x480 resolution, apply framerate control via videorate
         return (
             f"gst-launch-1.0 -v "
             f"v4l2src device={device_path} ! "
             f"video/x-raw,format=YUY2,width=640,height=480 ! "
+            f"videorate ! video/x-raw,framerate={fps}/1 ! "
             f"videoconvert ! "
             f"jpegenc quality=50 ! "
             f"multipartmux boundary=--frame ! "

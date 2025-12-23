@@ -17,15 +17,17 @@
 .timelapse-tab__input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 14px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
 
 .timelapse-tab__input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background-color: #f5f5f5;
+  background-color: var(--color-bg-tertiary);
 }
 
 .timelapse-tab__info {
@@ -33,18 +35,18 @@
   display: flex;
   justify-content: space-between;
   padding: 12px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
   font-size: 14px;
 }
 
 .timelapse-tab__info-label {
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .timelapse-tab__info-value {
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .timelapse-tab__actions {
@@ -55,9 +57,9 @@
 
 .timelapse-tab__status {
   padding: 16px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #17a2b8;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--color-info);
 }
 
 .timelapse-tab__status-header {
@@ -76,7 +78,7 @@
 .timelapse-tab__recording-dot {
   width: 12px;
   height: 12px;
-  background-color: #17a2b8;
+  background-color: var(--color-info);
   border-radius: 50%;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -93,76 +95,36 @@
 
 .timelapse-tab__recording-text {
   font-weight: 600;
-  color: #17a2b8;
+  color: var(--color-info-text);
 }
 
 .timelapse-tab__frames {
   font-weight: 700;
   font-family: monospace;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .timelapse-tab__progress {
   height: 8px;
-  background-color: #e9ecef;
-  border-radius: 4px;
+  background-color: var(--color-border-light);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   margin-bottom: 8px;
 }
 
 .timelapse-tab__progress-bar {
   height: 100%;
-  background-color: #17a2b8;
+  background-color: var(--color-info);
   transition: width 0.3s ease;
 }
 
 .timelapse-tab__progress-text {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-muted);
   text-align: center;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .timelapse-tab__input {
-    background-color: #2a2a2a;
-    border-color: #444;
-    color: #fff;
-  }
-
-  .timelapse-tab__input:disabled {
-    background-color: #1a1a1a;
-  }
-
-  .timelapse-tab__info {
-    background-color: #2a2a2a;
-  }
-
-  .timelapse-tab__info-label {
-    color: #aaa;
-  }
-
-  .timelapse-tab__info-value {
-    color: #fff;
-  }
-
-  .timelapse-tab__status {
-    background-color: #2a2a2a;
-    border-left-color: #17a2b8;
-  }
-
-  .timelapse-tab__frames {
-    color: #fff;
-  }
-
-  .timelapse-tab__progress {
-    background-color: #444;
-  }
-
-  .timelapse-tab__progress-text {
-    color: #aaa;
-  }
-}
+/* Dark mode handled by CSS variables in index.css */
 
 /* Responsive - Tablet */
 @media (max-width: 768px) {

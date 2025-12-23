@@ -8,7 +8,7 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   line-height: 1.5;
   text-align: center;
@@ -17,7 +17,7 @@
   cursor: pointer;
   user-select: none;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s ease;
   position: relative;
 }
@@ -35,17 +35,17 @@
 /* Size variants */
 .btn-sm {
   padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 
 .btn-md {
   padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
 }
 
 .btn-lg {
   padding: 0.75rem 1.5rem;
-  font-size: 1rem;
+  font-size: var(--font-size-base);
 }
 
 /* Full width */
@@ -55,88 +55,88 @@
 
 /* Primary variant */
 .btn-primary {
-  color: white;
-  background-color: #007bff;
-  border-color: #007bff;
+  color: var(--color-text-inverse);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0056b3;
-  border-color: #004085;
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 .btn-primary:focus {
-  outline-color: rgba(0, 123, 255, 0.5);
+  outline-color: var(--color-primary);
 }
 
 .btn-primary:active:not(:disabled) {
-  background-color: #004085;
-  border-color: #003d82;
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 /* Secondary variant */
 .btn-secondary {
-  color: white;
-  background-color: #6c757d;
-  border-color: #6c757d;
+  color: var(--color-text-inverse);
+  background-color: var(--color-text-muted);
+  border-color: var(--color-text-muted);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #5a6268;
-  border-color: #545b62;
+  background-color: var(--color-text-secondary);
+  border-color: var(--color-text-secondary);
 }
 
 .btn-secondary:focus {
-  outline-color: rgba(108, 117, 125, 0.5);
+  outline-color: var(--color-text-muted);
 }
 
 .btn-secondary:active:not(:disabled) {
-  background-color: #545b62;
-  border-color: #4e555b;
+  background-color: var(--color-text-secondary);
+  border-color: var(--color-text-secondary);
 }
 
 /* Danger variant */
 .btn-danger {
-  color: white;
-  background-color: #dc3545;
-  border-color: #dc3545;
+  color: var(--color-text-inverse);
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #c82333;
-  border-color: #bd2130;
+  background-color: #a71d2a;
+  border-color: #a71d2a;
 }
 
 .btn-danger:focus {
-  outline-color: rgba(220, 53, 69, 0.5);
+  outline-color: var(--color-danger);
 }
 
 .btn-danger:active:not(:disabled) {
-  background-color: #bd2130;
-  border-color: #b21f2d;
+  background-color: #a71d2a;
+  border-color: #a71d2a;
 }
 
 /* Outline variant */
 .btn-outline {
-  color: #007bff;
+  color: var(--color-primary);
   background-color: transparent;
-  border-color: #007bff;
+  border-color: var(--color-primary);
 }
 
 .btn-outline:hover:not(:disabled) {
-  color: white;
-  background-color: #007bff;
-  border-color: #007bff;
+  color: var(--color-text-inverse);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .btn-outline:focus {
-  outline-color: rgba(0, 123, 255, 0.5);
+  outline-color: var(--color-primary);
 }
 
 .btn-outline:active:not(:disabled) {
-  color: white;
-  background-color: #0056b3;
-  border-color: #004085;
+  color: var(--color-text-inverse);
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 /* Loading state */
@@ -178,17 +178,17 @@
 @media (max-width: 768px) {
   .btn {
     padding: 0.75rem 1rem;
-    font-size: 1rem;
+    font-size: var(--font-size-base);
   }
 
   .btn-sm {
     padding: 0.5rem 0.875rem;
-    font-size: 0.875rem;
+    font-size: var(--font-size-sm);
   }
 
   .btn-lg {
     padding: 0.875rem 1.75rem;
-    font-size: 1.125rem;
+    font-size: var(--font-size-lg);
   }
 }
 
@@ -199,19 +199,19 @@
     /* Touch-friendly minimum size (44px recommended) */
     min-height: 44px;
     padding: 0.625rem 1rem;
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
   }
 
   .btn-sm {
     min-height: 36px;
     padding: 0.375rem 0.75rem;
-    font-size: 0.8rem;
+    font-size: var(--font-size-xs);
   }
 
   .btn-lg {
     min-height: 48px;
     padding: 0.75rem 1.25rem;
-    font-size: 1rem;
+    font-size: var(--font-size-base);
   }
 }
 
@@ -220,18 +220,18 @@
   .btn {
     min-height: 36px;
     padding: 0.5rem 0.875rem;
-    font-size: 0.85rem;
+    font-size: var(--font-size-xs);
   }
 
   .btn-sm {
     min-height: 30px;
     padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
   }
 
   .btn-lg {
     min-height: 40px;
     padding: 0.625rem 1rem;
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
   }
 }

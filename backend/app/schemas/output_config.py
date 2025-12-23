@@ -25,6 +25,14 @@ class OutputConfigBase(BaseModel):
         50, ge=1, le=1000, description="Maximum storage usage in GB"
     )
 
+    # Dashboard preview settings
+    dashboard_preview_enabled: bool = Field(
+        True, description="Enable live camera preview on dashboard"
+    )
+    dashboard_preview_fps: int = Field(
+        10, ge=0, le=30, description="Preview framerate (0 = static thumbnail mode)"
+    )
+
 
 class OutputConfigCreate(OutputConfigBase):
     """Schema for creating output configuration."""
@@ -40,6 +48,8 @@ class OutputConfigUpdate(BaseModel):
     timelapse_path: str | None = Field(None, min_length=1)
     retention_days: int | None = Field(None, ge=1, le=365)
     retention_max_gb: int | None = Field(None, ge=1, le=1000)
+    dashboard_preview_enabled: bool | None = Field(None)
+    dashboard_preview_fps: int | None = Field(None, ge=0, le=30)
 
 
 class OutputConfigResponse(OutputConfigBase):

@@ -1,0 +1,232 @@
+/* Media viewer styles */
+
+.media-viewer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.media-viewer__backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: -1;
+}
+
+/* Header */
+.media-viewer__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  z-index: 10;
+}
+
+.media-viewer__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.media-viewer__camera {
+  font-weight: 600;
+  font-size: var(--font-size-base);
+}
+
+.media-viewer__type {
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  text-transform: capitalize;
+}
+
+.media-viewer__controls {
+  display: flex;
+  gap: 8px;
+}
+
+.media-viewer__btn {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.media-viewer__btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.media-viewer__btn--danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.media-viewer__btn--danger:hover {
+  background: var(--color-danger);
+  color: white;
+}
+
+.media-viewer__btn--close {
+  font-weight: 600;
+}
+
+/* Navigation arrows */
+.media-viewer__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 50px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s ease;
+}
+
+.media-viewer__nav:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.media-viewer__nav--prev {
+  left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.media-viewer__nav--next {
+  right: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+/* Content area */
+.media-viewer__content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.media-viewer__content--zoomed {
+  cursor: grab;
+}
+
+.media-viewer__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.1s ease;
+  will-change: transform;
+}
+
+.media-viewer__video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Footer */
+.media-viewer__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.8);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--font-size-sm);
+  z-index: 10;
+}
+
+.media-viewer__counter {
+  font-weight: 600;
+  color: white;
+}
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .media-viewer__header {
+    padding: 8px 12px;
+  }
+
+  .media-viewer__camera {
+    font-size: var(--font-size-sm);
+  }
+
+  .media-viewer__type {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+  }
+
+  .media-viewer__controls {
+    gap: 4px;
+  }
+
+  .media-viewer__btn {
+    padding: 6px 10px;
+    font-size: var(--font-size-xs);
+  }
+
+  .media-viewer__nav {
+    width: 40px;
+    height: 60px;
+    font-size: 20px;
+  }
+
+  .media-viewer__footer {
+    padding: 8px 12px;
+    gap: 16px;
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* Landscape mode for touchscreen */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .media-viewer__header {
+    padding: 6px 12px;
+  }
+
+  .media-viewer__footer {
+    padding: 6px 12px;
+  }
+
+  .media-viewer__nav {
+    width: 35px;
+    height: 50px;
+  }
+}
+
+/* Hide some controls on very small screens */
+@media (max-width: 400px) {
+  .media-viewer__type {
+    display: none;
+  }
+
+  .media-viewer__date,
+  .media-viewer__size {
+    display: none;
+  }
+}

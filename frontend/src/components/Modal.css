@@ -27,9 +27,9 @@
 }
 
 .modal-content {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   max-height: 90vh;
   overflow: hidden;
   display: flex;
@@ -74,14 +74,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .modal-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   flex: 1;
 }
 
@@ -94,21 +94,21 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: #6c757d;
+  color: var(--color-text-muted);
   font-size: 1.5rem;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .modal-close:hover {
-  background: #f8f9fa;
-  color: #333;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
 }
 
 .modal-close:focus {
-  outline: 2px solid #007bff;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -116,6 +116,8 @@
   padding: 1.5rem;
   overflow-y: auto;
   flex: 1;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
 }
 
 /* Mobile responsive */
@@ -154,10 +156,11 @@
 
   .modal-body {
     padding: 1rem;
+    font-size: var(--font-size-base);
   }
 
   .modal-title {
-    font-size: 1.25rem;
+    font-size: var(--font-size-lg);
   }
 }
 
@@ -172,7 +175,7 @@
   .modal-content {
     max-height: calc(100vh - 1rem);
     max-width: calc(100vw - 1rem);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
 
   .modal-sm,
@@ -187,7 +190,7 @@
   }
 
   .modal-title {
-    font-size: 1.1rem;
+    font-size: var(--font-size-base);
   }
 
   .modal-close {
@@ -199,6 +202,7 @@
 
   .modal-body {
     padding: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 }
 
@@ -230,7 +234,7 @@
   }
 
   .modal-title {
-    font-size: 1rem;
+    font-size: var(--font-size-sm);
   }
 
   .modal-close {
@@ -245,5 +249,6 @@
     padding: 0.5rem 0.75rem;
     max-height: calc(100vh - 100px);
     overflow-y: auto;
+    font-size: var(--font-size-sm);
   }
 }

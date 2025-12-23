@@ -19,7 +19,7 @@
   margin: 0;
   font-size: 0.875rem;
   line-height: 1.6;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .confirm-danger {
@@ -35,8 +35,8 @@
   height: 3rem;
   margin: 0 auto;
   font-size: 2rem;
-  color: #dc3545;
-  background: #ffebee;
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
   border-radius: 50%;
 }
 
@@ -45,7 +45,7 @@
   gap: 0.75rem;
   justify-content: flex-end;
   padding-top: 0.5rem;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--color-border-light);
 }
 
 /* Mobile responsive */

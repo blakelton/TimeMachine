@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete as sql_delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.observation import Observation
@@ -242,3 +242,76 @@ class ObservationRepository(BaseRepository[Observation]):
 
         await self.session.flush()
         return len(observations)
+
+    async def get_completed(
+        self,
+        camera_id: int | None = None,
+        observation_type: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Observation]:
+        """Get completed observations (not running).
+
+        Args:
+            camera_id: Optional camera ID filter.
+            observation_type: Optional type filter.
+            limit: Maximum results.
+            offset: Pagination offset.
+
+        Returns:
+            List of completed observations, newest first.
+        """
+        query = select(Observation).where(
+            Observation.status.in_(["completed", "stopped", "failed"])
+        )
+
+        if camera_id is not None:
+            query = query.where(Observation.camera_id == camera_id)
+        if observation_type is not None:
+            query = query.where(Observation.observation_type == observation_type)
+
+        query = query.order_by(Observation.started_at.desc())
+        query = query.offset(offset).limit(limit)
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def count_completed(
+        self,
+        camera_id: int | None = None,
+        observation_type: str | None = None,
+    ) -> int:
+        """Count completed observations.
+
+        Args:
+            camera_id: Optional camera ID filter.
+            observation_type: Optional type filter.
+
+        Returns:
+            Total count of completed observations.
+        """
+        query = select(func.count(Observation.id)).where(
+            Observation.status.in_(["completed", "stopped", "failed"])
+        )
+
+        if camera_id is not None:
+            query = query.where(Observation.camera_id == camera_id)
+        if observation_type is not None:
+            query = query.where(Observation.observation_type == observation_type)
+
+        result = await self.session.execute(query)
+        return result.scalar() or 0
+
+    async def delete(self, observation_id: int) -> bool:
+        """Delete an observation by ID.
+
+        Args:
+            observation_id: The observation ID.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        result = await self.session.execute(
+            sql_delete(Observation).where(Observation.id == observation_id)
+        )
+        return result.rowcount > 0

@@ -4,10 +4,10 @@
 
 .camera-status-card {
   display: block;
-  background: white;
-  border-radius: 8px;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
   padding: 1.25rem;
-  border: 2px solid #e9ecef;
+  border: 2px solid var(--color-border-light);
   transition: all 0.3s ease;
   text-decoration: none;
   color: inherit;
@@ -15,23 +15,23 @@
 
 /* Status-based colors */
 .camera-status-card.available {
-  border-color: #28a745;
-  background: #f1f9f4;
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
 }
 
 .camera-status-card.recording {
-  border-color: #dc3545;
-  background: #ffebee;
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
 }
 
 .camera-status-card.timelapse {
-  border-color: #17a2b8;
-  background: #e3f2fd;
+  border-color: var(--color-info);
+  background: var(--color-info-bg);
 }
 
 .camera-status-card.disabled {
-  border-color: #dee2e6;
-  background: #f8f9fa;
+  border-color: var(--color-border);
+  background: var(--color-bg-tertiary);
   opacity: 0.7;
 }
 
@@ -47,19 +47,19 @@
 
 .camera-name {
   margin: 0 0 0.25rem 0;
-  font-size: 1.125rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .camera-type {
   display: inline-block;
   padding: 0.125rem 0.5rem;
-  background: #e9ecef;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
   font-weight: 500;
-  color: #6c757d;
+  color: var(--color-text-muted);
   text-transform: uppercase;
 }
 
@@ -70,29 +70,29 @@
 }
 
 .status-icon {
-  font-size: 1.25rem;
+  font-size: var(--font-size-lg);
   line-height: 1;
 }
 
 .status-text {
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
 .camera-status-card.available .status-text {
-  color: #28a745;
+  color: var(--color-success-text);
 }
 
 .camera-status-card.recording .status-text {
-  color: #dc3545;
+  color: var(--color-danger-text);
 }
 
 .camera-status-card.timelapse .status-text {
-  color: #17a2b8;
+  color: var(--color-info-text);
 }
 
 .camera-status-card.disabled .status-text {
-  color: #adb5bd;
+  color: var(--color-text-muted);
 }
 
 /* Activity indicator (for recording/timelapse) */
@@ -102,20 +102,20 @@
   gap: 0.5rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-  font-size: 0.875rem;
+  border-top: 1px solid var(--color-border-light);
+  font-size: var(--font-size-sm);
 }
 
 .activity-indicator {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: #dc3545;
+  background-color: var(--color-danger);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
 .camera-status-card.timelapse .activity-indicator {
-  background-color: #17a2b8;
+  background-color: var(--color-info);
 }
 
 @keyframes pulse {
@@ -128,13 +128,13 @@
 }
 
 .activity-text {
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 /* Hover effect for interactive cards */
 .camera-status-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 /* Responsive styles */
@@ -144,21 +144,21 @@
   }
 
   .camera-name {
-    font-size: 1rem;
+    font-size: var(--font-size-base);
   }
 
   .status-icon {
-    font-size: 1rem;
+    font-size: var(--font-size-base);
   }
 
   .status-text {
-    font-size: 0.8rem;
+    font-size: var(--font-size-xs);
   }
 
   .camera-activity {
     margin-top: 0.5rem;
     padding-top: 0.5rem;
-    font-size: 0.8rem;
+    font-size: var(--font-size-xs);
   }
 }
 
@@ -176,13 +176,13 @@
   }
 
   .camera-name {
-    font-size: 1rem;
+    font-size: var(--font-size-base);
     margin-bottom: 0.125rem;
   }
 
   .camera-type {
     padding: 0.1rem 0.375rem;
-    font-size: 0.65rem;
+    font-size: var(--font-size-xs);
   }
 
   .camera-status {
@@ -190,17 +190,17 @@
   }
 
   .status-icon {
-    font-size: 1rem;
+    font-size: var(--font-size-base);
   }
 
   .status-text {
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
   }
 
   .camera-activity {
     margin-top: 0.5rem;
     padding-top: 0.5rem;
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
     gap: 0.375rem;
   }
 
@@ -212,7 +212,7 @@
   /* Reduce hover effect on touch */
   .camera-status-card:hover {
     transform: none;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-sm);
   }
 }
 
@@ -234,27 +234,27 @@
   }
 
   .camera-name {
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
     margin-bottom: 0;
   }
 
   .camera-type {
     padding: 0.1rem 0.3rem;
-    font-size: 0.6rem;
+    font-size: var(--font-size-xs);
   }
 
   .status-icon {
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
   }
 
   .status-text {
-    font-size: 0.7rem;
+    font-size: var(--font-size-xs);
   }
 
   .camera-activity {
     margin-top: 0.375rem;
     padding-top: 0.375rem;
-    font-size: 0.7rem;
+    font-size: var(--font-size-xs);
   }
 
   .activity-indicator {

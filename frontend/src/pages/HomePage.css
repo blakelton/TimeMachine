@@ -14,9 +14,9 @@
 
 .page-header h1 {
   margin: 0;
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 /* Camera Section */
@@ -25,9 +25,9 @@
 }
 
 .cameras-section h2 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 1rem;
 }
 
@@ -42,22 +42,24 @@
 .empty-state {
   text-align: center;
   padding: 3rem 2rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-base);
 }
 
 .loading {
-  color: #6c757d;
+  color: var(--color-text-muted);
 }
 
 .error {
-  color: #dc3545;
-  background: #ffebee;
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
 }
 
 .empty-state {
-  color: #6c757d;
+  color: var(--color-text-secondary);
 }
 
 .empty-state p {
@@ -77,11 +79,11 @@
 
 @media (max-width: 480px) {
   .page-header h1 {
-    font-size: 1.5rem;
+    font-size: var(--font-size-xl);
   }
 
   .cameras-section h2 {
-    font-size: 1.25rem;
+    font-size: var(--font-size-lg);
   }
 }
 
@@ -98,7 +100,7 @@
   }
 
   .page-header h1 {
-    font-size: 1.25rem;
+    font-size: var(--font-size-lg);
   }
 
   .cameras-section {
@@ -106,7 +108,7 @@
   }
 
   .cameras-section h2 {
-    font-size: 1.1rem;
+    font-size: var(--font-size-base);
     margin-bottom: 0.5rem;
   }
 
@@ -119,6 +121,7 @@
   .error,
   .empty-state {
     padding: 1.5rem 1rem;
+    font-size: var(--font-size-sm);
   }
 }
 
@@ -148,7 +151,7 @@
   }
 
   .cameras-section h2 {
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
     margin-bottom: 0.375rem;
     flex-shrink: 0;
   }
@@ -164,5 +167,6 @@
   .error,
   .empty-state {
     padding: 1rem;
+    font-size: var(--font-size-sm);
   }
 }

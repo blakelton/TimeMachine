@@ -1,0 +1,109 @@
+/* Observation grid layout styles */
+
+.observation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.observation-grid--loading {
+  opacity: 0.7;
+}
+
+/* Empty state */
+.observation-grid__empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+}
+
+/* Skeleton loading tiles */
+.observation-tile-skeleton {
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.skeleton-thumbnail {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg-secondary) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+.skeleton-info {
+  padding: 12px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg-secondary) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+.skeleton-line--title {
+  width: 70%;
+  margin-bottom: 8px;
+}
+
+.skeleton-line--subtitle {
+  width: 50%;
+  margin-bottom: 12px;
+}
+
+.skeleton-line--meta {
+  width: 90%;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px),
+       (max-width: 480px) {
+  .observation-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+
+  .observation-grid__empty {
+    min-height: 120px;
+    font-size: var(--font-size-sm);
+  }
+
+  .skeleton-info {
+    padding: 8px;
+  }
+}
+
+/* Landscape mode for 800x480 - optimize for horizontal scroll area */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .observation-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+  }
+}

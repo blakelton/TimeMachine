@@ -15,12 +15,14 @@ from app.db.models.observation import Observation
 from app.db.repositories.camera import CameraRepository
 from app.db.repositories.job import JobRepository
 from app.db.repositories.observation import ObservationRepository
+from app.db.repositories.output_config import OutputConfigRepository
 from app.schemas.observation import (
     RecordingObservationConfig,
     StartObservationRequest,
     TimelapseObservationConfig,
 )
 from app.services.camera.preview import preview_service
+from app.services.camera.pipeline import PipelineState
 from app.services.camera.recording import recording_service
 from app.services.camera.timelapse import TimelapseConfig, timelapse_service
 
@@ -293,8 +295,13 @@ class ObservationService:
         # The preview will be restarted when the observation stops
         if camera.camera_type == "usb":
             preview_state = preview_service.get_preview_state(camera.id)
-            if preview_state is not None:
+            if preview_state == PipelineState.RUNNING:
                 preview_port = preview_service.get_preview_port(camera.id)
+                # Get FPS from output config for later restart
+                config_repo = OutputConfigRepository(session)
+                output_config = await config_repo.get_current()
+                preview_fps = output_config.dashboard_preview_fps if output_config else 10
+
                 logger.info(
                     "observation_stopping_preview",
                     camera_id=camera.id,
@@ -306,6 +313,7 @@ class ObservationService:
                     "port": preview_port,
                     "device_path": camera.device_path,
                     "camera_type": camera.camera_type,
+                    "fps": preview_fps,
                 }
                 # Give the device time to be released
                 await asyncio.sleep(0.5)
@@ -395,6 +403,33 @@ class ObservationService:
             target_end_at = config.end_datetime
             duration_seconds = int((target_end_at - datetime.utcnow()).total_seconds())
 
+        # For USB cameras, stop the preview stream to free the device for recording
+        # The preview will be restarted when the observation stops
+        if camera.camera_type == "usb":
+            preview_state = preview_service.get_preview_state(camera.id)
+            if preview_state == PipelineState.RUNNING:
+                preview_port = preview_service.get_preview_port(camera.id)
+                # Get FPS from output config for later restart
+                config_repo = OutputConfigRepository(session)
+                output_config = await config_repo.get_current()
+                preview_fps = output_config.dashboard_preview_fps if output_config else 10
+
+                logger.info(
+                    "observation_stopping_preview",
+                    camera_id=camera.id,
+                    reason="recording_requires_device",
+                )
+                await preview_service.stop_preview(camera.id)
+                # Track so we can restart when observation stops
+                self._preview_stopped_for[camera.id] = {
+                    "port": preview_port,
+                    "device_path": camera.device_path,
+                    "camera_type": camera.camera_type,
+                    "fps": preview_fps,
+                }
+                # Give the device time to be released
+                await asyncio.sleep(0.5)
+
         # Create observation record
         obs_repo = ObservationRepository(session)
         observation = await obs_repo.create(
@@ -429,6 +464,8 @@ class ObservationService:
         if not success:
             await obs_repo.mark_failed(observation.id, message)
             await session.commit()
+            # Restart preview if we stopped it
+            await self._restart_preview_if_stopped(camera.id)
             return False, message, None
 
         # Link job to observation
@@ -447,6 +484,7 @@ class ObservationService:
             camera_id=camera.id,
             folder=str(folder_path),
             duration=duration_seconds,
+            preview_stopped=camera.id in self._preview_stopped_for,
         )
 
         return True, "Recording observation started", observation
@@ -541,10 +579,14 @@ class ObservationService:
             # Small delay to ensure capture process has fully released the device
             await asyncio.sleep(0.3)
 
+            # Get FPS from stored info (defaults to 10 if not set)
+            fps = preview_info.get("fps", 10)
+
             logger.info(
                 "observation_restarting_preview",
                 camera_id=camera_id,
                 port=preview_info["port"],
+                fps=fps,
             )
 
             await preview_service.start_preview(
@@ -552,12 +594,14 @@ class ObservationService:
                 device_path=preview_info["device_path"],
                 camera_type=preview_info["camera_type"],
                 port=preview_info["port"],
+                fps=fps,
             )
 
             logger.info(
                 "observation_preview_restarted",
                 camera_id=camera_id,
                 port=preview_info["port"],
+                fps=fps,
             )
         except Exception as e:
             logger.error(

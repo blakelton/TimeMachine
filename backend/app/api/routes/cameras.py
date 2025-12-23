@@ -12,6 +12,9 @@ from app.db.repositories.camera import CameraRepository
 from app.db.session import get_session
 from app.schemas.camera import (
     CameraCreate,
+    CameraDashboardItem,
+    CameraDashboardObservation,
+    CameraDashboardResponse,
     CameraHealthResponse,
     CameraListResponse,
     CameraResponse,
@@ -34,6 +37,8 @@ from app.services.camera import (
     recording_service,
     timelapse_service,
 )
+from app.services.camera.pipeline import PipelineState
+from app.db.repositories.output_config import OutputConfigRepository
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 logger = get_logger(__name__)
@@ -79,6 +84,117 @@ async def list_cameras(
 
     return CameraListResponse(
         cameras=[CameraResponse.model_validate(cam) for cam in cameras], total=total
+    )
+
+
+@router.get("/dashboard", response_model=CameraDashboardResponse)
+async def get_dashboard_data(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> CameraDashboardResponse:
+    """Get all camera data for dashboard display in a single request.
+
+    Returns camera status, preview state, and active observation info
+    for all cameras. Optimized for dashboard tile rendering.
+
+    Args:
+        session: Database session
+
+    Returns:
+        Dashboard data for all cameras
+    """
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from app.db.repositories.observation import ObservationRepository
+
+    repo = CameraRepository(session)
+    obs_repo = ObservationRepository(session)
+
+    # Fetch all cameras and all active observations in just 2 queries (not N+1)
+    cameras = await repo.get_all()
+    all_active_obs = await obs_repo.get_active()
+    obs_by_camera = {obs.camera_id: obs for obs in all_active_obs}
+
+    dashboard_items: list[CameraDashboardItem] = []
+
+    for camera in cameras:
+        # Get preview state with error handling
+        try:
+            preview_state_enum = preview_service.get_preview_state(camera.id)
+            preview_state = preview_state_enum.value if preview_state_enum else "idle"
+            preview_port = preview_service.get_preview_port(camera.id)
+        except Exception as e:
+            logger.warning("preview_state_error", camera_id=camera.id, error=str(e))
+            preview_state = "error"
+            preview_port = None
+
+        # Build preview URL - use the stream endpoint for proper MJPEG
+        preview_url = None
+        if preview_state == "running" and preview_port:
+            preview_url = f"/api/v1/cameras/{camera.id}/preview/stream"
+
+        # Check for active observation (from pre-fetched dict, no extra query)
+        active_obs = obs_by_camera.get(camera.id)
+        observation_data = None
+        has_active_observation = active_obs is not None
+
+        if active_obs:
+            # Get live progress with error handling
+            progress_current = active_obs.progress_current or 0
+            progress_total = active_obs.progress_total
+
+            try:
+                if active_obs.observation_type == "timelapse":
+                    progress = timelapse_service.get_timelapse_progress(camera.id)
+                    if progress:
+                        progress_current = progress[0]
+                        progress_total = progress[1]
+                else:
+                    uptime = recording_service.get_recording_uptime(camera.id)
+                    if uptime:
+                        progress_current = int(uptime)
+            except Exception as e:
+                logger.warning("progress_fetch_error", camera_id=camera.id, error=str(e))
+
+            # Check for preview.mp4 (async file check)
+            has_preview = False
+            preview_video_url = None
+            if active_obs.folder_path:
+                preview_path = Path(active_obs.folder_path) / "preview.mp4"
+                try:
+                    has_preview = await asyncio.to_thread(preview_path.exists)
+                    if has_preview:
+                        preview_video_url = f"/api/v1/observations/{active_obs.id}/preview"
+                except Exception as e:
+                    logger.warning("preview_check_error", obs_id=active_obs.id, error=str(e))
+
+            observation_data = CameraDashboardObservation(
+                id=active_obs.id,
+                observation_type=active_obs.observation_type,
+                progress_current=progress_current,
+                progress_total=progress_total,
+                has_preview=has_preview,
+                preview_url=preview_video_url,
+            )
+
+        dashboard_items.append(
+            CameraDashboardItem(
+                camera_id=camera.id,
+                name=camera.name,
+                camera_type=camera.camera_type,
+                enabled=camera.enabled,
+                preview_state=preview_state,
+                preview_url=preview_url,
+                has_active_observation=has_active_observation,
+                observation=observation_data,
+            )
+        )
+
+    logger.info("dashboard_data_retrieved", camera_count=len(dashboard_items))
+
+    return CameraDashboardResponse(
+        cameras=dashboard_items,
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
 
@@ -478,13 +594,16 @@ async def discover_cameras(
 
 @router.post("/{camera_id}/preview/start", response_model=OperationResponse)
 async def start_camera_preview(
-    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+    camera_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    fps: int = 10,
 ) -> OperationResponse:
     """Start preview stream for a camera.
 
     Args:
         camera_id: Camera ID
         session: Database session
+        fps: Framerate for preview (1-30, default 10)
 
     Returns:
         Preview start status
@@ -502,12 +621,16 @@ async def start_camera_preview(
             detail=f"Camera {camera_id} not found",
         )
 
+    # Clamp FPS to valid range
+    fps = max(1, min(30, fps))
+
     # Start preview
     success, message = await preview_service.start_preview(
         camera_id=camera_id,
         device_path=camera.device_path,
         camera_type=camera.camera_type,
         port=8080 + camera_id,
+        fps=fps,
     )
 
     if success:
@@ -758,6 +881,9 @@ async def capture_image(
 ) -> OperationResponse:
     """Capture a still image from a camera.
 
+    Creates an observation record for the captured image so it appears
+    in the observations list alongside timelapses and recordings.
+
     Args:
         camera_id: Camera ID
         session: Database session
@@ -769,7 +895,14 @@ async def capture_image(
     Raises:
         HTTPException: 404 if camera not found
     """
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from app.db.repositories.observation import ObservationRepository
+    from app.core.config import settings
+
     repo = CameraRepository(session)
+    obs_repo = ObservationRepository(session)
     camera = await repo.get(camera_id)
 
     if camera is None:
@@ -779,13 +912,78 @@ async def capture_image(
             detail=f"Camera {camera_id} not found",
         )
 
-    # Capture image
-    success, message, filepath = await capture_service.capture_image(
-        camera_id=camera_id,
-        device_path=camera.device_path,
-        camera_type=camera.camera_type,
-        filename=filename,
-    )
+    # For USB cameras, stop preview if running (V4L2 device exclusivity)
+    # CSI cameras use libcamera which handles this internally
+    preview_was_running = False
+    preview_fps = 10  # default
+    if camera.camera_type == "usb":
+        preview_state = preview_service.get_preview_state(camera_id)
+        if preview_state == PipelineState.RUNNING:
+            preview_was_running = True
+            # Get configured FPS from settings for restart
+            config_repo = OutputConfigRepository(session)
+            config = await config_repo.get_current()
+            if config:
+                preview_fps = config.dashboard_preview_fps or 10
+            await preview_service.stop_preview(camera_id)
+            # Wait for device to be fully released by GStreamer
+            # USB V4L2 devices need time for file descriptors to close
+            await asyncio.sleep(0.5)
+
+    try:
+        # Create observation folder for this capture
+        now = datetime.now(timezone.utc)
+        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+        folder_name = f"camera{camera_id}_{timestamp_str}_still"
+        stills_base = Path(settings.media_path) / "stills"
+        observation_folder = stills_base / folder_name
+        observation_folder.mkdir(parents=True, exist_ok=True)
+
+        # Generate filename for the capture
+        capture_filename = filename or f"capture_{timestamp_str}"
+        output_file = observation_folder / f"{capture_filename}.jpg"
+
+        # Capture image directly to observation folder
+        success, message, filepath = await capture_service.capture_image(
+            camera_id=camera_id,
+            device_path=camera.device_path,
+            camera_type=camera.camera_type,
+            output_path=str(output_file),
+        )
+
+        # If capture succeeded, create observation record
+        if success and filepath:
+            file_size = Path(filepath).stat().st_size if Path(filepath).exists() else 0
+
+            observation = await obs_repo.create(
+                camera_id=camera_id,
+                observation_type="still",
+                status="completed",
+                folder_path=str(observation_folder),
+                config={"filename": capture_filename},
+                progress_current=1,
+                progress_total=1,
+                size_bytes=file_size,
+                started_at=now,
+                completed_at=now,
+            )
+
+            logger.info(
+                "capture_observation_created",
+                camera_id=camera_id,
+                observation_id=observation.id,
+                filepath=filepath,
+            )
+    finally:
+        # Restart preview if it was running
+        if preview_was_running:
+            await preview_service.start_preview(
+                camera_id=camera_id,
+                device_path=camera.device_path,
+                camera_type=camera.camera_type,
+                port=8080 + camera_id,
+                fps=preview_fps,
+            )
 
     if success:
         return OperationResponse(

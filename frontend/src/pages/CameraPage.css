@@ -15,8 +15,10 @@
 .camera-page__error {
   padding: 32px;
   text-align: center;
-  color: #dc3545;
-  font-size: 18px;
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-lg);
 }
 
 /* Header: Title + badges on left, controls on right */
@@ -39,10 +41,10 @@
 }
 
 .camera-page__title {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   margin: 0;
-  color: #fff;
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 
@@ -55,25 +57,25 @@
 .camera-page__badge {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .camera-page__badge--type {
-  background-color: #1971c2;
-  color: #e7f5ff;
+  background-color: var(--color-info-bg);
+  color: var(--color-info-text);
 }
 
 .camera-page__badge--enabled {
-  background-color: #2b8a3e;
-  color: #d3f9d8;
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .camera-page__badge--disabled {
-  background-color: #868e96;
-  color: #f1f3f5;
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
 }
 
 /* Preview area - maximized to fill remaining space */
@@ -81,7 +83,7 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: #000;
 }
@@ -101,30 +103,6 @@
   min-height: 0;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .camera-page__title {
-    color: #fff;
-  }
-}
-
-/* Light mode override for title */
-@media (prefers-color-scheme: light) {
-  .camera-page__title {
-    color: #333;
-  }
-
-  .camera-page__badge--type {
-    background-color: #e7f5ff;
-    color: #1971c2;
-  }
-
-  .camera-page__badge--enabled {
-    background-color: #d3f9d8;
-    color: #2b8a3e;
-  }
-}
-
 /* Desktop - larger screens */
 @media (min-width: 1024px) {
   .camera-page {
@@ -138,12 +116,12 @@
   }
 
   .camera-page__title {
-    font-size: 24px;
+    font-size: var(--font-size-2xl);
   }
 
   .camera-page__badge {
     padding: 3px 10px;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
   }
 }
 
@@ -160,12 +138,12 @@
   }
 
   .camera-page__title {
-    font-size: 14px;
+    font-size: var(--font-size-sm);
   }
 
   .camera-page__badge {
     padding: 1px 6px;
-    font-size: 10px;
+    font-size: var(--font-size-xs);
   }
 
   .camera-page__preview {

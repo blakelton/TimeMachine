@@ -17,15 +17,17 @@
 .record-tab__input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 14px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
 
 .record-tab__input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background-color: #f5f5f5;
+  background-color: var(--color-bg-tertiary);
 }
 
 .record-tab__actions {
@@ -36,9 +38,9 @@
 
 .record-tab__status {
   padding: 16px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #dc3545;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--color-danger);
 }
 
 .record-tab__status-indicator {
@@ -51,7 +53,7 @@
 .record-tab__recording-dot {
   width: 12px;
   height: 12px;
-  background-color: #dc3545;
+  background-color: var(--color-danger);
   border-radius: 50%;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -68,55 +70,31 @@
 
 .record-tab__recording-text {
   font-weight: 600;
-  color: #dc3545;
+  color: var(--color-danger-text);
 }
 
 .record-tab__timer {
   font-size: 24px;
   font-weight: 700;
   font-family: monospace;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 12px;
 }
 
 .record-tab__progress {
   height: 8px;
-  background-color: #e9ecef;
-  border-radius: 4px;
+  background-color: var(--color-border-light);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .record-tab__progress-bar {
   height: 100%;
-  background-color: #dc3545;
+  background-color: var(--color-danger);
   transition: width 0.3s ease;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .record-tab__input {
-    background-color: #2a2a2a;
-    border-color: #444;
-    color: #fff;
-  }
-
-  .record-tab__input:disabled {
-    background-color: #1a1a1a;
-  }
-
-  .record-tab__status {
-    background-color: #2a2a2a;
-    border-left-color: #dc3545;
-  }
-
-  .record-tab__timer {
-    color: #fff;
-  }
-
-  .record-tab__progress {
-    background-color: #444;
-  }
-}
+/* Dark mode handled by CSS variables in index.css */
 
 /* Responsive - Tablet */
 @media (max-width: 768px) {

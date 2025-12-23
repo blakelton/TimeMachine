@@ -36,13 +36,13 @@ export function Layout() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>TimeMachine</h1>
+        <h1><span className="header-icon">⏰</span> TimeMachine</h1>
         <nav className="main-nav">
           <Link
             to="/"
             className={isActive("/") ? "nav-link active" : "nav-link"}
           >
-            Home
+            <span className="nav-icon">🏠</span> Home
           </Link>
 
           {/* Dynamic camera tabs */}
@@ -56,7 +56,7 @@ export function Layout() {
                   className={isCameraActive(camera.id) ? "nav-link active" : "nav-link"}
                   title={`${camera.name} (${camera.camera_type.toUpperCase()})`}
                 >
-                  {camera.name}
+                  <span className="nav-icon">📷</span> {camera.name}
                 </Link>
               ))}
             </>
@@ -67,18 +67,18 @@ export function Layout() {
             to="/files"
             className={isActive("/files") ? "nav-link active" : "nav-link"}
           >
-            Files
+            <span className="nav-icon">📁</span> Observations
           </Link>
           <Link
             to="/system"
             className={location.pathname.startsWith("/system") ? "nav-link active" : "nav-link"}
           >
-            System
+            <span className="nav-icon">⚙️</span> System
           </Link>
         </nav>
         {isAuthenticated && (
           <button onClick={logout} className="logout-button">
-            Logout
+            <span className="nav-icon">🚪</span> Logout
           </button>
         )}
       </header>
@@ -88,7 +88,7 @@ export function Layout() {
       </main>
 
       <footer className="app-footer">
-        <p>TimeMachine Observation Chamber Control System</p>
+        <p>⏰ TimeMachine Observation Chamber Control System</p>
       </footer>
     </div>
   );

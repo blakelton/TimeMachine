@@ -20,6 +20,8 @@ interface OutputConfigFormData {
   timelapse_path: string;
   retention_days: number;
   retention_max_gb: number;
+  dashboard_preview_enabled: boolean;
+  dashboard_preview_fps: number;
 }
 
 export function OutputConfigPanel() {
@@ -44,6 +46,8 @@ export function OutputConfigPanel() {
     timelapse_path: "/var/lib/timemachine/media/timelapse",
     retention_days: 30,
     retention_max_gb: 50,
+    dashboard_preview_enabled: true,
+    dashboard_preview_fps: 10,
   }));
 
   const [errors, setErrors] = useState<Partial<Record<keyof OutputConfigFormData, string>>>({});
@@ -59,6 +63,8 @@ export function OutputConfigPanel() {
         timelapse_path: configData.timelapse_path,
         retention_days: configData.retention_days,
         retention_max_gb: configData.retention_max_gb,
+        dashboard_preview_enabled: configData.dashboard_preview_enabled,
+        dashboard_preview_fps: configData.dashboard_preview_fps,
       });
       setHasChanges(false);
     }
@@ -89,16 +95,17 @@ export function OutputConfigPanel() {
    * Validation rules configuration.
    * Declarative approach reduces cyclomatic complexity from 11 to ~2.
    */
+  type ValidationValue = string | number | boolean;
   const validationRules = [
     {
       field: "recordings_path" as keyof OutputConfigFormData,
       validators: [
         {
-          check: (value: string | number) => !String(value).trim(),
+          check: (value: ValidationValue) => !String(value).trim(),
           error: "Recording path is required",
         },
         {
-          check: (value: string | number) => !String(value).startsWith("/"),
+          check: (value: ValidationValue) => !String(value).startsWith("/"),
           error: "Path must be absolute (start with /)",
         },
       ],
@@ -107,11 +114,11 @@ export function OutputConfigPanel() {
       field: "stills_path" as keyof OutputConfigFormData,
       validators: [
         {
-          check: (value: string | number) => !String(value).trim(),
+          check: (value: ValidationValue) => !String(value).trim(),
           error: "Still captures path is required",
         },
         {
-          check: (value: string | number) => !String(value).startsWith("/"),
+          check: (value: ValidationValue) => !String(value).startsWith("/"),
           error: "Path must be absolute (start with /)",
         },
       ],
@@ -120,11 +127,11 @@ export function OutputConfigPanel() {
       field: "timelapse_path" as keyof OutputConfigFormData,
       validators: [
         {
-          check: (value: string | number) => !String(value).trim(),
+          check: (value: ValidationValue) => !String(value).trim(),
           error: "Timelapse path is required",
         },
         {
-          check: (value: string | number) => !String(value).startsWith("/"),
+          check: (value: ValidationValue) => !String(value).startsWith("/"),
           error: "Path must be absolute (start with /)",
         },
       ],
@@ -133,11 +140,11 @@ export function OutputConfigPanel() {
       field: "retention_days" as keyof OutputConfigFormData,
       validators: [
         {
-          check: (value: string | number) => Number(value) < 1,
+          check: (value: ValidationValue) => Number(value) < 1,
           error: "Retention must be at least 1 day",
         },
         {
-          check: (value: string | number) => Number(value) > 365,
+          check: (value: ValidationValue) => Number(value) > 365,
           error: "Retention cannot exceed 365 days",
         },
       ],
@@ -146,11 +153,11 @@ export function OutputConfigPanel() {
       field: "retention_max_gb" as keyof OutputConfigFormData,
       validators: [
         {
-          check: (value: string | number) => Number(value) < 1,
+          check: (value: ValidationValue) => Number(value) < 1,
           error: "Storage limit must be at least 1 GB",
         },
         {
-          check: (value: string | number) => Number(value) > 1000,
+          check: (value: ValidationValue) => Number(value) > 1000,
           error: "Storage limit cannot exceed 1000 GB",
         },
       ],
@@ -181,7 +188,7 @@ export function OutputConfigPanel() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleChange = (field: keyof OutputConfigFormData, value: string | number) => {
+  const handleChange = (field: keyof OutputConfigFormData, value: string | number | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
     // Clear error for this field when user types
@@ -203,6 +210,8 @@ export function OutputConfigPanel() {
       timelapse_path: formData.timelapse_path,
       retention_days: formData.retention_days,
       retention_max_gb: formData.retention_max_gb,
+      dashboard_preview_enabled: formData.dashboard_preview_enabled,
+      dashboard_preview_fps: formData.dashboard_preview_fps,
     };
 
     await updateMutation.mutateAsync(updateData);
@@ -216,6 +225,8 @@ export function OutputConfigPanel() {
         timelapse_path: configData.timelapse_path,
         retention_days: configData.retention_days,
         retention_max_gb: configData.retention_max_gb,
+        dashboard_preview_enabled: configData.dashboard_preview_enabled,
+        dashboard_preview_fps: configData.dashboard_preview_fps,
       });
       setHasChanges(false);
       setErrors({});
@@ -325,6 +336,54 @@ export function OutputConfigPanel() {
               required
               disabled={updateMutation.isPending}
             />
+          </div>
+
+          <div className="form-section">
+            <h2 className="section-title">Dashboard Preview</h2>
+            <p className="section-description">
+              Configure live camera previews on the dashboard home page.
+            </p>
+
+            <div className="toggle-field">
+              <label className="toggle-label">
+                <input
+                  type="checkbox"
+                  checked={formData.dashboard_preview_enabled}
+                  onChange={(e) => handleChange("dashboard_preview_enabled", e.target.checked)}
+                  disabled={updateMutation.isPending}
+                />
+                <span className="toggle-text">Enable Live Preview</span>
+              </label>
+              <p className="toggle-helper">
+                Show live camera feeds on the dashboard when cameras are idle
+              </p>
+            </div>
+
+            {formData.dashboard_preview_enabled && (
+              <div className="fps-field">
+                <label className="fps-label">
+                  Preview Framerate: {formData.dashboard_preview_fps === 0 ? "Static" : `${formData.dashboard_preview_fps} FPS`}
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={30}
+                  value={formData.dashboard_preview_fps}
+                  onChange={(e) => handleChange("dashboard_preview_fps", parseInt(e.target.value))}
+                  disabled={updateMutation.isPending}
+                  className="fps-slider"
+                />
+                <p className="fps-helper">
+                  {formData.dashboard_preview_fps === 0
+                    ? "Static mode: refresh thumbnail every 5 seconds (lowest CPU)"
+                    : formData.dashboard_preview_fps <= 5
+                    ? "Low framerate: good for slower hardware"
+                    : formData.dashboard_preview_fps <= 15
+                    ? "Balanced: recommended for most setups"
+                    : "High framerate: smooth video, higher CPU usage"}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="form-actions">

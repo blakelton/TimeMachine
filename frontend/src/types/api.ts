@@ -100,6 +100,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cameras/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dashboard Data
+         * @description Get all camera data for dashboard display in a single request.
+         *
+         *     Returns camera status, preview state, and active observation info
+         *     for all cameras. Optimized for dashboard tile rendering.
+         *
+         *     Args:
+         *         session: Database session
+         *
+         *     Returns:
+         *         Dashboard data for all cameras
+         */
+        get: operations["get_dashboard_data_api_v1_cameras_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cameras/{camera_id}": {
         parameters: {
             query?: never;
@@ -232,6 +261,7 @@ export interface paths {
          *     Args:
          *         camera_id: Camera ID
          *         session: Database session
+         *         fps: Framerate for preview (1-30, default 10)
          *
          *     Returns:
          *         Preview start status
@@ -888,7 +918,24 @@ export interface paths {
         get: operations["get_observation_api_v1_observations__observation_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Observation
+         * @description Delete an observation and all its files.
+         *
+         *     Only completed/stopped/failed observations can be deleted.
+         *     Running observations must be stopped first.
+         *
+         *     Args:
+         *         observation_id: Observation ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Success message
+         *
+         *     Raises:
+         *         HTTPException: 404 if not found, 400 if still running
+         */
+        delete: operations["delete_observation_api_v1_observations__observation_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1068,6 +1115,105 @@ export interface paths {
          *         Active observation response
          */
         get: operations["get_camera_active_observation_api_v1_observations_camera__camera_id__active_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observations/completed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Completed Observations
+         * @description List completed observations for the browser.
+         *
+         *     Returns observations that are completed, stopped, or failed (not running).
+         *     Includes thumbnail and media URLs for display.
+         *
+         *     Args:
+         *         session: Database session
+         *         camera_id: Optional filter by camera
+         *         observation_type: Optional filter by type (timelapse, recording, still)
+         *         limit: Maximum results to return
+         *         offset: Pagination offset
+         *
+         *     Returns:
+         *         List of completed observations with media URLs
+         */
+        get: operations["list_completed_observations_api_v1_observations_completed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observations/{observation_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Observation Thumbnail
+         * @description Get thumbnail image for an observation.
+         *
+         *     Generates thumbnail on-demand if not already cached.
+         *
+         *     Args:
+         *         observation_id: Observation ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Thumbnail image file
+         *
+         *     Raises:
+         *         HTTPException: 404 if observation not found or thumbnail unavailable
+         */
+        get: operations["get_observation_thumbnail_api_v1_observations__observation_id__thumbnail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observations/{observation_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Observation Media
+         * @description Get the full media file for an observation.
+         *
+         *     For timelapses: Returns the assembled video or preview.mp4
+         *     For recordings: Returns the video file
+         *     For stills: Returns the image file
+         *
+         *     Args:
+         *         observation_id: Observation ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Media file
+         *
+         *     Raises:
+         *         HTTPException: 404 if observation or media not found
+         */
+        get: operations["get_observation_media_api_v1_observations__observation_id__media_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1400,10 +1546,109 @@ export interface components {
              * @default true
              */
             enabled: boolean;
+            /**
+             * Hardware Id
+             * @description Stable hardware identifier (by-path for USB, libcamera:N for CSI)
+             */
+            hardware_id?: string | null;
             /** @description Camera capabilities */
             capabilities?: components["schemas"]["CameraCapabilities"] | null;
             /** @description Default camera settings */
             default_settings?: components["schemas"]["CameraSettings"] | null;
+        };
+        /**
+         * CameraDashboardItem
+         * @description Single camera data for dashboard display.
+         */
+        CameraDashboardItem: {
+            /**
+             * Camera Id
+             * @description Camera ID
+             */
+            camera_id: number;
+            /**
+             * Name
+             * @description Camera name
+             */
+            name: string;
+            /**
+             * Camera Type
+             * @description 'csi' or 'usb'
+             */
+            camera_type: string;
+            /**
+             * Enabled
+             * @description Whether camera is enabled
+             */
+            enabled: boolean;
+            /**
+             * Preview State
+             * @description 'idle', 'running', 'error'
+             */
+            preview_state: string;
+            /**
+             * Preview Url
+             * @description URL to MJPEG stream if running
+             */
+            preview_url?: string | null;
+            /**
+             * Has Active Observation
+             * @description Whether observation is running
+             * @default false
+             */
+            has_active_observation: boolean;
+            /** @description Active observation details if any */
+            observation?: components["schemas"]["CameraDashboardObservation"] | null;
+        };
+        /**
+         * CameraDashboardObservation
+         * @description Active observation info for dashboard.
+         */
+        CameraDashboardObservation: {
+            /**
+             * Id
+             * @description Observation ID
+             */
+            id: number;
+            /**
+             * Observation Type
+             * @description 'timelapse' or 'recording'
+             */
+            observation_type: string;
+            /**
+             * Progress Current
+             * @description Current frame/second count
+             */
+            progress_current: number;
+            /**
+             * Progress Total
+             * @description Total frames/seconds expected
+             */
+            progress_total?: number | null;
+            /**
+             * Has Preview
+             * @description Whether preview.mp4 is available
+             * @default false
+             */
+            has_preview: boolean;
+            /**
+             * Preview Url
+             * @description URL to preview video if available
+             */
+            preview_url?: string | null;
+        };
+        /**
+         * CameraDashboardResponse
+         * @description Response for dashboard batch endpoint.
+         */
+        CameraDashboardResponse: {
+            /** Cameras */
+            cameras?: components["schemas"]["CameraDashboardItem"][];
+            /**
+             * Timestamp
+             * @description ISO timestamp of response
+             */
+            timestamp: string;
         };
         /**
          * CameraHealthResponse
@@ -1502,6 +1747,11 @@ export interface components {
              * @description Camera ID
              */
             id: number;
+            /**
+             * Hardware Id
+             * @description Stable hardware identifier for persistent camera identification
+             */
+            hardware_id?: string | null;
             capabilities?: components["schemas"]["CameraCapabilities"] | null;
             default_settings?: components["schemas"]["CameraSettings"] | null;
         };
@@ -1558,6 +1808,106 @@ export interface components {
             default_settings?: components["schemas"]["CameraSettings"] | null;
         };
         /**
+         * CompletedObservationListResponse
+         * @description List of completed observations for the browser.
+         */
+        CompletedObservationListResponse: {
+            /** Observations */
+            observations?: components["schemas"]["CompletedObservationResponse"][];
+            /**
+             * Total
+             * @description Total count matching filters
+             */
+            total: number;
+            /**
+             * Limit
+             * @description Requested limit
+             */
+            limit: number;
+            /**
+             * Offset
+             * @description Requested offset
+             */
+            offset: number;
+        };
+        /**
+         * CompletedObservationResponse
+         * @description Response schema for a completed observation in the browser.
+         */
+        CompletedObservationResponse: {
+            /**
+             * Id
+             * @description Observation ID
+             */
+            id: number;
+            /**
+             * Camera Id
+             * @description Camera ID
+             */
+            camera_id: number;
+            /**
+             * Camera Name
+             * @description Camera name
+             */
+            camera_name: string;
+            /**
+             * Observation Type
+             * @description Type: timelapse, recording, or still
+             */
+            observation_type: string;
+            /**
+             * Status
+             * @description Status: completed, stopped, or failed
+             */
+            status: string;
+            /**
+             * Started At
+             * Format: date-time
+             * @description Start timestamp
+             */
+            started_at: string;
+            /**
+             * Completed At
+             * @description Completion timestamp
+             */
+            completed_at?: string | null;
+            /**
+             * Duration Seconds
+             * @description Duration in seconds
+             */
+            duration_seconds: number;
+            /**
+             * Frame Count
+             * @description Number of frames (timelapse only)
+             */
+            frame_count?: number | null;
+            /**
+             * Size Bytes
+             * @description Total size in bytes
+             */
+            size_bytes: number;
+            /**
+             * Size Display
+             * @description Human-readable size
+             */
+            size_display: string;
+            /**
+             * Notes
+             * @description User notes
+             */
+            notes?: string | null;
+            /**
+             * Thumbnail Url
+             * @description URL to thumbnail image
+             */
+            thumbnail_url: string;
+            /**
+             * Media Url
+             * @description URL to full media file
+             */
+            media_url: string;
+        };
+        /**
          * DiscoveredCameraResponse
          * @description Schema for discovered camera response.
          */
@@ -1577,6 +1927,11 @@ export interface components {
              * @description Camera type: 'csi' or 'usb'
              */
             camera_type: string;
+            /**
+             * Hardware Id
+             * @description Stable hardware identifier for persistent identification
+             */
+            hardware_id?: string | null;
             /**
              * Capabilities
              * @description Camera capabilities
@@ -1952,6 +2307,18 @@ export interface components {
              */
             retention_max_gb: number;
             /**
+             * Dashboard Preview Enabled
+             * @description Enable live camera preview on dashboard
+             * @default true
+             */
+            dashboard_preview_enabled: boolean;
+            /**
+             * Dashboard Preview Fps
+             * @description Preview framerate (0 = static thumbnail mode)
+             * @default 10
+             */
+            dashboard_preview_fps: number;
+            /**
              * Id
              * @description Configuration ID
              */
@@ -1972,6 +2339,10 @@ export interface components {
             retention_days?: number | null;
             /** Retention Max Gb */
             retention_max_gb?: number | null;
+            /** Dashboard Preview Enabled */
+            dashboard_preview_enabled?: boolean | null;
+            /** Dashboard Preview Fps */
+            dashboard_preview_fps?: number | null;
         };
         /**
          * RecordingObservationConfig
@@ -2812,6 +3183,26 @@ export interface operations {
             };
         };
     };
+    get_dashboard_data_api_v1_cameras_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CameraDashboardResponse"];
+                };
+            };
+        };
+    };
     get_camera_api_v1_cameras__camera_id__get: {
         parameters: {
             query?: never;
@@ -2971,7 +3362,9 @@ export interface operations {
     };
     start_camera_preview_api_v1_cameras__camera_id__preview_start_post: {
         parameters: {
-            query?: never;
+            query?: {
+                fps?: number;
+            };
             header?: never;
             path: {
                 camera_id: number;
@@ -3711,6 +4104,39 @@ export interface operations {
             };
         };
     };
+    delete_observation_api_v1_observations__observation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                observation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_observation_status_api_v1_observations__observation_id__status_get: {
         parameters: {
             query?: never;
@@ -3897,6 +4323,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActiveObservationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_completed_observations_api_v1_observations_completed_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by camera ID */
+                camera_id?: number | null;
+                /** @description Filter by type */
+                observation_type?: string | null;
+                /** @description Maximum results */
+                limit?: number;
+                /** @description Pagination offset */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompletedObservationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_observation_thumbnail_api_v1_observations__observation_id__thumbnail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                observation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_observation_media_api_v1_observations__observation_id__media_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                observation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
