@@ -53,6 +53,8 @@ export function ObservationInProgress({
   const queryClient = useQueryClient();
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [previewTimestamp, setPreviewTimestamp] = useState(Date.now());
+  // Track previous preview state to detect when it first becomes available
+  const [_lastPreviewState, setLastPreviewState] = useState(false);
 
   // Poll for observation status
   const { data: status, isError, error } = useQuery<ObservationStatus>({
@@ -66,14 +68,26 @@ export function ObservationInProgress({
       );
       if (error) throw error;
 
-      // Update preview timestamp when has_preview changes to true
       const result = data as ObservationStatus;
+
+      // Update preview timestamp when has_preview becomes true (initial preview)
+      // or periodically (every 10 seconds) when preview already exists
       if (result.has_preview) {
-        setPreviewTimestamp((prev) => {
-          // Only update once per minute to avoid excessive reloading
-          const now = Date.now();
-          return now - prev > 60000 ? now : prev;
+        setLastPreviewState((wasTrue) => {
+          if (!wasTrue) {
+            // Preview just became available - refresh immediately
+            setPreviewTimestamp(Date.now());
+          } else {
+            // Preview already existed - refresh every 10 seconds
+            setPreviewTimestamp((prev) => {
+              const now = Date.now();
+              return now - prev > 10000 ? now : prev;
+            });
+          }
+          return true;
         });
+      } else {
+        setLastPreviewState(false);
       }
 
       return result;

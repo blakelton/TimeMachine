@@ -3,7 +3,11 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+# Minimum capture interval in seconds for timelapse (below this causes crashes)
+MIN_CAPTURE_INTERVAL_SECONDS = 5
 
 
 # Configuration schemas for observation types
@@ -14,6 +18,24 @@ class TimelapseObservationConfig(BaseModel):
     interval_unit: Literal["seconds", "minutes", "hours"] = Field(
         "minutes", description="Interval time unit"
     )
+
+    @model_validator(mode="after")
+    def validate_minimum_interval(self) -> "TimelapseObservationConfig":
+        """Ensure capture interval is at least 5 seconds to prevent crashes."""
+        # Convert to seconds
+        if self.interval_unit == "hours":
+            interval_seconds = self.interval_value * 3600
+        elif self.interval_unit == "minutes":
+            interval_seconds = self.interval_value * 60
+        else:
+            interval_seconds = self.interval_value
+
+        if interval_seconds < MIN_CAPTURE_INTERVAL_SECONDS:
+            raise ValueError(
+                f"Capture interval must be at least {MIN_CAPTURE_INTERVAL_SECONDS} seconds. "
+                f"Got {interval_seconds} seconds ({self.interval_value} {self.interval_unit})."
+            )
+        return self
 
     end_mode: Literal["datetime", "duration"] = Field(
         "duration", description="How to determine when observation ends"

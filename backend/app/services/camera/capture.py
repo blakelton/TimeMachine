@@ -128,10 +128,10 @@ class CaptureService:
         Returns:
             Command string
         """
-        # Use libcamera-still for CSI cameras
+        # Use rpicam-still for CSI cameras (replaces libcamera-still on Bookworm+)
         # --timeout is in ms: need 2000ms for sensor init + exposure + capture
         return (
-            f"libcamera-still "
+            f"rpicam-still "
             f"--timeout 2000 "
             f"--width 1920 --height 1080 "
             f"--output {output_file} "

@@ -107,8 +107,9 @@ async def cleanup_orphan_libcamera_processes() -> int:
     killed_count = 0
 
     try:
-        # Find libcamera-still and libcamera-vid processes
-        for process_name in ["libcamera-still", "libcamera-vid"]:
+        # Find rpicam-still and rpicam-vid processes (Bookworm+ names)
+        # Also check for legacy libcamera-* names for backwards compatibility
+        for process_name in ["rpicam-still", "rpicam-vid", "libcamera-still", "libcamera-vid"]:
             proc = await asyncio.create_subprocess_shell(
                 f"pgrep -f '{process_name}'",
                 stdout=asyncio.subprocess.PIPE,

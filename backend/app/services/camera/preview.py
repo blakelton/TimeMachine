@@ -20,6 +20,26 @@ class PreviewService:
 
     def __init__(self):
         self._previews: Dict[int, ManagedPipeline] = {}
+        # Track cameras that are in the middle of a capture operation
+        # This prevents the dashboard watchdog from auto-starting previews
+        self._capture_in_progress: set[int] = set()
+
+    def set_capture_in_progress(self, camera_id: int, in_progress: bool) -> None:
+        """Mark a camera as having a capture in progress.
+
+        When capture is in progress, preview will refuse to start.
+        This prevents the dashboard watchdog from racing with capture.
+        """
+        if in_progress:
+            self._capture_in_progress.add(camera_id)
+            logger.debug("capture_lock_acquired", camera_id=camera_id)
+        else:
+            self._capture_in_progress.discard(camera_id)
+            logger.debug("capture_lock_released", camera_id=camera_id)
+
+    def is_capture_in_progress(self, camera_id: int) -> bool:
+        """Check if a capture is in progress for a camera."""
+        return camera_id in self._capture_in_progress
 
     async def start_preview(
         self,
@@ -41,6 +61,14 @@ class PreviewService:
         Returns:
             Tuple of (success: bool, message: str)
         """
+        # Check if capture is in progress - refuse to start preview during capture
+        if self.is_capture_in_progress(camera_id):
+            logger.info(
+                "preview_blocked_by_capture",
+                camera_id=camera_id,
+            )
+            return False, f"Capture in progress for camera {camera_id}"
+
         # Clamp FPS to valid range
         fps = max(1, min(30, fps))
         # Check if preview already running

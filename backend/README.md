@@ -77,9 +77,13 @@ app/
 │   ├── database.py      # SQLAlchemy models
 │   └── schemas.py       # Pydantic schemas
 ├── services/            # Business logic
-│   ├── camera/          # Camera services
+│   ├── camera/          # Camera services (preview, recording, timelapse)
+│   │   └── resolver.py  # Hardware ID to device path resolution
+│   ├── observation/     # Observation tracking and management
 │   ├── storage/         # Storage services
-│   ├── jobs/            # Job management
+│   ├── camera_device_monitor.py  # Background USB device monitoring
+│   ├── stats_broadcaster.py      # WebSocket stats broadcasting
+│   ├── startup.py       # Startup cleanup and device reconciliation
 │   └── system/          # System monitoring
 └── db/                  # Database
     ├── session.py       # DB session management
@@ -94,17 +98,39 @@ See [.env.example](.env.example) for all available options.
 
 ## Features Implemented
 
+### Core Infrastructure
 - [x] FastAPI application scaffold
 - [x] Structured logging with structlog
 - [x] Health and stats endpoints
 - [x] CORS middleware
 - [x] Optional HTTP Basic authentication
 - [x] Rate limiting with slowapi
-- [x] Raspberry Pi throttle detection
-- [x] System monitoring (CPU, RAM, disk, temperature)
 - [x] Custom exception hierarchy
 - [x] Pydantic settings management
 
+### Camera Services
+- [x] Multi-camera support (CSI via libcamera, USB via GStreamer)
+- [x] Persistent camera identification via hardware_id
+- [x] Automatic device path resolution using /dev/v4l/by-path/ symlinks
+- [x] Background device monitor for USB camera reconnection handling
+- [x] Preview streaming with MJPEG
+- [x] Still capture with configurable quality
+- [x] Video recording with H.264 encoding
+- [x] Timelapse with frame capture and video assembly
+
+### Observation System
+- [x] Observation tracking for captures, recordings, and timelapses
+- [x] Thumbnail generation via ffmpeg
+- [x] Batch delete API endpoint
+- [x] Media file serving
+
+### System Monitoring
+- [x] CPU, RAM, disk, temperature monitoring
+- [x] Raspberry Pi throttle detection
+- [x] WebSocket stats broadcasting (2s interval)
+- [x] Startup cleanup (stale jobs, orphan processes)
+- [x] Device path reconciliation on startup
+
 ## Next Steps
 
-See [.claude/plans/00-master-plan.ready.md](../.claude/plans/00-master-plan.ready.md) for development roadmap.
+See [docs/PROJECT_STATUS.md](../docs/PROJECT_STATUS.md) for current development status.

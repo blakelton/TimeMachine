@@ -1,47 +1,50 @@
 # TimeMachine Project - Current Status
 
-**Last Updated**: 2025-12-14
+**Last Updated**: 2025-12-22
 **Branch**: `develop`
-**Phase**: Production-Ready with Feature Enhancements Complete
+**Phase**: Production-Ready with Advanced Features
 
 ---
 
 ## Executive Summary
 
-TimeMachine is **production-ready** with all core functionality implemented and tested. The latest sprint completed three major feature plans (job-status-display, media-browser-frontend, timelapse-resume-cleanup) and resolved all critical frontend/backend integration issues.
+TimeMachine is **production-ready** with all core functionality implemented and tested. The system is actively running on Raspberry Pi hardware with full camera support.
 
 **Current State**:
-- ✅ Complete web interface with real-time updates
-- ✅ Multi-camera support (CSI + USB)
-- ✅ Recording, timelapse, and still capture
-- ✅ File browser with video player and image lightbox
+- ✅ Complete web interface with real-time updates and live camera previews
+- ✅ Multi-camera support (CSI + USB) with persistent hardware identification
+- ✅ Recording, timelapse, and still capture with observation tracking
+- ✅ Observations browser with visual grid, batch operations, and media viewer
+- ✅ Automatic USB camera device path tracking and reconciliation
 - ✅ Timelapse resume/finalize/cleanup functionality
 - ✅ Job status tracking with WebSocket updates
-- ✅ All critical API/schema mismatches fixed
-- ⚠️ Hardware testing recommended on Raspberry Pi
+- ✅ Touchscreen-optimized UI (800x480 display support)
+- ✅ Hardware tested and running on Raspberry Pi
 
 ---
 
-## Recent Updates (2025-12-14)
+## Recent Updates (2025-12-22)
 
 ### Features Implemented
 
 | Feature | Components | Status |
 |---------|------------|--------|
-| **Job Status Display** | JobCard, JobList, JobsPage | ✅ Complete |
-| **Media Browser** | FileBrowser, VideoPlayer, ImageLightbox, FilesPage | ✅ Complete |
-| **Timelapse Resume/Cleanup** | TimelapseResumeBar, TimelapseCleanupDialog, API endpoints | ✅ Complete |
+| **Observations Browser** | ObservationsPage, ObservationGrid, ObservationTile, MediaViewer | ✅ Complete |
+| **Batch Operations** | BatchActionBar, batch-delete API endpoint | ✅ Complete |
+| **Live Dashboard Previews** | LiveThumbnail, CameraPreviewCard updates | ✅ Complete |
+| **Persistent Camera IDs** | hardware_id field, CameraResolver service | ✅ Complete |
+| **Device Path Auto-Update** | camera_device_monitor background service | ✅ Complete |
+| **USB Camera Crash Detection** | Recording service crash monitoring | ✅ Complete |
 
-### Critical Fixes Applied (commit 550cbff)
+### Recent Fixes
 
 | Issue | Resolution |
 |-------|------------|
-| RecordTab API endpoints wrong | Changed `/record/` to `/recording/` |
-| RecordTab request body mismatch | Changed to `{ duration_seconds }` |
-| TimelapseTab request body mismatch | Changed to `{ config: { interval_seconds, total_frames } }` |
-| WebSocket job_type mismatch | Changed `"record"` to `"recording"` |
-| Missing "interrupted" status | Added to WSJobUpdate type union |
-| useEffect dependency warnings | Added useCallback in PreviewTab |
+| USB camera device paths changing | Added hardware_id tracking with by-path symlinks |
+| Camera previews not updating after reconnect | Background monitor restarts previews automatically |
+| CSI camera capture timeouts | Improved libcamera timeout handling |
+| Observation browser batch delete | Added POST /observations/batch-delete endpoint |
+| Route conflict with observation endpoints | Fixed endpoint ordering in router |
 
 ### Code Quality Evaluation
 
@@ -123,6 +126,19 @@ See [CODE_EVALUATION_REPORT.md](CODE_EVALUATION_REPORT.md) for full details.
 - [x] Timelapse resume bar and cleanup dialog
 - [x] API endpoint and schema alignment fixes
 
+### Advanced Features (2025-12-22) ✅ COMPLETE
+- [x] Observations browser with visual grid layout
+- [x] Observation tiles with thumbnails and metadata
+- [x] Media viewer with pinch-to-zoom and video playback
+- [x] Batch download and delete functionality
+- [x] Live camera previews on home dashboard
+- [x] Persistent camera identification via hardware_id
+- [x] Automatic device path reconciliation on startup
+- [x] Background camera device monitor (30s interval)
+- [x] Automatic preview restart on device path changes
+- [x] USB camera crash detection and recovery
+- [x] Touchscreen-optimized CSS for 800x480 displays
+
 ---
 
 ## System Architecture
@@ -172,14 +188,17 @@ See [CODE_EVALUATION_REPORT.md](CODE_EVALUATION_REPORT.md) for full details.
 | Feature | Backend | Frontend | Status |
 |---------|---------|----------|--------|
 | Camera Discovery | ✅ | ✅ | Production-ready |
+| Persistent Camera IDs | ✅ | ✅ | Production-ready |
+| Device Path Auto-Update | ✅ | N/A | Production-ready |
 | Live Preview | ✅ | ✅ | Production-ready |
+| Dashboard Live Previews | ✅ | ✅ | Production-ready |
 | Still Capture | ✅ | ✅ | Production-ready |
 | Video Recording | ✅ | ✅ | Production-ready |
 | Timelapse Creation | ✅ | ✅ | Production-ready |
 | Timelapse Resume | ✅ | ✅ | Production-ready |
-| File Browser | ✅ | ✅ | Production-ready |
-| Video Player | ✅ | ✅ | Production-ready |
-| Image Lightbox | ✅ | ✅ | Production-ready |
+| Observations Browser | ✅ | ✅ | Production-ready |
+| Media Viewer | N/A | ✅ | Production-ready |
+| Batch Operations | ✅ | ✅ | Production-ready |
 | Job Tracking | ✅ | ✅ | Production-ready |
 | WebSocket Updates | ✅ | ✅ | Production-ready |
 | System Settings | ✅ | ✅ | Production-ready |

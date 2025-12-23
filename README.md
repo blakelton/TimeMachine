@@ -28,6 +28,8 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 
 ### Camera Operations
 - **Camera Discovery**: Automatic detection of CSI and USB cameras
+- **Persistent Camera Identification**: Hardware ID tracking for USB cameras survives device path changes after reconnection
+- **Automatic Device Path Updates**: Background monitor detects USB camera reconnections and updates device paths automatically
 - **Live Preview**: MJPEG streaming with auto-reconnect
 - **Still Capture**: High-quality JPEG with configurable quality
 - **Video Recording**: H.264 hardware-encoded with EOS support for clean MP4 finalization
@@ -35,17 +37,21 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 - **Job Tracking**: Database-backed job status with running/completed/failed states
 
 ### Web Interface
-- **Home Dashboard**: Real-time system stats (CPU, memory, disk, temperature) with live camera status
+- **Home Dashboard**: Real-time system stats (CPU, memory, disk, temperature) with live camera previews
+- **Observations Browser**: Visual grid of completed captures, recordings, and timelapses with batch download/delete
+- **Media Viewer**: Fullscreen viewer with pinch-to-zoom for images and video playback controls
 - **Camera Tabs**: Individual camera control with Preview/Capture/Record/Timelapse tabs
 - **System Settings**: Camera CRUD, output configuration, notification preferences
-- **Responsive Design**: Mobile-first UI with touch-friendly controls
+- **Responsive Design**: Mobile-first UI with touch-friendly controls, optimized for 800x480 touchscreens
 - **Real-time Updates**: WebSocket integration for live stats and job status
 
 ### System Management
 - **Live Statistics**: CPU, memory, disk usage, and temperature via WebSocket (2s updates)
 - **Disk Space Warnings**: Alerts when storage <10% free, blocks operations at <5%
 - **Job Management**: View, filter, and manage recording/timelapse jobs via API
-- **Startup Cleanup**: Automatic cleanup of stale jobs and orphan GStreamer processes
+- **Startup Cleanup**: Automatic cleanup of stale jobs, orphan processes, and device path reconciliation
+- **Device Path Reconciliation**: USB cameras auto-resolve to correct `/dev/videoN` paths on startup
+- **Background Device Monitor**: Periodic checks for USB camera reconnections with automatic preview restarts
 - **Graceful Shutdown**: EOS signal for recordings, proper job status updates
 
 ### API & Integration

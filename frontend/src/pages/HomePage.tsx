@@ -30,10 +30,7 @@ export function HomePage() {
         <h1>📊 TimeMachine Dashboard</h1>
       </div>
 
-      {/* System Statistics */}
-      <SystemStats />
-
-      {/* Camera Status */}
+      {/* Camera Status - Primary content, shown first */}
       <div className="cameras-section">
         <h2>📷 Cameras</h2>
         {isLoading && <div className="loading">Loading cameras...</div>}
@@ -56,6 +53,9 @@ export function HomePage() {
           </div>
         )}
       </div>
+
+      {/* System Statistics - Bottom row */}
+      <SystemStats />
     </div>
   );
 }

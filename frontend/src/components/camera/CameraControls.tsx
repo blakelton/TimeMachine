@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
@@ -25,6 +26,7 @@ export function CameraControls({
 }: CameraControlsProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   const isPreviewActive = previewRef.current?.isPreviewActive ?? false;
   const isPreviewLoading = previewRef.current?.isLoading ?? false;
@@ -59,6 +61,8 @@ export function CameraControls({
 
       if (data) {
         toast.success("Image captured");
+        // Invalidate observations list so new capture appears immediately
+        queryClient.invalidateQueries({ queryKey: ["observations"] });
       }
     } catch (error) {
       const message =

@@ -385,8 +385,8 @@ class ObservationService:
         self._start_progress_tracker(observation.id, camera.id, "timelapse")
 
         # Start live preview generator for real-time timelapse preview
-        # Generate preview every 2 seconds (fast enough to feel responsive)
-        self._start_live_preview_generator(observation.id, folder_path, interval_seconds=2.0)
+        # Generates preview initially, then every output_fps frames (1 second of footage)
+        self._start_live_preview_generator(observation.id, folder_path, output_fps=config.output_fps)
 
         logger.info(
             "timelapse_observation_started",
@@ -794,22 +794,63 @@ class ObservationService:
                     is_running = state == PipelineState.RUNNING
 
                 if not is_running:
-                    # Pipeline has stopped unexpectedly
-                    logger.warning(
-                        "observation_pipeline_crashed",
-                        observation_id=observation_id,
-                        camera_id=camera_id,
-                        observation_type=observation_type,
-                    )
-
-                    # Mark observation as failed in a new session
+                    # Pipeline has stopped - check if it completed successfully
                     async with SessionFactory() as session:
                         obs_repo = ObservationRepository(session)
-                        await obs_repo.mark_failed(
-                            observation_id,
-                            "Pipeline stopped unexpectedly",
-                        )
-                        await session.commit()
+                        obs = await obs_repo.get_by_id(observation_id)
+
+                        if obs and obs.progress_total and obs.progress_current >= obs.progress_total:
+                            # Timelapse/recording reached its target - mark as completed
+                            logger.info(
+                                "observation_completed",
+                                observation_id=observation_id,
+                                camera_id=camera_id,
+                                observation_type=observation_type,
+                                progress_current=obs.progress_current,
+                                progress_total=obs.progress_total,
+                            )
+
+                            # For timelapse, trigger video assembly
+                            if observation_type == "timelapse":
+                                logger.info(
+                                    "observation_triggering_timelapse_assembly",
+                                    observation_id=observation_id,
+                                    camera_id=camera_id,
+                                )
+                                # Call stop_timelapse to assemble the video
+                                # This will handle cleanup and video assembly
+                                success, msg, output_path = await timelapse_service.stop_timelapse(
+                                    camera_id, session, assemble_video=True
+                                )
+                                logger.info(
+                                    "observation_timelapse_assembly_result",
+                                    observation_id=observation_id,
+                                    camera_id=camera_id,
+                                    success=success,
+                                    output_path=output_path,
+                                )
+
+                            # Calculate final folder size
+                            folder_path = Path(obs.folder_path) if obs.folder_path else None
+                            size_bytes = None
+                            if folder_path and folder_path.exists():
+                                size_bytes = await self._calculate_folder_size(folder_path)
+
+                            await obs_repo.mark_completed(observation_id, size_bytes)
+                            await session.commit()
+                        else:
+                            # Pipeline stopped unexpectedly
+                            logger.warning(
+                                "observation_pipeline_crashed",
+                                observation_id=observation_id,
+                                camera_id=camera_id,
+                                observation_type=observation_type,
+                            )
+                            await obs_repo.mark_failed(
+                                observation_id,
+                                "Pipeline stopped unexpectedly",
+                            )
+                            await session.commit()
 
                     # Clean up tracking
                     if camera_id in self._active_observations:
@@ -846,30 +887,33 @@ class ObservationService:
         self,
         observation_id: int,
         folder_path: Path,
-        interval_seconds: float = 2.0,
+        output_fps: int = 15,
     ) -> None:
         """Start background task to generate live preview video during timelapse.
 
-        The preview video is regenerated periodically from the latest captured frames,
-        allowing users to see the timelapse progress in real-time.
+        The preview video is regenerated:
+        1. Initially after the first frame
+        2. Then every output_fps frames (i.e., every "1 second of footage")
+
+        This means if output_fps=15, the preview updates after frames 1, 15, 30, 45, etc.
 
         Args:
             observation_id: Observation ID
             folder_path: Path to observation folder
-            interval_seconds: How often to regenerate preview (default 2s)
+            output_fps: Output video FPS (preview generated every fps frames)
         """
         if observation_id in self._preview_gen_tasks:
             # Already running
             return
 
         task = asyncio.create_task(
-            self._live_preview_loop(observation_id, folder_path, interval_seconds)
+            self._live_preview_loop(observation_id, folder_path, output_fps)
         )
         self._preview_gen_tasks[observation_id] = task
         logger.info(
             "live_preview_generator_started",
             observation_id=observation_id,
-            interval=interval_seconds,
+            output_fps=output_fps,
         )
 
     def _stop_live_preview_generator(self, observation_id: int) -> None:
@@ -883,21 +927,26 @@ class ObservationService:
         self,
         observation_id: int,
         folder_path: Path,
-        interval_seconds: float,
+        output_fps: int,
     ) -> None:
         """Background loop that regenerates preview video from timelapse frames.
+
+        Generates preview:
+        1. After the first frame is captured
+        2. Every output_fps frames thereafter (i.e., every "1 second of footage")
 
         Args:
             observation_id: Observation ID
             folder_path: Path to observation folder
-            interval_seconds: How often to regenerate
+            output_fps: Output video FPS - preview generated every fps frames
         """
         frames_dir = folder_path / "frames"
         preview_path = folder_path / "preview.mp4"
-        last_frame_count = 0
+        last_preview_frame_count = 0
+        first_preview_done = False
 
-        # Wait a bit for first frames to be captured
-        await asyncio.sleep(3.0)
+        # Poll every second to check for new frames
+        poll_interval = 1.0
 
         while True:
             try:
@@ -905,14 +954,56 @@ class ObservationService:
                 frames = sorted(frames_dir.glob("frame_*.jpg"))
                 frame_count = len(frames)
 
-                # Only regenerate if we have new frames (and at least 2 frames)
-                if frame_count >= 2 and frame_count > last_frame_count:
-                    await self._generate_quick_preview(
-                        frames_dir, preview_path, frames, max_frames=30, fps=10
-                    )
-                    last_frame_count = frame_count
+                should_generate = False
 
-                await asyncio.sleep(interval_seconds)
+                # Generate initial preview after 2 frames (ffmpeg concat needs at least 2)
+                if not first_preview_done and frame_count >= 2:
+                    should_generate = True
+                    first_preview_done = True
+                    logger.info(
+                        "live_preview_initial",
+                        observation_id=observation_id,
+                        frame_count=frame_count,
+                    )
+
+                # Generate preview every output_fps frames (1 second of footage)
+                # e.g., at 15fps: generate at frames 15, 30, 45, etc.
+                elif frame_count >= output_fps:
+                    # Calculate how many "seconds of footage" we have
+                    current_footage_seconds = frame_count // output_fps
+                    last_footage_seconds = last_preview_frame_count // output_fps
+
+                    if current_footage_seconds > last_footage_seconds:
+                        should_generate = True
+                        logger.info(
+                            "live_preview_update",
+                            observation_id=observation_id,
+                            frame_count=frame_count,
+                            footage_seconds=current_footage_seconds,
+                        )
+
+                if should_generate:
+                    # Use all frames but cap at 60 for performance
+                    # Use the actual output_fps for smooth playback
+                    success = await self._generate_quick_preview(
+                        frames_dir, preview_path, frames, max_frames=60, fps=output_fps
+                    )
+                    if success:
+                        last_preview_frame_count = frame_count
+                        logger.info(
+                            "live_preview_generated",
+                            observation_id=observation_id,
+                            frame_count=frame_count,
+                            preview_path=str(preview_path),
+                        )
+                    else:
+                        logger.warning(
+                            "live_preview_generation_failed",
+                            observation_id=observation_id,
+                            frame_count=frame_count,
+                        )
+
+                await asyncio.sleep(poll_interval)
 
             except asyncio.CancelledError:
                 logger.debug("live_preview_loop_cancelled", observation_id=observation_id)
@@ -923,7 +1014,7 @@ class ObservationService:
                     observation_id=observation_id,
                     error=str(e),
                 )
-                await asyncio.sleep(interval_seconds)
+                await asyncio.sleep(poll_interval)
 
     async def _generate_quick_preview(
         self,
@@ -955,38 +1046,51 @@ class ObservationService:
         concat_file = frames_dir / ".preview_frames.txt"
         temp_output = preview_path.with_suffix(".tmp.mp4")
 
+        # Calculate duration per frame
+        frame_duration = 1.0 / fps
+
         try:
-            # Write frame list for ffmpeg concat demuxer
+            # Write frame list for ffmpeg concat demuxer with explicit duration
             with open(concat_file, "w") as f:
                 for frame in preview_frames:
                     f.write(f"file '{frame.name}'\n")
+                    f.write(f"duration {frame_duration}\n")
+                # Add last file again without duration (concat demuxer quirk)
+                if preview_frames:
+                    f.write(f"file '{preview_frames[-1].name}'\n")
 
             # Build fast ffmpeg command (ultrafast preset, low quality for speed)
             cmd = (
                 f"ffmpeg -y -f concat -safe 0 -i '{concat_file}' "
-                f"-framerate {fps} "
                 f"-vf 'scale=640:360:force_original_aspect_ratio=decrease,"
                 f"pad=640:360:(ow-iw)/2:(oh-ih)/2' "
                 f"-c:v libx264 -preset ultrafast -crf 35 "
                 f"-pix_fmt yuv420p "
                 f"-movflags +faststart "
-                f"'{temp_output}' 2>/dev/null"
+                f"'{temp_output}'"
             )
 
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 cwd=str(frames_dir),
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
-            await asyncio.wait_for(proc.communicate(), timeout=30.0)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
 
             if proc.returncode == 0 and temp_output.exists():
                 # Atomic rename to avoid partial reads
                 temp_output.rename(preview_path)
                 return True
             else:
+                error_msg = stderr.decode()[:500] if stderr else "Unknown error"
+                logger.warning(
+                    "quick_preview_ffmpeg_failed",
+                    returncode=proc.returncode,
+                    error=error_msg,
+                    frame_count=len(preview_frames),
+                )
                 if temp_output.exists():
                     temp_output.unlink()
                 return False
@@ -1058,17 +1162,24 @@ class ObservationService:
         # Build ffmpeg command for preview generation
         # Using a temporary file list for ffmpeg input
         concat_file = folder_path / "preview_frames.txt"
+
+        # Calculate duration per frame
+        frame_duration = 1.0 / fps
+
         try:
-            # Write frame list for ffmpeg concat demuxer
+            # Write frame list for ffmpeg concat demuxer with explicit duration
             with open(concat_file, "w") as f:
                 for frame in preview_frames:
                     # Use relative path and escape single quotes
                     f.write(f"file '{frame.name}'\n")
+                    f.write(f"duration {frame_duration}\n")
+                # Add last file again without duration (concat demuxer quirk)
+                if preview_frames:
+                    f.write(f"file '{preview_frames[-1].name}'\n")
 
             width, height = resolution
             cmd = (
                 f"ffmpeg -y -f concat -safe 0 -i '{concat_file}' "
-                f"-framerate {fps} "
                 f"-vf 'scale={width}:{height}:force_original_aspect_ratio=decrease,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2' "
                 f"-c:v libx264 -preset ultrafast -crf 28 "

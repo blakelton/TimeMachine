@@ -68,11 +68,17 @@ export function LiveThumbnail({
   const retryTimeoutRef = useRef<number | null>(null);
   const prevUrlRef = useRef<string>(streamUrl);
 
-  // Clear any pending retry on unmount or URL change
+  // Clear any pending retry and stop MJPEG stream on unmount
   useEffect(() => {
     return () => {
+      // Clear retry timeout
       if (retryTimeoutRef.current !== null) {
         window.clearTimeout(retryTimeoutRef.current);
+      }
+      // Stop MJPEG stream by clearing the src - critical for memory management
+      // MJPEG streams keep connections open until explicitly stopped
+      if (imgRef.current) {
+        imgRef.current.src = "";
       }
     };
   }, []);

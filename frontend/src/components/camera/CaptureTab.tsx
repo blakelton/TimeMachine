@@ -3,6 +3,7 @@
  */
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
 import { Button } from "../Button";
 import { FormField } from "../FormField";
@@ -21,6 +22,7 @@ export function CaptureTab({ cameraId }: CaptureTabProps) {
   const [lastCaptureUrl, setLastCaptureUrl] = useState<string | null>(null);
   const [lastCaptureTime, setLastCaptureTime] = useState<string | null>(null);
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   const qualityValues: Record<QualityLevel, number> = {
     low: 50,
@@ -52,6 +54,8 @@ export function CaptureTab({ cameraId }: CaptureTabProps) {
         setLastCaptureUrl(imageUrl);
         setLastCaptureTime(new Date((data as any).timestamp).toLocaleString());
         toast.success("Image captured successfully");
+        // Invalidate observations list so new capture appears immediately
+        queryClient.invalidateQueries({ queryKey: ["observations"] });
       }
     } catch (error) {
       const message =

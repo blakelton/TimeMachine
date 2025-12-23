@@ -59,19 +59,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     import asyncio
 
     from app.services.stats_broadcaster import stats_broadcast_loop
+    from app.services.camera_device_monitor import camera_device_monitor_loop
 
     broadcast_task = asyncio.create_task(stats_broadcast_loop())
     logger.info("stats_broadcaster_started")
+
+    # Start camera device monitor for USB camera path changes
+    device_monitor_task = asyncio.create_task(camera_device_monitor_loop())
+    logger.info("camera_device_monitor_started")
 
     yield
 
     # Shutdown
     logger.info("application_stopping")
 
-    # Stop stats broadcaster
+    # Stop background tasks
     broadcast_task.cancel()
+    device_monitor_task.cancel()
     try:
         await broadcast_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await device_monitor_task
     except asyncio.CancelledError:
         pass
 
