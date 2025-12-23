@@ -72,7 +72,7 @@ export function CameraControls({
   return (
     <div className="camera-controls">
       <Button
-        variant={isPreviewActive ? "secondary" : "primary"}
+        variant={isPreviewActive ? "danger" : "outline"}
         onClick={handleTogglePreview}
         disabled={isPreviewLoading}
         className="camera-controls__btn"
@@ -85,7 +85,7 @@ export function CameraControls({
       </Button>
 
       <Button
-        variant="secondary"
+        variant="primary"
         onClick={handleCapture}
         disabled={isCapturing}
         className="camera-controls__btn"

@@ -362,8 +362,27 @@ class ObservationService:
         # Track active observation
         self._active_observations[camera.id] = observation.id
 
-        # Start progress tracking task
-        self._start_progress_tracker(observation.id, camera.id, session)
+        # Wait briefly and verify the timelapse is running
+        await asyncio.sleep(0.5)
+        progress = timelapse_service.get_timelapse_progress(camera.id)
+        if progress is None:
+            # Timelapse failed immediately
+            logger.warning(
+                "timelapse_immediate_failure",
+                observation_id=observation.id,
+                camera_id=camera.id,
+            )
+            await obs_repo.mark_failed(
+                observation.id,
+                "Timelapse failed to start - check camera connection",
+            )
+            await session.commit()
+            del self._active_observations[camera.id]
+            await self._restart_preview_if_stopped(camera.id)
+            return False, "Timelapse failed to start - check camera connection", None
+
+        # Start progress tracking task (watchdog for crash detection)
+        self._start_progress_tracker(observation.id, camera.id, "timelapse")
 
         # Start live preview generator for real-time timelapse preview
         # Generate preview every 2 seconds (fast enough to feel responsive)
@@ -475,8 +494,29 @@ class ObservationService:
         # Track active observation
         self._active_observations[camera.id] = observation.id
 
-        # Start progress tracking task
-        self._start_progress_tracker(observation.id, camera.id, session)
+        # Wait briefly and verify the pipeline is still running
+        # GStreamer pipelines can crash immediately if codec/resolution is unsupported
+        await asyncio.sleep(0.5)
+        pipeline_state = recording_service.get_recording_state(camera.id)
+        if pipeline_state != PipelineState.RUNNING:
+            # Pipeline crashed immediately after starting
+            logger.warning(
+                "recording_pipeline_immediate_crash",
+                observation_id=observation.id,
+                camera_id=camera.id,
+                pipeline_state=pipeline_state.value if pipeline_state else "none",
+            )
+            await obs_repo.mark_failed(
+                observation.id,
+                "Recording failed to start - camera may not support h264 encoding at this resolution",
+            )
+            await session.commit()
+            del self._active_observations[camera.id]
+            await self._restart_preview_if_stopped(camera.id)
+            return False, "Recording failed - camera may not support h264 encoding at this resolution", None
+
+        # Start progress tracking task (watchdog for crash detection)
+        self._start_progress_tracker(observation.id, camera.id, "recording")
 
         logger.info(
             "recording_observation_started",
@@ -696,12 +736,105 @@ class ObservationService:
         self,
         observation_id: int,
         camera_id: int,
-        session: AsyncSession,
+        observation_type: str,
     ) -> None:
-        """Start background task to track progress."""
-        # Note: In production, this would need to be handled differently
-        # as the session may not be valid for long-running async tasks
-        pass
+        """Start background task to track progress and detect crashes.
+
+        This watchdog task:
+        1. Periodically checks if the underlying pipeline is still running
+        2. Marks observation as failed if pipeline has crashed
+        3. Restarts preview if it was stopped for this observation
+
+        Args:
+            observation_id: Observation ID
+            camera_id: Camera ID
+            observation_type: "timelapse" or "recording"
+        """
+        if observation_id in self._progress_tasks:
+            return  # Already tracking
+
+        task = asyncio.create_task(
+            self._progress_tracker_loop(observation_id, camera_id, observation_type)
+        )
+        self._progress_tasks[observation_id] = task
+        logger.debug(
+            "progress_tracker_started",
+            observation_id=observation_id,
+            camera_id=camera_id,
+            observation_type=observation_type,
+        )
+
+    async def _progress_tracker_loop(
+        self,
+        observation_id: int,
+        camera_id: int,
+        observation_type: str,
+    ) -> None:
+        """Background loop that monitors observation health.
+
+        Detects when the underlying pipeline has crashed and updates
+        the observation status accordingly.
+        """
+        from app.db.session import SessionFactory
+
+        check_interval = 3.0  # Check every 3 seconds
+        # Allow a grace period for pipeline to start
+        await asyncio.sleep(2.0)
+
+        while True:
+            try:
+                # Check if pipeline is still running
+                is_running = False
+
+                if observation_type == "timelapse":
+                    progress = timelapse_service.get_timelapse_progress(camera_id)
+                    is_running = progress is not None
+                else:  # recording
+                    state = recording_service.get_recording_state(camera_id)
+                    is_running = state == PipelineState.RUNNING
+
+                if not is_running:
+                    # Pipeline has stopped unexpectedly
+                    logger.warning(
+                        "observation_pipeline_crashed",
+                        observation_id=observation_id,
+                        camera_id=camera_id,
+                        observation_type=observation_type,
+                    )
+
+                    # Mark observation as failed in a new session
+                    async with SessionFactory() as session:
+                        obs_repo = ObservationRepository(session)
+                        await obs_repo.mark_failed(
+                            observation_id,
+                            "Pipeline stopped unexpectedly",
+                        )
+                        await session.commit()
+
+                    # Clean up tracking
+                    if camera_id in self._active_observations:
+                        del self._active_observations[camera_id]
+
+                    # Restart preview if we stopped it
+                    await self._restart_preview_if_stopped(camera_id)
+
+                    break
+
+                await asyncio.sleep(check_interval)
+
+            except asyncio.CancelledError:
+                logger.debug(
+                    "progress_tracker_cancelled",
+                    observation_id=observation_id,
+                )
+                break
+            except Exception as e:
+                logger.error(
+                    "progress_tracker_error",
+                    observation_id=observation_id,
+                    error=str(e),
+                )
+                await asyncio.sleep(check_interval)
 
     def _stop_progress_tracker(self, observation_id: int) -> None:
         """Stop progress tracking task."""

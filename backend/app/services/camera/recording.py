@@ -376,6 +376,9 @@ class RecordingService:
     ) -> str:
         """Build GStreamer pipeline for USB camera recording.
 
+        USB cameras typically don't support hardware h264 encoding, so we use
+        software encoding (x264enc) at the camera's native resolution.
+
         Args:
             camera_id: Camera ID
             device_path: Device path
@@ -385,13 +388,18 @@ class RecordingService:
         Returns:
             GStreamer pipeline command
         """
-        # USB camera with H.264 hardware encoder
+        # USB camera with x264 software encoder at native resolution
+        # Most USB webcams only support 640x480 or 1280x720 at best
+        # Using videorate to ensure consistent framerate for encoding
+        # x264enc produces widely compatible H.264 streams
         # Using -e flag for EOS handling
         cmd = (
             f"gst-launch-1.0 -e "
             f"v4l2src device={device_path} ! "
-            f"video/x-raw,width=1920,height=1080,framerate=30/1 ! "
-            f"v4l2h264enc extra-controls=\"controls,h264_profile=4,video_bitrate=4000000\" ! "
+            f"video/x-raw,format=YUY2,width=640,height=480 ! "
+            f"videorate ! video/x-raw,framerate=30/1 ! "
+            f"videoconvert ! "
+            f"x264enc tune=zerolatency speed-preset=ultrafast bitrate=2000 ! "
             f"h264parse ! "
             f"mp4mux ! "
             f"filesink location={output_file}"

@@ -4,9 +4,14 @@
  * Polls the batch dashboard endpoint for efficient data fetching
  * of all cameras in a single request. Optionally auto-starts
  * preview streams based on dashboard settings.
+ *
+ * Includes a watchdog mechanism that:
+ * - Retries starting previews that fail to come up
+ * - Uses exponential backoff (2s, 4s, 8s, 16s, max 30s)
+ * - Resets retry state when preview starts successfully
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "../api/client";
 import type { components } from "../types/api";
@@ -15,6 +20,16 @@ import type { DashboardPreviewSettings } from "./useDashboardSettings";
 export type CameraDashboardItem = components["schemas"]["CameraDashboardItem"];
 export type CameraDashboardObservation = components["schemas"]["CameraDashboardObservation"];
 export type CameraDashboardResponse = components["schemas"]["CameraDashboardResponse"];
+
+// Retry configuration
+const INITIAL_RETRY_DELAY = 2000; // 2 seconds
+const MAX_RETRY_DELAY = 30000; // 30 seconds
+const MAX_RETRIES = 10; // Give up after 10 retries
+
+interface CameraRetryState {
+  retryCount: number;
+  nextRetryTime: number; // timestamp when next retry is allowed
+}
 
 interface UseCameraDashboardOptions {
   /**
@@ -62,13 +77,22 @@ async function startCameraPreview(cameraId: number, fps: number): Promise<boolea
 }
 
 /**
+ * Calculate next retry delay with exponential backoff.
+ */
+function getRetryDelay(retryCount: number): number {
+  const delay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+  return Math.min(delay, MAX_RETRY_DELAY);
+}
+
+/**
  * Fetch camera dashboard data for all cameras.
  *
  * Returns preview states, active observations, and progress info
  * in a single batch request to avoid N+1 API calls.
  *
  * When previewSettings is provided and enabled, automatically starts
- * preview streams for idle cameras.
+ * preview streams for idle cameras. Includes watchdog retry logic
+ * with exponential backoff for cameras that fail to start.
  *
  * @example
  * ```tsx
@@ -87,8 +111,8 @@ export function useCameraDashboard(
 ): UseCameraDashboardResult {
   const { refetchInterval = 3000, enabled = true, previewSettings } = options;
 
-  // Track cameras we've already tried to start previews for
-  const startedPreviewsRef = useRef<Set<number>>(new Set());
+  // Track retry state per camera with exponential backoff
+  const retryStateRef = useRef<Map<number, CameraRetryState>>(new Map());
 
   const {
     data,
@@ -115,46 +139,89 @@ export function useCameraDashboard(
     staleTime: 1000, // Consider data stale after 1 second
   });
 
-  // Auto-start previews when dashboard loads (if settings enabled)
+  // Try to start preview for a camera, handling retries with exponential backoff
+  const tryStartPreview = useCallback(async (
+    cameraId: number,
+    fps: number
+  ): Promise<void> => {
+    const now = Date.now();
+    const retryState = retryStateRef.current.get(cameraId);
+
+    // Check if we should wait before retrying
+    if (retryState) {
+      // Already at max retries - give up
+      if (retryState.retryCount >= MAX_RETRIES) {
+        return;
+      }
+      // Not yet time for next retry
+      if (now < retryState.nextRetryTime) {
+        return;
+      }
+    }
+
+    // Attempt to start preview
+    const success = await startCameraPreview(cameraId, fps);
+
+    if (success) {
+      // Success - remove from retry tracking
+      retryStateRef.current.delete(cameraId);
+    } else {
+      // Failed - update retry state with backoff
+      const currentRetryCount = retryState?.retryCount ?? 0;
+      const newRetryCount = currentRetryCount + 1;
+      const delay = getRetryDelay(newRetryCount);
+
+      retryStateRef.current.set(cameraId, {
+        retryCount: newRetryCount,
+        nextRetryTime: now + delay,
+      });
+    }
+  }, []);
+
+  // Watchdog effect - runs on each data update to check camera states
   useEffect(() => {
     // Only run if settings are provided and previews are enabled
     if (!previewSettings?.enabled || !data?.cameras || previewSettings.fps === 0) {
       return;
     }
 
-    // Start previews for cameras that are idle and don't have active observations
     const cameras = data.cameras ?? [];
-    const startPreviews = async () => {
-      for (const camera of cameras) {
-        // Skip if:
-        // - Camera is disabled
-        // - Preview is already running or has error
-        // - Camera has an active observation (uses the camera)
-        // - We already tried to start this camera's preview
-        if (
-          !camera.enabled ||
-          camera.preview_state !== "idle" ||
-          camera.has_active_observation ||
-          startedPreviewsRef.current.has(camera.camera_id)
-        ) {
-          continue;
-        }
 
-        // Mark as attempted
-        startedPreviewsRef.current.add(camera.camera_id);
+    // Process each camera
+    const processCamera = async (camera: CameraDashboardItem) => {
+      // Skip if camera is disabled or has active observation
+      if (!camera.enabled || camera.has_active_observation) {
+        // Clear retry state - camera is legitimately not available
+        retryStateRef.current.delete(camera.camera_id);
+        return;
+      }
 
-        // Start preview with configured FPS
-        await startCameraPreview(camera.camera_id, previewSettings.fps);
+      // If preview is running, clear any retry state (success!)
+      if (camera.preview_state === "running") {
+        retryStateRef.current.delete(camera.camera_id);
+        return;
+      }
+
+      // Preview is idle or error - try to start it
+      if (camera.preview_state === "idle" || camera.preview_state === "error") {
+        await tryStartPreview(camera.camera_id, previewSettings.fps);
       }
     };
 
-    startPreviews();
-  }, [data?.cameras, previewSettings?.enabled, previewSettings?.fps]);
+    // Process cameras sequentially to avoid overwhelming the backend
+    const processAllCameras = async () => {
+      for (const camera of cameras) {
+        await processCamera(camera);
+      }
+    };
 
-  // Reset started previews when settings change
+    processAllCameras();
+  }, [data?.cameras, previewSettings?.enabled, previewSettings?.fps, tryStartPreview]);
+
+  // Reset retry state when settings are disabled
   useEffect(() => {
     if (!previewSettings?.enabled) {
-      startedPreviewsRef.current.clear();
+      retryStateRef.current.clear();
     }
   }, [previewSettings?.enabled]);
 
