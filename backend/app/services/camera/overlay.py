@@ -24,12 +24,16 @@ logger = get_logger(__name__)
 OVERLAY_PADDING = 10  # Pixels from edge
 OVERLAY_BG_COLOR = (0, 0, 0, 180)  # Semi-transparent black
 OVERLAY_TEXT_COLOR = (255, 255, 255, 255)  # White
-OVERLAY_GRAPH_COLOR = (0, 200, 100)  # Green for temperature line
 OVERLAY_GRAPH_BG = (40, 40, 40, 200)  # Dark gray background for graph
 
+# Measurement-specific colors (RGBA)
+TEMP_COLOR = (255, 80, 80, 255)  # Red for temperature
+HUMIDITY_COLOR = (80, 160, 255, 255)  # Blue for humidity
+PRESSURE_COLOR = (255, 255, 255, 255)  # White for pressure
+
 # Graph settings
-GRAPH_WIDTH = 100
-GRAPH_HEIGHT = 40
+INLINE_GRAPH_WIDTH = 60  # Smaller inline graphs
+INLINE_GRAPH_HEIGHT = 16  # Height to fit on same row as text
 GRAPH_CACHE_FRAMES = 10  # Regenerate graph every N frames
 GRAPH_HISTORY_MINUTES = 30  # Keep 30 minutes of readings
 
@@ -64,13 +68,15 @@ class EnvironmentOverlayService:
         self.device_type = device_type
         self.temperature_unit = temperature_unit
 
-        # Graph cache
-        self._graph_image: Image.Image | None = None
+        # Graph caches (one per measurement type)
+        self._temp_graph: Image.Image | None = None
+        self._humidity_graph: Image.Image | None = None
         self._graph_cache_frame: int = -GRAPH_CACHE_FRAMES  # Force initial render
 
-        # Reading history for graph (timestamp, temperature)
+        # Reading history for graphs (timestamp, value)
         max_readings = (GRAPH_HISTORY_MINUTES * 60) // 5 + 10  # ~370 readings at 5s interval
-        self._readings_history: deque[tuple[datetime, float]] = deque(maxlen=max_readings)
+        self._temp_history: deque[tuple[datetime, float]] = deque(maxlen=max_readings)
+        self._humidity_history: deque[tuple[datetime, float]] = deque(maxlen=max_readings)
 
         # Try to load a better font, fall back to default
         self._font_large = ImageFont.load_default()
@@ -86,6 +92,69 @@ class EnvironmentOverlayService:
             )
         except (OSError, IOError):
             logger.debug("overlay_font_fallback", reason="DejaVu font not found")
+
+    async def load_history_from_database(
+        self,
+        session_factory,
+    ) -> int:
+        """Pre-populate graph history from database readings.
+
+        This should be called when starting a timelapse to ensure the graph
+        has data from the start, rather than showing "..." until readings
+        accumulate during the session.
+
+        Args:
+            session_factory: Async database session factory.
+
+        Returns:
+            Number of readings loaded.
+        """
+        if not self.show_graph:
+            return 0
+
+        try:
+            from app.db.repositories.environment_reading import EnvironmentReadingRepository
+
+            async with session_factory() as session:
+                repo = EnvironmentReadingRepository(session)
+                readings = await repo.get_recent(
+                    device_id=self.device_id,
+                    minutes=GRAPH_HISTORY_MINUTES,
+                )
+
+                # Add readings to history (they come in desc order, so reverse)
+                temp_count = 0
+                humidity_count = 0
+                for reading in reversed(readings):
+                    if reading.temperature is not None:
+                        self._temp_history.append(
+                            (reading.timestamp, reading.temperature)
+                        )
+                        temp_count += 1
+                    if reading.humidity is not None:
+                        self._humidity_history.append(
+                            (reading.timestamp, reading.humidity)
+                        )
+                        humidity_count += 1
+
+                if readings:
+                    logger.info(
+                        "overlay_history_loaded",
+                        device_id=self.device_id,
+                        readings_count=len(readings),
+                        temp_history=temp_count,
+                        humidity_history=humidity_count,
+                    )
+
+                return len(readings)
+
+        except Exception as e:
+            logger.warning(
+                "overlay_history_load_failed",
+                device_id=self.device_id,
+                error=str(e),
+            )
+            return 0
 
     def _get_supported_readings(self) -> dict[str, bool]:
         """Get which readings this device type supports.
@@ -116,46 +185,46 @@ class EnvironmentOverlayService:
             return f"{value:.1f}F"
         return f"{celsius:.1f}C"
 
-    def _render_graph(self) -> Image.Image:
-        """Render temperature graph using pure PIL.
+    def _render_inline_graph(
+        self,
+        history: deque[tuple[datetime, float]],
+        color: tuple[int, int, int, int],
+    ) -> Image.Image | None:
+        """Render an inline mini-graph for a measurement.
+
+        Args:
+            history: Deque of (timestamp, value) tuples.
+            color: RGBA color for the graph line.
 
         Returns:
-            RGBA image of the graph.
+            RGBA image of the graph, or None if not enough data.
         """
+        if len(history) < 2:
+            return None
+
         # Create graph image with transparency
-        graph = Image.new("RGBA", (GRAPH_WIDTH, GRAPH_HEIGHT), OVERLAY_GRAPH_BG)
+        graph = Image.new("RGBA", (INLINE_GRAPH_WIDTH, INLINE_GRAPH_HEIGHT), OVERLAY_GRAPH_BG)
         draw = ImageDraw.Draw(graph)
 
-        if len(self._readings_history) < 2:
-            # Not enough data - draw "No data" text
-            draw.text(
-                (GRAPH_WIDTH // 2, GRAPH_HEIGHT // 2),
-                "...",
-                fill=OVERLAY_TEXT_COLOR,
-                font=self._font_small,
-                anchor="mm",
-            )
-            return graph
-
         # Get readings as list for processing
-        readings = list(self._readings_history)
-        temps = [r[1] for r in readings]
+        readings = list(history)
+        values = [r[1] for r in readings]
 
         # Calculate min/max for scaling
-        min_temp = min(temps)
-        max_temp = max(temps)
-        temp_range = max_temp - min_temp
+        min_val = min(values)
+        max_val = max(values)
+        val_range = max_val - min_val
 
         # Add padding to range
-        if temp_range < 1:
-            temp_range = 1
-            min_temp -= 0.5
-            max_temp += 0.5
+        if val_range < 1:
+            val_range = 1
+            min_val -= 0.5
+            max_val += 0.5
 
-        padding = temp_range * 0.1
-        min_temp -= padding
-        max_temp += padding
-        temp_range = max_temp - min_temp
+        padding = val_range * 0.1
+        min_val -= padding
+        max_val += padding
+        val_range = max_val - min_val
 
         # Calculate time range
         min_time = readings[0][0].timestamp()
@@ -166,19 +235,19 @@ class EnvironmentOverlayService:
 
         # Graph area (with small margin)
         margin = 2
-        graph_w = GRAPH_WIDTH - 2 * margin
-        graph_h = GRAPH_HEIGHT - 2 * margin
+        graph_w = INLINE_GRAPH_WIDTH - 2 * margin
+        graph_h = INLINE_GRAPH_HEIGHT - 2 * margin
 
         # Build points for the line
         points = []
-        for ts, temp in readings:
+        for ts, val in readings:
             x = margin + ((ts.timestamp() - min_time) / time_range) * graph_w
-            y = margin + graph_h - ((temp - min_temp) / temp_range) * graph_h
+            y = margin + graph_h - ((val - min_val) / val_range) * graph_h
             points.append((x, y))
 
-        # Draw the line
+        # Draw the line (RGB only, no alpha for line color)
         if len(points) >= 2:
-            draw.line(points, fill=OVERLAY_GRAPH_COLOR, width=2)
+            draw.line(points, fill=color[:3], width=2)
 
         return graph
 
@@ -209,10 +278,12 @@ class EnvironmentOverlayService:
 
         height = 8 + (num_lines * line_height)  # Padding + lines
 
+        # Width needs to accommodate text + inline graph
+        # Text ~80px (e.g. "T: 25.5C") + gap + graph
         if self.show_graph:
-            height += GRAPH_HEIGHT + 4  # Graph + spacing
-
-        width = max(120, GRAPH_WIDTH + 16) if self.show_graph else 120
+            width = 90 + 4 + INLINE_GRAPH_WIDTH + 8  # text + gap + graph + padding
+        else:
+            width = 120
 
         return width, height
 
@@ -262,23 +333,36 @@ class EnvironmentOverlayService:
             # Get current reading
             reading = polling_service.get_latest_reading(self.device_id)
             if reading is None:
-                logger.debug(
-                    "overlay_no_reading",
-                    device_id=self.device_id,
-                    frame=frame_number,
-                )
+                # Log at INFO on first frame to help diagnose issues
+                if frame_number == 0:
+                    logger.info(
+                        "overlay_no_reading_initial",
+                        device_id=self.device_id,
+                        frame=frame_number,
+                        hint="Sensor may still be initializing or has errors",
+                    )
+                else:
+                    logger.debug(
+                        "overlay_no_reading",
+                        device_id=self.device_id,
+                        frame=frame_number,
+                    )
                 return False
 
-            # Add to history for graph (only if we have temperature)
+            # Add to history for graphs
+            now = datetime.now()
             if reading.temperature is not None:
-                self._readings_history.append((datetime.now(), reading.temperature))
+                self._temp_history.append((now, reading.temperature))
+            if reading.humidity is not None:
+                self._humidity_history.append((now, reading.humidity))
 
             # Get what this sensor supports
             supports = self._get_supported_readings()
 
-            # Maybe regenerate graph cache
+            # Maybe regenerate graph caches
             if self.show_graph and (frame_number - self._graph_cache_frame) >= GRAPH_CACHE_FRAMES:
-                self._graph_image = self._render_graph()
+                self._temp_graph = self._render_inline_graph(self._temp_history, TEMP_COLOR)
+                self._humidity_graph = self._render_inline_graph(self._humidity_history, HUMIDITY_COLOR)
                 self._graph_cache_frame = frame_number
 
             # Run image processing in thread pool to avoid blocking
@@ -291,6 +375,16 @@ class EnvironmentOverlayService:
                 supports,
             )
 
+            # Log success periodically (every 10 frames) to confirm overlay is working
+            if frame_number % 10 == 0:
+                logger.info(
+                    "overlay_applied",
+                    device_id=self.device_id,
+                    frame=frame_number,
+                    show_graph=self.show_graph,
+                    temp=reading.temperature,
+                )
+
             return True
 
         except Exception as e:
@@ -299,6 +393,7 @@ class EnvironmentOverlayService:
                 device_id=self.device_id,
                 frame=frame_number,
                 error=str(e),
+                show_graph=self.show_graph,
             )
             return False
 
@@ -328,43 +423,47 @@ class EnvironmentOverlayService:
             overlay = Image.new("RGBA", (overlay_width, overlay_height), OVERLAY_BG_COLOR)
             draw = ImageDraw.Draw(overlay)
 
-            # Draw text lines
+            # Draw text lines with inline graphs
             y_offset = 4
             line_height = FONT_SIZE_LARGE + 4
+            graph_x = 94  # Position for inline graphs (after text)
 
             if supports.get("temperature") and reading.temperature is not None:
                 temp_str = self._format_temperature(reading.temperature)
                 draw.text(
                     (8, y_offset),
                     f"T: {temp_str}",
-                    fill=OVERLAY_TEXT_COLOR,
+                    fill=TEMP_COLOR,  # Red for temperature
                     font=self._font_large,
                 )
+                # Add inline temperature graph
+                if self.show_graph and self._temp_graph is not None:
+                    # Center graph vertically on the text line
+                    graph_y = y_offset + (line_height - INLINE_GRAPH_HEIGHT) // 2
+                    overlay.paste(self._temp_graph, (graph_x, graph_y), self._temp_graph)
                 y_offset += line_height
 
             if supports.get("humidity") and reading.humidity is not None:
                 draw.text(
                     (8, y_offset),
                     f"H: {reading.humidity:.1f}%",
-                    fill=OVERLAY_TEXT_COLOR,
+                    fill=HUMIDITY_COLOR,  # Blue for humidity
                     font=self._font_large,
                 )
+                # Add inline humidity graph
+                if self.show_graph and self._humidity_graph is not None:
+                    graph_y = y_offset + (line_height - INLINE_GRAPH_HEIGHT) // 2
+                    overlay.paste(self._humidity_graph, (graph_x, graph_y), self._humidity_graph)
                 y_offset += line_height
 
             if supports.get("pressure") and reading.pressure is not None:
                 draw.text(
                     (8, y_offset),
                     f"P: {reading.pressure:.0f}hPa",
-                    fill=OVERLAY_TEXT_COLOR,
+                    fill=PRESSURE_COLOR,  # White for pressure (no graph)
                     font=self._font_large,
                 )
                 y_offset += line_height
-
-            # Add graph if enabled
-            if self.show_graph and self._graph_image is not None:
-                graph_x = (overlay_width - GRAPH_WIDTH) // 2
-                graph_y = y_offset + 2
-                overlay.paste(self._graph_image, (graph_x, graph_y))
 
             # Calculate position and paste overlay
             pos_x, pos_y = self._get_overlay_position(

@@ -634,6 +634,20 @@ class TimelapseService:
                 polling_service=polling_service,
             )
 
+            # Pre-load graph history from database if overlay with graph is configured
+            if timelapse_session._overlay_service and config.env_overlay_show_graph:
+                try:
+                    from app.db.session import SessionFactory
+                    await timelapse_session._overlay_service.load_history_from_database(
+                        SessionFactory
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "timelapse_overlay_history_load_failed",
+                        camera_id=camera_id,
+                        error=str(e),
+                    )
+
             success = await timelapse_session.start()
             if success:
                 self._sessions[camera_id] = timelapse_session

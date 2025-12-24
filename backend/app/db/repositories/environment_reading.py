@@ -86,6 +86,34 @@ class EnvironmentReadingRepository(BaseRepository[EnvironmentReading]):
         )
         return list(result.scalars().all())
 
+    async def get_recent(
+        self,
+        device_id: int,
+        minutes: int = 30,
+        limit: int = 500
+    ) -> list[EnvironmentReading]:
+        """Get recent readings for a device.
+
+        Args:
+            device_id: The device ID.
+            minutes: Number of minutes of history to retrieve.
+            limit: Maximum number of readings to return.
+
+        Returns:
+            List of readings ordered by timestamp (newest first).
+        """
+        since = datetime.now() - timedelta(minutes=minutes)
+        result = await self.session.execute(
+            select(EnvironmentReading)
+            .where(
+                EnvironmentReading.device_id == device_id,
+                EnvironmentReading.timestamp >= since
+            )
+            .order_by(desc(EnvironmentReading.timestamp))
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     async def add_reading(
         self,
         device_id: int,

@@ -382,7 +382,7 @@ export function StartObservationModal({
 
                     <div className="observation-modal__section">
                       <label className="observation-modal__section-label">
-                        Show Temperature Graph
+                        Add Graphs
                       </label>
                       <TouchSelect
                         value={envOverlayShowGraph ? 1 : 0}

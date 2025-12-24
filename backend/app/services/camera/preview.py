@@ -1,6 +1,8 @@
 """Camera preview service using GStreamer MJPEG streaming."""
 
 import asyncio
+import os
+import signal
 import socket
 from typing import Dict, Optional
 
@@ -23,6 +25,9 @@ class PreviewService:
         # Track cameras that are in the middle of a capture operation
         # This prevents the dashboard watchdog from auto-starting previews
         self._capture_in_progress: set[int] = set()
+        # Track cameras that are currently starting a preview
+        # Prevents race conditions from concurrent start requests
+        self._starting_preview: set[int] = set()
 
     def set_capture_in_progress(self, camera_id: int, in_progress: bool) -> None:
         """Mark a camera as having a capture in progress.
@@ -69,64 +74,93 @@ class PreviewService:
             )
             return False, f"Capture in progress for camera {camera_id}"
 
+        # Check if another start is already in progress - prevent race conditions
+        if camera_id in self._starting_preview:
+            logger.info(
+                "preview_start_already_in_progress",
+                camera_id=camera_id,
+            )
+            return False, f"Preview start already in progress for camera {camera_id}"
+
         # Clamp FPS to valid range
         fps = max(1, min(30, fps))
-        # Check if preview already running
+        # Check if preview already exists
         if camera_id in self._previews:
             pipeline = self._previews[camera_id]
-            if pipeline.get_state() == PipelineState.RUNNING:
+            state = pipeline.get_state()
+            if state == PipelineState.RUNNING:
                 return False, f"Preview already running for camera {camera_id}"
-
-        # Check system resources
-        resources_ok, reason = await check_resources_available(
-            f"preview_camera_{camera_id}", min_memory_mb=100
-        )
-        if not resources_ok:
-            return False, reason
-
-        # Build GStreamer pipeline based on camera type
-        if camera_type == "csi":
-            pipeline_cmd = self._build_csi_preview_pipeline(
-                camera_id, device_path, port, fps
+            # Clean up any existing pipeline that's not running (crashed, error, stopped)
+            # This ensures we don't leave zombie processes behind
+            logger.info(
+                "preview_cleanup_before_start",
+                camera_id=camera_id,
+                old_state=state.value if state else "unknown",
             )
-        else:  # usb
-            pipeline_cmd = self._build_usb_preview_pipeline(
-                camera_id, device_path, port, fps
+            await self._force_cleanup_preview(camera_id)
+            # Brief wait to ensure processes are terminated
+            await asyncio.sleep(0.3)
+
+        # Mark that we're starting preview for this camera
+        # This prevents concurrent start requests from racing
+        self._starting_preview.add(camera_id)
+
+        try:
+            # Check system resources
+            resources_ok, reason = await check_resources_available(
+                f"preview_camera_{camera_id}", min_memory_mb=100
+            )
+            if not resources_ok:
+                return False, reason
+
+            # Build GStreamer pipeline based on camera type
+            if camera_type == "csi":
+                pipeline_cmd = self._build_csi_preview_pipeline(
+                    camera_id, device_path, port, fps
+                )
+            else:  # usb
+                pipeline_cmd = self._build_usb_preview_pipeline(
+                    camera_id, device_path, port, fps
+                )
+
+            # Create managed pipeline
+            # Note: restart_on_crash=False because the dashboard watchdog handles
+            # preview recovery. Having both would cause race conditions.
+            config = PipelineConfig(
+                pipeline_cmd=pipeline_cmd,
+                description=f"Preview for camera {camera_id}",
+                camera_id=camera_id,
+                restart_on_crash=False,
+                max_restarts=0,
+                restart_delay_seconds=5,
             )
 
-        # Create managed pipeline
-        config = PipelineConfig(
-            pipeline_cmd=pipeline_cmd,
-            description=f"Preview for camera {camera_id}",
-            camera_id=camera_id,
-            restart_on_crash=True,
-            max_restarts=3,
-            restart_delay_seconds=5,
-        )
+            pipeline = ManagedPipeline(config)
+            success = await pipeline.start()
 
-        pipeline = ManagedPipeline(config)
-        success = await pipeline.start()
+            if not success:
+                return False, "Failed to start preview pipeline - check camera device and GStreamer"
 
-        if not success:
-            return False, "Failed to start preview pipeline - check camera device and GStreamer"
+            # Store pipeline reference
+            self._previews[camera_id] = pipeline
 
-        # Store pipeline reference
-        self._previews[camera_id] = pipeline
+            # Wait for port to be ready - CSI cameras need longer due to rpicam initialization
+            # USB cameras are quick (~0.5s), CSI cameras need ~2s for libcamera init
+            port_timeout = 2.5 if camera_type == "csi" else 0.8
+            port_ready = await self._wait_for_port(port, timeout=port_timeout)
 
-        # Wait for port to be ready - CSI cameras need longer due to rpicam initialization
-        # USB cameras are quick (~0.5s), CSI cameras need ~2s for libcamera init
-        port_timeout = 2.5 if camera_type == "csi" else 0.8
-        port_ready = await self._wait_for_port(port, timeout=port_timeout)
-
-        logger.info(
-            "preview_started",
-            camera_id=camera_id,
-            device=device_path,
-            port=port,
-            pid=pipeline.get_pid(),
-            port_ready=port_ready,
-        )
-        return True, f"Preview started on port {port}"
+            logger.info(
+                "preview_started",
+                camera_id=camera_id,
+                device=device_path,
+                port=port,
+                pid=pipeline.get_pid(),
+                port_ready=port_ready,
+            )
+            return True, f"Preview started on port {port}"
+        finally:
+            # Always release the lock
+            self._starting_preview.discard(camera_id)
 
     async def _wait_for_port(self, port: int, timeout: float = 3.0) -> bool:
         """Wait for TCP port to be ready.
@@ -221,6 +255,90 @@ class PreviewService:
         camera_ids = list(self._previews.keys())
         for camera_id in camera_ids:
             await self.stop_preview(camera_id)
+
+    async def _force_cleanup_preview(self, camera_id: int) -> None:
+        """Force cleanup of a preview pipeline, including zombie processes.
+
+        This is more aggressive than stop_preview() and handles cases where
+        the pipeline is in an error/crashed state but processes are still running.
+
+        Args:
+            camera_id: Camera database ID
+        """
+        if camera_id not in self._previews:
+            return
+
+        pipeline = self._previews[camera_id]
+        pid = pipeline.get_pid()
+
+        # Try graceful stop first (handles the asyncio monitoring task)
+        try:
+            await pipeline.stop(force=True)
+        except Exception as e:
+            logger.warning(
+                "preview_cleanup_stop_failed",
+                camera_id=camera_id,
+                error=str(e),
+            )
+
+        # If we have a PID, also kill the process group directly
+        # This catches cases where the shell process group wasn't properly terminated
+        if pid:
+            try:
+                # Kill the entire process group to catch piped children
+                os.killpg(os.getpgid(pid), signal.SIGKILL)
+                logger.info(
+                    "preview_cleanup_killed_process_group",
+                    camera_id=camera_id,
+                    pid=pid,
+                )
+            except (ProcessLookupError, PermissionError, OSError):
+                # Process already gone or not a process group leader
+                pass
+
+        # Also clean up any lingering rpicam-vid processes for this camera's port
+        # This handles the case where rpicam-vid survives when GStreamer dies
+        port = 8080 + camera_id
+        await self._kill_processes_on_port(port)
+
+        # Remove from tracking
+        del self._previews[camera_id]
+        logger.info("preview_cleanup_complete", camera_id=camera_id)
+
+    async def _kill_processes_on_port(self, port: int) -> None:
+        """Kill any processes listening on a specific port.
+
+        Args:
+            port: TCP port number
+        """
+        try:
+            # Find processes using this port
+            proc = await asyncio.create_subprocess_shell(
+                f"lsof -t -i:{port} 2>/dev/null",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            pids = stdout.decode().strip().split()
+
+            for pid_str in pids:
+                if pid_str:
+                    try:
+                        pid = int(pid_str)
+                        os.kill(pid, signal.SIGKILL)
+                        logger.debug(
+                            "preview_cleanup_killed_port_process",
+                            port=port,
+                            pid=pid,
+                        )
+                    except (ValueError, ProcessLookupError, PermissionError):
+                        pass
+        except Exception as e:
+            logger.debug(
+                "preview_cleanup_port_check_failed",
+                port=port,
+                error=str(e),
+            )
 
     def _build_csi_preview_pipeline(
         self, camera_id: int, device_path: str, port: int, fps: int = 10

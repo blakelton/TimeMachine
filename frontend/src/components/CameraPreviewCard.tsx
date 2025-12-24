@@ -7,6 +7,7 @@
  * - Graceful fallback when preview stream is unavailable
  */
 
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { LiveThumbnail } from "./LiveThumbnail";
 import type { CameraDashboardItem } from "../hooks/useCameraDashboard";
@@ -36,6 +37,23 @@ export function CameraPreviewCard({ camera }: CameraPreviewCardProps) {
     has_active_observation,
     observation,
   } = camera;
+
+  // Track video preview timestamp for cache-busting
+  // Refresh the video URL when frame count changes significantly
+  const [previewTimestamp, setPreviewTimestamp] = useState(() => Date.now());
+  const [lastFrameCount, setLastFrameCount] = useState(0);
+
+  // Update preview timestamp when preview becomes available or new frames captured
+  useEffect(() => {
+    if (observation?.has_preview && observation?.progress_current) {
+      const currentFrames = observation.progress_current;
+      // Refresh every 15 frames (roughly 1 second of footage at 15fps)
+      if (currentFrames - lastFrameCount >= 15 || lastFrameCount === 0) {
+        setLastFrameCount(currentFrames);
+        setPreviewTimestamp(Date.now());
+      }
+    }
+  }, [observation?.has_preview, observation?.progress_current, lastFrameCount]);
 
   // Get combined status info (class, icon, text) to avoid duplication
   const getStatus = () => {
@@ -91,8 +109,10 @@ export function CameraPreviewCard({ camera }: CameraPreviewCardProps) {
         {/* Show live preview or observation preview */}
         {has_active_observation && observation?.has_preview && observation.preview_url ? (
           // Observation in progress with preview.mp4 available
+          // Use key with timestamp to force reload when preview updates
           <video
-            src={observation.preview_url}
+            key={`preview-${observation.id}-${previewTimestamp}`}
+            src={`${observation.preview_url}?t=${previewTimestamp}`}
             className="observation-preview"
             aria-label={`${name} observation preview`}
             autoPlay

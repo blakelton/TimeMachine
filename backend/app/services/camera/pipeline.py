@@ -196,12 +196,18 @@ class ManagedPipeline:
         """Stop the GStreamer pipeline gracefully.
 
         Args:
-            force: Skip EOS and immediately terminate
+            force: Skip EOS and immediately terminate. Also allows stopping
+                   crashed/error pipelines to clean up zombie processes.
 
         Returns:
             True if stopped successfully
         """
-        if self.state not in [PipelineState.RUNNING, PipelineState.STARTING]:
+        # When force=True, allow stopping crashed/error pipelines to clean up zombies
+        valid_states = [PipelineState.RUNNING, PipelineState.STARTING]
+        if force:
+            valid_states.extend([PipelineState.CRASHED, PipelineState.ERROR])
+
+        if self.state not in valid_states:
             logger.warning(
                 "pipeline_not_running",
                 camera_id=self.config.camera_id,
