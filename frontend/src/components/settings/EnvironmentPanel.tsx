@@ -9,29 +9,17 @@ import { useApiMutation } from "../../hooks/useApiMutation";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { FormField } from "../FormField";
+import {
+  EnvironmentDeviceForm,
+  EnvironmentDeviceList,
+  type DeviceFormData
+} from "../environment";
 import type { components } from "../../types/api";
 import "./EnvironmentPanel.css";
 
 type EnvironmentDeviceResponse = components["schemas"]["EnvironmentDeviceResponse"];
 type EnvironmentDeviceCreate = components["schemas"]["EnvironmentDeviceCreate"];
 type EnvironmentDeviceUpdate = components["schemas"]["EnvironmentDeviceUpdate"];
-type DeviceTypeInfo = components["schemas"]["DeviceTypeInfo"];
-
-interface DeviceFormData {
-  name: string;
-  device_type: string;
-  pin_or_address: string;
-  enabled: boolean;
-  poll_interval_seconds: number;
-  temperature_unit: "C" | "F";
-  notes: string;
-  // Target values
-  target_temperature: string;
-  target_humidity: string;
-  temperature_tolerance: string;
-  humidity_tolerance: string;
-}
 
 export function EnvironmentPanel() {
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -80,11 +68,6 @@ export function EnvironmentPanel() {
 
   const deviceTypes = deviceTypesData?.device_types || [];
   const devices = devicesData?.devices || [];
-
-  // Get device type info by type
-  const getDeviceTypeInfo = (type: string): DeviceTypeInfo | undefined => {
-    return deviceTypes.find((dt) => dt.type === type);
-  };
 
   // Create device mutation
   const createMutation = useApiMutation(
@@ -281,171 +264,6 @@ export function EnvironmentPanel() {
     }
   };
 
-  const selectedDeviceType = getDeviceTypeInfo(formData.device_type);
-
-  const renderDeviceForm = (isEdit: boolean) => (
-    <div className="device-form">
-      <FormField
-        label="Device Name"
-        type="text"
-        value={formData.name}
-        onChange={(e) => handleChange("name", e.target.value)}
-        error={formErrors.name}
-        placeholder="e.g., Chamber Sensor 1"
-        required
-        disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-      />
-
-      <FormField
-        element="select"
-        label="Device Type"
-        value={formData.device_type}
-        onChange={(e) => handleChange("device_type", e.target.value)}
-        required
-        disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-      >
-        {deviceTypes.map((dt) => (
-          <option key={dt.type} value={dt.type}>
-            {dt.name}
-          </option>
-        ))}
-      </FormField>
-
-      {selectedDeviceType && (
-        <div className="device-type-info">
-          <p>{selectedDeviceType.description}</p>
-          <p className="measures">
-            <strong>Measures:</strong> {selectedDeviceType.measures.join(", ")}
-          </p>
-        </div>
-      )}
-
-      <FormField
-        label={selectedDeviceType?.pin_label || "Pin/Address"}
-        type="text"
-        value={formData.pin_or_address}
-        onChange={(e) => handleChange("pin_or_address", e.target.value)}
-        error={formErrors.pin_or_address}
-        placeholder={selectedDeviceType?.pin_placeholder || ""}
-        helperText={`Interface: ${selectedDeviceType?.interface || "GPIO"}`}
-        required
-        disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-      />
-
-      <FormField
-        label="Poll Interval (seconds)"
-        type="number"
-        value={formData.poll_interval_seconds.toString()}
-        onChange={(e) => handleChange("poll_interval_seconds", parseInt(e.target.value) || 30)}
-        helperText="How often to read from this sensor (5-3600 seconds)"
-        disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-      />
-
-      <FormField
-        element="select"
-        label="Temperature Unit"
-        value={formData.temperature_unit}
-        onChange={(e) => handleChange("temperature_unit", e.target.value)}
-        helperText="Display temperature in Celsius or Fahrenheit"
-        disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-      >
-        <option value="C">Celsius (°C)</option>
-        <option value="F">Fahrenheit (°F)</option>
-      </FormField>
-
-      {/* Target Values Section */}
-      <div className="form-section-header">
-        <span>Target Values</span>
-        <span className="form-section-hint">Set target values to see how readings compare to normal</span>
-      </div>
-
-      <div className="form-row">
-        <FormField
-          label={`Target Temperature (${formData.temperature_unit === "F" ? "°F" : "°C"})`}
-          type="number"
-          value={formData.target_temperature}
-          onChange={(e) => handleChange("target_temperature", e.target.value)}
-          placeholder="e.g., 22"
-          helperText="Leave empty to disable comparison"
-          disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-        />
-        <FormField
-          label="± Tolerance"
-          type="number"
-          value={formData.temperature_tolerance}
-          onChange={(e) => handleChange("temperature_tolerance", e.target.value)}
-          placeholder="5"
-          helperText="Acceptable range"
-          disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-        />
-      </div>
-
-      <div className="form-row">
-        <FormField
-          label="Target Humidity (%)"
-          type="number"
-          value={formData.target_humidity}
-          onChange={(e) => handleChange("target_humidity", e.target.value)}
-          placeholder="e.g., 50"
-          helperText="Leave empty to disable comparison"
-          disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-        />
-        <FormField
-          label="± Tolerance"
-          type="number"
-          value={formData.humidity_tolerance}
-          onChange={(e) => handleChange("humidity_tolerance", e.target.value)}
-          placeholder="10"
-          helperText="Acceptable range"
-          disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-        />
-      </div>
-
-      <FormField
-        label="Notes (optional)"
-        type="text"
-        value={formData.notes}
-        onChange={(e) => handleChange("notes", e.target.value)}
-        placeholder="e.g., Located in upper left corner"
-        disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-      />
-
-      <div className="form-field">
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={formData.enabled}
-            onChange={(e) => handleChange("enabled", e.target.checked)}
-            disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-          />
-          <span>Enable device</span>
-        </label>
-        <div className="form-helper">
-          Device will be polled for readings when enabled
-        </div>
-      </div>
-
-      <div className="form-actions">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => isEdit ? setEditDevice(null) : setAddModalOpen(false)}
-          disabled={isEdit ? updateMutation.isPending : createMutation.isPending}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          onClick={isEdit ? handleEditDevice : handleAddDevice}
-          loading={isEdit ? updateMutation.isPending : createMutation.isPending}
-        >
-          {isEdit ? "Update Device" : "Add Device"}
-        </Button>
-      </div>
-    </div>
-  );
-
   return (
     <div className="environment-panel">
       {/* Feedback Section */}
@@ -464,99 +282,17 @@ export function EnvironmentPanel() {
           </div>
         </div>
 
-        {/* Loading state */}
-        {isLoading && (
-          <div className="panel-loading">
-            <div className="loading-spinner"></div>
-            <p>Loading devices...</p>
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && (
-          <div className="panel-error">
-            <p>Failed to load devices. Please try again.</p>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && !error && devices.length === 0 && (
-          <div className="panel-empty">
-            <div className="empty-icon">🌡️</div>
-            <h3>No feedback devices configured</h3>
-            <p>Add sensors to monitor environmental conditions</p>
-            <Button variant="primary" onClick={handleOpenAdd}>
-              Add Device
-            </Button>
-          </div>
-        )}
-
-        {/* Devices list */}
-        {!isLoading && !error && devices.length > 0 && (
-          <div className="devices-list">
-            {devices.map((device) => {
-              const typeInfo = getDeviceTypeInfo(device.device_type);
-              return (
-                <div key={device.id} className="device-card">
-                  <div className="device-info">
-                    <div className="device-header">
-                      <h3>{device.name}</h3>
-                      <span className={`device-status ${device.enabled ? "enabled" : "disabled"}`}>
-                        {device.enabled ? "Enabled" : "Disabled"}
-                      </span>
-                    </div>
-                    <div className="device-details">
-                      <div className="device-detail">
-                        <span className="detail-label">Type:</span>
-                        <span className="detail-value">{typeInfo?.name || device.device_type}</span>
-                      </div>
-                      <div className="device-detail">
-                        <span className="detail-label">{typeInfo?.pin_label || "Pin"}:</span>
-                        <span className="detail-value">{device.pin_or_address}</span>
-                      </div>
-                      <div className="device-detail">
-                        <span className="detail-label">Poll:</span>
-                        <span className="detail-value">{device.poll_interval_seconds}s</span>
-                      </div>
-                      <div className="device-detail">
-                        <span className="detail-label">Temp:</span>
-                        <span className="detail-value">{device.temperature_unit === "F" ? "°F" : "°C"}</span>
-                      </div>
-                    </div>
-                    {device.notes && (
-                      <div className="device-notes">{device.notes}</div>
-                    )}
-                  </div>
-
-                  <div className="device-actions">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleToggleEnabled(device)}
-                      disabled={toggleEnabledMutation.isPending}
-                    >
-                      {device.enabled ? "Disable" : "Enable"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenEdit(device)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => setDeleteDevice(device)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <EnvironmentDeviceList
+          devices={devices}
+          deviceTypes={deviceTypes}
+          isLoading={isLoading}
+          error={error}
+          onAddDevice={handleOpenAdd}
+          onToggleEnabled={handleToggleEnabled}
+          onEditDevice={handleOpenEdit}
+          onDeleteDevice={setDeleteDevice}
+          isToggling={toggleEnabledMutation.isPending}
+        />
       </section>
 
       {/* Control Section (placeholder for future) */}
@@ -581,7 +317,16 @@ export function EnvironmentPanel() {
         title="Add Feedback Device"
         width="md"
       >
-        {renderDeviceForm(false)}
+        <EnvironmentDeviceForm
+          formData={formData}
+          formErrors={formErrors}
+          deviceTypes={deviceTypes}
+          isEdit={false}
+          isPending={createMutation.isPending}
+          onChange={handleChange}
+          onSubmit={handleAddDevice}
+          onCancel={() => setAddModalOpen(false)}
+        />
       </Modal>
 
       {/* Edit Device Modal */}
@@ -591,7 +336,16 @@ export function EnvironmentPanel() {
         title="Edit Feedback Device"
         width="md"
       >
-        {renderDeviceForm(true)}
+        <EnvironmentDeviceForm
+          formData={formData}
+          formErrors={formErrors}
+          deviceTypes={deviceTypes}
+          isEdit={true}
+          isPending={updateMutation.isPending}
+          onChange={handleChange}
+          onSubmit={handleEditDevice}
+          onCancel={() => setEditDevice(null)}
+        />
       </Modal>
 
       {/* Delete Confirmation Dialog */}

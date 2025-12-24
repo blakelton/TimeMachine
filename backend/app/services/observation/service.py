@@ -1,14 +1,6 @@
 """Unified observation service for recordings and timelapses."""
 
 import asyncio
-import json
-import os
-from datetime import datetime, timedelta
-
-# Use local time for all timestamps (simpler for local appliance)
-def now() -> datetime:
-    """Return current local time (naive datetime)."""
-    return datetime.now()
 from pathlib import Path
 from typing import Dict
 
@@ -18,75 +10,28 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.db.models.observation import Observation
 from app.db.repositories.camera import CameraRepository
-from app.db.repositories.job import JobRepository
 from app.db.repositories.observation import ObservationRepository
-from app.db.repositories.output_config import OutputConfigRepository
-from app.schemas.observation import (
-    RecordingObservationConfig,
-    StartObservationRequest,
-    TimelapseObservationConfig,
-)
-from app.services.camera.preview import preview_service
-from app.services.camera.pipeline import PipelineState
+from app.schemas.observation import StartObservationRequest
 from app.services.camera.recording import recording_service
-from app.services.camera.timelapse import TimelapseConfig, timelapse_service
+from app.services.camera.timelapse import timelapse_service
+
+# Import from sub-modules
+from .completion import CompletionReason, CompletionResult
+from .utils import now
+from . import lifecycle
+from . import metadata as metadata_module
+from . import progress as progress_module
+from . import preview as preview_module
 
 logger = get_logger(__name__)
 
-
-def _format_size(size_bytes: int) -> str:
-    """Format bytes as human-readable size."""
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
-
-
-def _interval_to_seconds(value: int, unit: str) -> int:
-    """Convert interval value and unit to seconds."""
-    if unit == "hours":
-        return value * 3600
-    elif unit == "minutes":
-        return value * 60
-    else:
-        return value
-
-
-def _calculate_end_datetime(
-    end_mode: str,
-    end_datetime: datetime | None,
-    duration_value: int | None,
-    duration_unit: str | None,
-) -> datetime | None:
-    """Calculate the end datetime from config."""
-    if end_mode == "datetime" and end_datetime:
-        return end_datetime
-    elif end_mode == "duration" and duration_value and duration_unit:
-        delta_seconds = _interval_to_seconds(duration_value, duration_unit)
-        return now() + timedelta(seconds=delta_seconds)
-    return None
-
-
-def _calculate_total_frames(
-    interval_seconds: int,
-    end_mode: str,
-    end_datetime: datetime | None,
-    duration_value: int | None,
-    duration_unit: str | None,
-) -> int | None:
-    """Calculate total frames for timelapse."""
-    target_end = _calculate_end_datetime(
-        end_mode, end_datetime, duration_value, duration_unit
-    )
-    if target_end:
-        duration_seconds = (target_end - now()).total_seconds()
-        if duration_seconds > 0:
-            return int(duration_seconds / interval_seconds)
-    return None
+# Re-export for backward compatibility
+__all__ = [
+    "ObservationService",
+    "observation_service",
+    "CompletionReason",
+    "CompletionResult",
+]
 
 
 class ObservationService:
@@ -133,23 +78,7 @@ class ObservationService:
         camera_name: str,
     ) -> None:
         """Write observation.json metadata file."""
-        metadata = {
-            "id": observation.id,
-            "camera_id": observation.camera_id,
-            "camera_name": camera_name,
-            "type": observation.observation_type,
-            "started_at": observation.started_at.isoformat() if observation.started_at else None,
-            "completed_at": observation.completed_at.isoformat() if observation.completed_at else None,
-            "config": observation.config,
-            "progress": {
-                "current": observation.progress_current,
-                "total": observation.progress_total,
-            },
-        }
-
-        metadata_file = folder_path / "observation.json"
-        with open(metadata_file, "w") as f:
-            json.dump(metadata, f, indent=2)
+        metadata_module.write_observation_metadata(folder_path, observation, camera_name)
 
     def _update_observation_metadata(
         self,
@@ -157,40 +86,11 @@ class ObservationService:
         observation: Observation,
     ) -> None:
         """Update observation.json with current progress."""
-        metadata_file = folder_path / "observation.json"
-        if not metadata_file.exists():
-            return
-
-        with open(metadata_file, "r") as f:
-            metadata = json.load(f)
-
-        metadata["completed_at"] = (
-            observation.completed_at.isoformat() if observation.completed_at else None
-        )
-        metadata["progress"] = {
-            "current": observation.progress_current,
-            "total": observation.progress_total,
-        }
-        metadata["status"] = observation.status
-        metadata["size_bytes"] = observation.size_bytes
-
-        with open(metadata_file, "w") as f:
-            json.dump(metadata, f, indent=2)
-
-    def _calculate_folder_size_sync(self, folder_path: Path) -> int:
-        """Calculate total size of folder contents (synchronous)."""
-        total = 0
-        try:
-            for item in folder_path.rglob("*"):
-                if item.is_file():
-                    total += item.stat().st_size
-        except Exception:
-            pass
-        return total
+        metadata_module.update_observation_metadata(folder_path, observation)
 
     async def _calculate_folder_size(self, folder_path: Path) -> int:
         """Calculate total size of folder contents (async, runs in thread pool)."""
-        return await asyncio.to_thread(self._calculate_folder_size_sync, folder_path)
+        return await metadata_module.calculate_folder_size(folder_path)
 
     async def start_observation(
         self,
@@ -232,13 +132,40 @@ class ObservationService:
 
         try:
             if request.observation_type == "timelapse":
-                return await self._start_timelapse_observation(
-                    camera, folder_path, request.timelapse_config, session
+                success, message, observation = await lifecycle.start_timelapse_observation(
+                    camera=camera,
+                    folder_path=folder_path,
+                    config=request.timelapse_config,
+                    session=session,
+                    active_observations=self._active_observations,
+                    preview_stopped_for=self._preview_stopped_for,
+                    start_progress_tracker_fn=self._start_progress_tracker,
+                    start_live_preview_generator_fn=self._start_live_preview_generator,
                 )
+                if success:
+                    # Write initial metadata
+                    self._write_observation_metadata(folder_path, observation, camera.name)
+                else:
+                    # Restart preview if we stopped it
+                    await self._restart_preview_if_stopped(camera_id)
+                return success, message, observation
             else:
-                return await self._start_recording_observation(
-                    camera, folder_path, request.recording_config, session
+                success, message, observation = await lifecycle.start_recording_observation(
+                    camera=camera,
+                    folder_path=folder_path,
+                    config=request.recording_config,
+                    session=session,
+                    active_observations=self._active_observations,
+                    preview_stopped_for=self._preview_stopped_for,
+                    start_progress_tracker_fn=self._start_progress_tracker,
                 )
+                if success:
+                    # Write initial metadata
+                    self._write_observation_metadata(folder_path, observation, camera.name)
+                else:
+                    # Restart preview if we stopped it
+                    await self._restart_preview_if_stopped(camera_id)
+                return success, message, observation
         except Exception as e:
             logger.error(
                 "observation_start_error",
@@ -252,317 +179,6 @@ class ObservationService:
             except Exception:
                 pass
             return False, f"Failed to start observation: {str(e)}", None
-
-    async def _start_timelapse_observation(
-        self,
-        camera,
-        folder_path: Path,
-        config: TimelapseObservationConfig | None,
-        session: AsyncSession,
-    ) -> tuple[bool, str, Observation | None]:
-        """Start a timelapse observation."""
-        if not config:
-            config = TimelapseObservationConfig()
-
-        # Calculate interval in seconds
-        interval_seconds = _interval_to_seconds(config.interval_value, config.interval_unit)
-
-        # Calculate total frames and target end time
-        total_frames = _calculate_total_frames(
-            interval_seconds,
-            config.end_mode,
-            config.end_datetime,
-            config.duration_value,
-            config.duration_unit,
-        )
-        target_end_at = _calculate_end_datetime(
-            config.end_mode,
-            config.end_datetime,
-            config.duration_value,
-            config.duration_unit,
-        )
-
-        # Create frames directory within observation folder
-        frames_dir = folder_path / "frames"
-        frames_dir.mkdir(exist_ok=True)
-
-        # Get environment device info for overlay if configured
-        env_device_type: str | None = None
-        env_temp_unit: str = "C"
-        polling_service = None
-
-        if config.env_overlay_device_id is not None:
-            # Import and get the environment polling service
-            from app.services.environment.polling import get_polling_service
-            from app.db.repositories.environment_device import EnvironmentDeviceRepository
-
-            polling_service = get_polling_service()
-
-            # Get device info for sensor type and temp unit
-            device_repo = EnvironmentDeviceRepository(session)
-            env_device = await device_repo.get(config.env_overlay_device_id)
-            if env_device:
-                env_device_type = env_device.device_type
-                env_temp_unit = env_device.temperature_unit or "C"
-
-        # Create timelapse config for existing service
-        tl_config = TimelapseConfig(
-            camera_id=camera.id,
-            interval_seconds=interval_seconds,
-            total_frames=total_frames,
-            quality=config.quality,
-            resolution=(config.resolution_width, config.resolution_height),
-            output_fps=config.output_fps,
-            env_overlay_device_id=config.env_overlay_device_id,
-            env_overlay_position=config.env_overlay_position,
-            env_overlay_show_graph=config.env_overlay_show_graph,
-            env_overlay_device_type=env_device_type,
-            env_overlay_temp_unit=env_temp_unit,
-        )
-
-        # For USB cameras, stop the preview stream to free the device for capture
-        # The preview will be restarted when the observation stops
-        if camera.camera_type == "usb":
-            preview_state = preview_service.get_preview_state(camera.id)
-            if preview_state == PipelineState.RUNNING:
-                preview_port = preview_service.get_preview_port(camera.id)
-                # Get FPS from output config for later restart
-                config_repo = OutputConfigRepository(session)
-                output_config = await config_repo.get_current()
-                preview_fps = output_config.dashboard_preview_fps if output_config else 10
-
-                logger.info(
-                    "observation_stopping_preview",
-                    camera_id=camera.id,
-                    reason="timelapse_capture_requires_device",
-                )
-                await preview_service.stop_preview(camera.id)
-                # Track so we can restart when observation stops
-                self._preview_stopped_for[camera.id] = {
-                    "port": preview_port,
-                    "device_path": camera.device_path,
-                    "camera_type": camera.camera_type,
-                    "fps": preview_fps,
-                }
-                # Give the device time to be released
-                await asyncio.sleep(0.5)
-
-        # Create observation record first
-        obs_repo = ObservationRepository(session)
-        observation = await obs_repo.create(
-            camera_id=camera.id,
-            observation_type="timelapse",
-            status="running",
-            folder_path=str(folder_path),
-            config=config.model_dump(),
-            progress_current=0,
-            progress_total=total_frames,
-            size_bytes=0,
-            target_end_at=target_end_at,
-        )
-        await session.commit()
-
-        # Write initial metadata
-        self._write_observation_metadata(folder_path, observation, camera.name)
-
-        # Start the timelapse using existing service
-        # Pass our frames directory to store frames in the observation folder
-        # Include hardware_id for USB camera recovery support
-        # Include target_end_at for timeout during recovery mode
-        # Include polling_service for environment overlay
-        success, message, job_id = await timelapse_service.start_timelapse(
-            camera_id=camera.id,
-            device_path=camera.device_path,
-            camera_type=camera.camera_type,
-            config=tl_config,
-            session=session,
-            frames_dir=frames_dir,
-            hardware_id=camera.hardware_id,
-            target_end_time=target_end_at,
-            polling_service=polling_service,
-        )
-
-        if not success:
-            # Mark observation as failed
-            await obs_repo.mark_failed(observation.id, message)
-            await session.commit()
-            # Restart preview if we stopped it
-            await self._restart_preview_if_stopped(camera.id)
-            return False, message, None
-
-        # Link job to observation
-        observation = await obs_repo.update(observation.id, job_id=job_id)
-        await session.commit()
-
-        # Track active observation
-        self._active_observations[camera.id] = observation.id
-
-        # Wait briefly and verify the timelapse is running
-        await asyncio.sleep(0.5)
-        progress = timelapse_service.get_timelapse_progress(camera.id)
-        if progress is None:
-            # Timelapse failed immediately
-            logger.warning(
-                "timelapse_immediate_failure",
-                observation_id=observation.id,
-                camera_id=camera.id,
-            )
-            await obs_repo.mark_failed(
-                observation.id,
-                "Timelapse failed to start - check camera connection",
-            )
-            await session.commit()
-            del self._active_observations[camera.id]
-            await self._restart_preview_if_stopped(camera.id)
-            return False, "Timelapse failed to start - check camera connection", None
-
-        # Start progress tracking task (watchdog for crash detection)
-        self._start_progress_tracker(observation.id, camera.id, "timelapse")
-
-        # Start live preview generator for real-time timelapse preview
-        # Generates preview initially, then every output_fps frames (1 second of footage)
-        self._start_live_preview_generator(observation.id, folder_path, output_fps=config.output_fps)
-
-        logger.info(
-            "timelapse_observation_started",
-            observation_id=observation.id,
-            camera_id=camera.id,
-            folder=str(folder_path),
-            interval=interval_seconds,
-            total_frames=total_frames,
-            preview_stopped=camera.id in self._preview_stopped_for,
-        )
-
-        return True, "Timelapse observation started", observation
-
-    async def _start_recording_observation(
-        self,
-        camera,
-        folder_path: Path,
-        config: RecordingObservationConfig | None,
-        session: AsyncSession,
-    ) -> tuple[bool, str, Observation | None]:
-        """Start a recording observation."""
-        if not config:
-            config = RecordingObservationConfig()
-
-        # Calculate duration and target end
-        duration_seconds: int | None = None
-        target_end_at: datetime | None = None
-
-        if config.end_mode == "duration" and config.duration_value and config.duration_unit:
-            duration_seconds = _interval_to_seconds(config.duration_value, config.duration_unit)
-            target_end_at = now() + timedelta(seconds=duration_seconds)
-        elif config.end_mode == "datetime" and config.end_datetime:
-            target_end_at = config.end_datetime
-            duration_seconds = int((target_end_at - now()).total_seconds())
-
-        # For USB cameras, stop the preview stream to free the device for recording
-        # The preview will be restarted when the observation stops
-        if camera.camera_type == "usb":
-            preview_state = preview_service.get_preview_state(camera.id)
-            if preview_state == PipelineState.RUNNING:
-                preview_port = preview_service.get_preview_port(camera.id)
-                # Get FPS from output config for later restart
-                config_repo = OutputConfigRepository(session)
-                output_config = await config_repo.get_current()
-                preview_fps = output_config.dashboard_preview_fps if output_config else 10
-
-                logger.info(
-                    "observation_stopping_preview",
-                    camera_id=camera.id,
-                    reason="recording_requires_device",
-                )
-                await preview_service.stop_preview(camera.id)
-                # Track so we can restart when observation stops
-                self._preview_stopped_for[camera.id] = {
-                    "port": preview_port,
-                    "device_path": camera.device_path,
-                    "camera_type": camera.camera_type,
-                    "fps": preview_fps,
-                }
-                # Give the device time to be released
-                await asyncio.sleep(0.5)
-
-        # Create observation record
-        obs_repo = ObservationRepository(session)
-        observation = await obs_repo.create(
-            camera_id=camera.id,
-            observation_type="recording",
-            status="running",
-            folder_path=str(folder_path),
-            config=config.model_dump(),
-            progress_current=0,
-            progress_total=duration_seconds,
-            size_bytes=0,
-            target_end_at=target_end_at,
-        )
-        await session.commit()
-
-        # Write initial metadata
-        self._write_observation_metadata(folder_path, observation, camera.name)
-
-        # Output file goes in observation folder
-        output_file = folder_path / "output"
-
-        # Start recording using existing service
-        success, message, job_id = await recording_service.start_recording(
-            camera_id=camera.id,
-            device_path=camera.device_path,
-            camera_type=camera.camera_type,
-            session=session,
-            duration_seconds=duration_seconds,
-            filename=str(output_file),
-        )
-
-        if not success:
-            await obs_repo.mark_failed(observation.id, message)
-            await session.commit()
-            # Restart preview if we stopped it
-            await self._restart_preview_if_stopped(camera.id)
-            return False, message, None
-
-        # Link job to observation
-        observation = await obs_repo.update(observation.id, job_id=job_id)
-        await session.commit()
-
-        # Track active observation
-        self._active_observations[camera.id] = observation.id
-
-        # Wait briefly and verify the pipeline is still running
-        # GStreamer pipelines can crash immediately if codec/resolution is unsupported
-        await asyncio.sleep(0.5)
-        pipeline_state = recording_service.get_recording_state(camera.id)
-        if pipeline_state != PipelineState.RUNNING:
-            # Pipeline crashed immediately after starting
-            logger.warning(
-                "recording_pipeline_immediate_crash",
-                observation_id=observation.id,
-                camera_id=camera.id,
-                pipeline_state=pipeline_state.value if pipeline_state else "none",
-            )
-            await obs_repo.mark_failed(
-                observation.id,
-                "Recording failed to start - camera may not support h264 encoding at this resolution",
-            )
-            await session.commit()
-            del self._active_observations[camera.id]
-            await self._restart_preview_if_stopped(camera.id)
-            return False, "Recording failed - camera may not support h264 encoding at this resolution", None
-
-        # Start progress tracking task (watchdog for crash detection)
-        self._start_progress_tracker(observation.id, camera.id, "recording")
-
-        logger.info(
-            "recording_observation_started",
-            observation_id=observation.id,
-            camera_id=camera.id,
-            folder=str(folder_path),
-            duration=duration_seconds,
-            preview_stopped=camera.id in self._preview_stopped_for,
-        )
-
-        return True, "Recording observation started", observation
 
     async def stop_observation(
         self,
@@ -580,65 +196,17 @@ class ObservationService:
         Returns:
             Tuple of (success, message, output_path)
         """
-        obs_repo = ObservationRepository(session)
-        observation = await obs_repo.get(observation_id)
-
-        if not observation:
-            return False, f"Observation {observation_id} not found", None
-
-        if observation.status != "running":
-            return False, f"Observation {observation_id} is not running", None
-
-        camera_id = observation.camera_id
-        folder_path = Path(observation.folder_path)
-
-        # Stop progress tracker
-        self._stop_progress_tracker(observation_id)
-
-        # Stop live preview generator if running
-        self._stop_live_preview_generator(observation_id)
-
-        # Stop underlying service
-        if observation.observation_type == "timelapse":
-            success, message, output_path = await timelapse_service.stop_timelapse(
-                camera_id, session, assemble_video
-            )
-        else:
-            success, message, output_path = await recording_service.stop_recording(
-                camera_id, session
-            )
-
-        # Calculate final size (async to avoid blocking)
-        size_bytes = await self._calculate_folder_size(folder_path)
-
-        # Update observation status
-        if success:
-            await obs_repo.mark_stopped(observation_id, size_bytes)
-        else:
-            await obs_repo.mark_failed(observation_id, message)
-        await session.commit()
-
-        # Refresh observation for metadata update
-        observation = await obs_repo.get(observation_id)
-        if observation:
-            self._update_observation_metadata(folder_path, observation)
-
-        # Remove from active tracking
-        if camera_id in self._active_observations:
-            del self._active_observations[camera_id]
-
-        # Restart preview if we stopped it for this observation
-        await self._restart_preview_if_stopped(camera_id)
-
-        logger.info(
-            "observation_stopped",
+        return await lifecycle.stop_observation(
             observation_id=observation_id,
-            camera_id=camera_id,
-            success=success,
-            output_path=output_path,
+            session=session,
+            assemble_video=assemble_video,
+            active_observations=self._active_observations,
+            stop_progress_tracker_fn=self._stop_progress_tracker,
+            stop_live_preview_generator_fn=self._stop_live_preview_generator,
+            calculate_folder_size_fn=self._calculate_folder_size,
+            restart_preview_if_stopped_fn=self._restart_preview_if_stopped,
+            update_observation_metadata_fn=self._update_observation_metadata,
         )
-
-        return success, message, output_path
 
     async def _restart_preview_if_stopped(self, camera_id: int) -> None:
         """Restart preview stream if it was stopped for observation.
@@ -648,6 +216,8 @@ class ObservationService:
         """
         if camera_id not in self._preview_stopped_for:
             return
+
+        from app.services.camera.preview import preview_service
 
         preview_info = self._preview_stopped_for.pop(camera_id)
         try:
@@ -699,56 +269,7 @@ class ObservationService:
         Returns:
             Status dict or None if not found
         """
-        obs_repo = ObservationRepository(session)
-        observation = await obs_repo.get(observation_id)
-
-        if not observation:
-            return None
-
-        folder_path = Path(observation.folder_path)
-
-        # Get live progress from underlying service
-        if observation.status == "running":
-            if observation.observation_type == "timelapse":
-                progress = timelapse_service.get_timelapse_progress(observation.camera_id)
-                if progress:
-                    observation.progress_current = progress[0]
-            else:
-                uptime = recording_service.get_recording_uptime(observation.camera_id)
-                if uptime:
-                    observation.progress_current = int(uptime)
-
-            # Update size (async to avoid blocking)
-            observation.size_bytes = await self._calculate_folder_size(folder_path)
-
-        # Check for preview availability (timelapse only)
-        has_preview = False
-        if observation.observation_type == "timelapse":
-            preview_path = folder_path / "preview.mp4"
-            has_preview = preview_path.exists()
-
-        # Calculate elapsed time
-        elapsed = (now() - observation.started_at).total_seconds()
-
-        # Calculate progress percentage
-        percentage = None
-        if observation.progress_total and observation.progress_total > 0:
-            percentage = (observation.progress_current / observation.progress_total) * 100
-
-        return {
-            "id": observation.id,
-            "observation_type": observation.observation_type,
-            "status": observation.status,
-            "progress": {
-                "current": observation.progress_current,
-                "total": observation.progress_total,
-                "percentage": percentage,
-            },
-            "size_bytes": observation.size_bytes,
-            "size_formatted": _format_size(observation.size_bytes),
-            "elapsed_seconds": elapsed,
-            "has_preview": has_preview,
-        }
+        return await metadata_module.get_observation_status(observation_id, session)
 
     async def get_active_observation(
         self,
@@ -789,7 +310,14 @@ class ObservationService:
             return  # Already tracking
 
         task = asyncio.create_task(
-            self._progress_tracker_loop(observation_id, camera_id, observation_type)
+            progress_module.progress_tracker_loop(
+                observation_id=observation_id,
+                camera_id=camera_id,
+                observation_type=observation_type,
+                handle_successful_completion_fn=self._handle_successful_completion,
+                handle_failed_completion_fn=self._handle_failed_completion,
+                cleanup_after_completion_fn=self._cleanup_after_completion,
+            )
         )
         self._progress_tasks[observation_id] = task
         logger.debug(
@@ -799,184 +327,76 @@ class ObservationService:
             observation_type=observation_type,
         )
 
-    async def _progress_tracker_loop(
+    async def _handle_successful_completion(
         self,
         observation_id: int,
         camera_id: int,
-        observation_type: str,
+        observation: Observation,
+        result: CompletionResult,
+        session: AsyncSession,
     ) -> None:
-        """Background loop that monitors observation health.
+        """Handle successful observation completion."""
+        await progress_module.handle_successful_completion(
+            observation_id=observation_id,
+            camera_id=camera_id,
+            observation=observation,
+            result=result,
+            session=session,
+            assemble_timelapse_fn=self._assemble_timelapse_video,
+            get_observation_size_fn=self._get_observation_size,
+        )
 
-        Detects when the underlying pipeline has crashed and updates
-        the observation status accordingly.
-        """
-        from app.db.session import SessionFactory
+    async def _handle_failed_completion(
+        self,
+        observation_id: int,
+        camera_id: int,
+        observation: Observation,
+        result: CompletionResult,
+        session: AsyncSession,
+    ) -> None:
+        """Handle observation that stopped unexpectedly."""
+        await progress_module.handle_failed_completion(
+            observation_id=observation_id,
+            camera_id=camera_id,
+            observation=observation,
+            result=result,
+            session=session,
+            assemble_timelapse_fn=self._assemble_timelapse_video,
+        )
 
-        check_interval = 3.0  # Check every 3 seconds
-        # Allow a grace period for pipeline to start
-        await asyncio.sleep(2.0)
+    async def _assemble_timelapse_video(
+        self,
+        observation_id: int,
+        camera_id: int,
+        session: AsyncSession,
+        partial: bool = False,
+    ) -> None:
+        """Assemble timelapse frames into video."""
+        success, msg, output_path = await timelapse_service.stop_timelapse(
+            camera_id, session, assemble_video=True
+        )
+        log_event = "observation_timelapse_partial_assembly" if partial else "observation_timelapse_assembly_result"
+        logger.info(
+            log_event,
+            observation_id=observation_id,
+            success=success,
+            output_path=output_path,
+        )
 
-        while True:
-            try:
-                # Check if pipeline is still running
-                is_running = False
+    async def _get_observation_size(self, folder_path: str | None) -> int | None:
+        """Calculate observation folder size."""
+        if not folder_path:
+            return None
+        path = Path(folder_path)
+        if path.exists():
+            return await self._calculate_folder_size(path)
+        return None
 
-                if observation_type == "timelapse":
-                    # Use is_running() which checks if the capture task is actually active
-                    # get_timelapse_progress() returns data even after the task completes
-                    is_running = timelapse_service.is_running(camera_id)
-                else:  # recording
-                    state = recording_service.get_recording_state(camera_id)
-                    is_running = state == PipelineState.RUNNING
-
-                if not is_running:
-                    # Pipeline has stopped - determine completion status
-                    async with SessionFactory() as session:
-                        obs_repo = ObservationRepository(session)
-                        obs = await obs_repo.get_by_id(observation_id)
-
-                        # Get timelapse health info for completion details
-                        health = None
-                        actual_progress = obs.progress_current if obs else 0
-                        completed_by_duration = False
-                        frames_incomplete = False
-
-                        if observation_type == "timelapse":
-                            health = timelapse_service.get_timelapse_health(camera_id)
-                            progress = timelapse_service.get_timelapse_progress(camera_id)
-                            if progress:
-                                actual_progress = progress[0]
-                            if health:
-                                completed_by_duration = health.get("completed_by_duration", False)
-                                frames_incomplete = health.get("frames_incomplete", False)
-
-                        # DURATION IS KING: If completed by duration, it's a success
-                        # even if we didn't get all expected frames
-                        if observation_type == "timelapse" and completed_by_duration:
-                            # Build completion message
-                            if frames_incomplete:
-                                note = (
-                                    f"Completed by duration. Captured {actual_progress} frames "
-                                    f"(expected {obs.progress_total}). Some frames missed due to camera issues."
-                                )
-                            else:
-                                note = f"Completed by duration with {actual_progress} frames."
-
-                            logger.info(
-                                "observation_completed_by_duration",
-                                observation_id=observation_id,
-                                camera_id=camera_id,
-                                frame_count=actual_progress,
-                                expected_frames=obs.progress_total,
-                                frames_incomplete=frames_incomplete,
-                            )
-
-                            # Assemble video from captured frames
-                            success, msg, output_path = await timelapse_service.stop_timelapse(
-                                camera_id, session, assemble_video=True
-                            )
-                            logger.info(
-                                "observation_timelapse_assembly_result",
-                                observation_id=observation_id,
-                                success=success,
-                                output_path=output_path,
-                            )
-
-                            # Calculate final folder size
-                            folder_path = Path(obs.folder_path) if obs.folder_path else None
-                            size_bytes = None
-                            if folder_path and folder_path.exists():
-                                size_bytes = await self._calculate_folder_size(folder_path)
-
-                            # Update progress to actual and mark completed
-                            await obs_repo.update(observation_id, progress_current=actual_progress, notes=note)
-                            await obs_repo.mark_completed(observation_id, size_bytes)
-                            await session.commit()
-
-                        elif obs and obs.progress_total and actual_progress >= obs.progress_total:
-                            # Frame count target reached (for timelapses without duration, or recordings)
-                            logger.info(
-                                "observation_completed",
-                                observation_id=observation_id,
-                                camera_id=camera_id,
-                                observation_type=observation_type,
-                                progress_current=actual_progress,
-                                progress_total=obs.progress_total,
-                            )
-
-                            # For timelapse, trigger video assembly
-                            if observation_type == "timelapse":
-                                success, msg, output_path = await timelapse_service.stop_timelapse(
-                                    camera_id, session, assemble_video=True
-                                )
-                                logger.info(
-                                    "observation_timelapse_assembly_result",
-                                    observation_id=observation_id,
-                                    success=success,
-                                    output_path=output_path,
-                                )
-
-                            # Calculate final folder size
-                            folder_path = Path(obs.folder_path) if obs.folder_path else None
-                            size_bytes = None
-                            if folder_path and folder_path.exists():
-                                size_bytes = await self._calculate_folder_size(folder_path)
-
-                            await obs_repo.mark_completed(observation_id, size_bytes)
-                            await session.commit()
-                        else:
-                            # Pipeline stopped unexpectedly (not by duration or frame count)
-                            logger.warning(
-                                "observation_pipeline_crashed",
-                                observation_id=observation_id,
-                                camera_id=camera_id,
-                                observation_type=observation_type,
-                                actual_progress=actual_progress,
-                            )
-
-                            # Still try to assemble video from any captured frames
-                            if observation_type == "timelapse" and actual_progress > 0:
-                                success, msg, output_path = await timelapse_service.stop_timelapse(
-                                    camera_id, session, assemble_video=True
-                                )
-                                logger.info(
-                                    "observation_timelapse_partial_assembly",
-                                    observation_id=observation_id,
-                                    success=success,
-                                    output_path=output_path,
-                                    frame_count=actual_progress,
-                                )
-
-                            await obs_repo.mark_failed(
-                                observation_id,
-                                f"Pipeline stopped unexpectedly after {actual_progress} frames",
-                            )
-                            await session.commit()
-
-                    # Clean up tracking
-                    if camera_id in self._active_observations:
-                        del self._active_observations[camera_id]
-
-                    # Restart preview if we stopped it
-                    await self._restart_preview_if_stopped(camera_id)
-
-                    break
-
-                await asyncio.sleep(check_interval)
-
-            except asyncio.CancelledError:
-                logger.debug(
-                    "progress_tracker_cancelled",
-                    observation_id=observation_id,
-                )
-                break
-            except Exception as e:
-                logger.error(
-                    "progress_tracker_error",
-                    observation_id=observation_id,
-                    error=str(e),
-                )
-                await asyncio.sleep(check_interval)
+    async def _cleanup_after_completion(self, camera_id: int) -> None:
+        """Clean up tracking state after observation completes."""
+        if camera_id in self._active_observations:
+            del self._active_observations[camera_id]
+        await self._restart_preview_if_stopped(camera_id)
 
     def _stop_progress_tracker(self, observation_id: int) -> None:
         """Stop progress tracking task."""
@@ -1008,7 +428,7 @@ class ObservationService:
             return
 
         task = asyncio.create_task(
-            self._live_preview_loop(observation_id, folder_path, output_fps)
+            preview_module.live_preview_loop(observation_id, folder_path, output_fps)
         )
         self._preview_gen_tasks[observation_id] = task
         logger.info(
@@ -1023,194 +443,6 @@ class ObservationService:
             self._preview_gen_tasks[observation_id].cancel()
             del self._preview_gen_tasks[observation_id]
             logger.info("live_preview_generator_stopped", observation_id=observation_id)
-
-    async def _live_preview_loop(
-        self,
-        observation_id: int,
-        folder_path: Path,
-        output_fps: int,
-    ) -> None:
-        """Background loop that regenerates preview video from timelapse frames.
-
-        Generates preview:
-        1. After the first frame is captured
-        2. Every output_fps frames thereafter (i.e., every "1 second of footage")
-
-        Args:
-            observation_id: Observation ID
-            folder_path: Path to observation folder
-            output_fps: Output video FPS - preview generated every fps frames
-        """
-        frames_dir = folder_path / "frames"
-        preview_path = folder_path / "preview.mp4"
-        last_preview_frame_count = 0
-        first_preview_done = False
-
-        # Poll every second to check for new frames
-        poll_interval = 1.0
-
-        while True:
-            try:
-                # Check how many frames we have
-                frames = sorted(frames_dir.glob("frame_*.jpg"))
-                frame_count = len(frames)
-
-                should_generate = False
-
-                # Generate initial preview after 2 frames (ffmpeg concat needs at least 2)
-                if not first_preview_done and frame_count >= 2:
-                    should_generate = True
-                    first_preview_done = True
-                    logger.info(
-                        "live_preview_initial",
-                        observation_id=observation_id,
-                        frame_count=frame_count,
-                    )
-
-                # Generate preview every output_fps frames (1 second of footage)
-                # e.g., at 15fps: generate at frames 15, 30, 45, etc.
-                elif frame_count >= output_fps:
-                    # Calculate how many "seconds of footage" we have
-                    current_footage_seconds = frame_count // output_fps
-                    last_footage_seconds = last_preview_frame_count // output_fps
-
-                    if current_footage_seconds > last_footage_seconds:
-                        should_generate = True
-                        logger.info(
-                            "live_preview_update",
-                            observation_id=observation_id,
-                            frame_count=frame_count,
-                            footage_seconds=current_footage_seconds,
-                        )
-
-                if should_generate:
-                    # Use all frames but cap at 60 for performance
-                    # Use the actual output_fps for smooth playback
-                    success = await self._generate_quick_preview(
-                        frames_dir, preview_path, frames, max_frames=60, fps=output_fps
-                    )
-                    if success:
-                        last_preview_frame_count = frame_count
-                        logger.info(
-                            "live_preview_generated",
-                            observation_id=observation_id,
-                            frame_count=frame_count,
-                            preview_path=str(preview_path),
-                        )
-                    else:
-                        logger.warning(
-                            "live_preview_generation_failed",
-                            observation_id=observation_id,
-                            frame_count=frame_count,
-                        )
-
-                await asyncio.sleep(poll_interval)
-
-            except asyncio.CancelledError:
-                logger.debug("live_preview_loop_cancelled", observation_id=observation_id)
-                break
-            except Exception as e:
-                logger.warning(
-                    "live_preview_loop_error",
-                    observation_id=observation_id,
-                    error=str(e),
-                )
-                await asyncio.sleep(poll_interval)
-
-    async def _generate_quick_preview(
-        self,
-        frames_dir: Path,
-        preview_path: Path,
-        frames: list,
-        max_frames: int = 30,
-        fps: int = 10,
-    ) -> bool:
-        """Generate a quick preview video from the latest frames.
-
-        Uses the last N frames to create a short preview video.
-        Optimized for speed over quality.
-
-        Args:
-            frames_dir: Directory containing frame images
-            preview_path: Output path for preview video
-            frames: Sorted list of frame files
-            max_frames: Maximum frames to include
-            fps: Output video FPS
-
-        Returns:
-            True if successful
-        """
-        # Use the last N frames for preview
-        preview_frames = frames[-max_frames:] if len(frames) > max_frames else frames
-
-        # Create temporary concat file
-        concat_file = frames_dir / ".preview_frames.txt"
-        temp_output = preview_path.with_suffix(".tmp.mp4")
-
-        # Calculate duration per frame
-        frame_duration = 1.0 / fps
-
-        try:
-            # Write frame list for ffmpeg concat demuxer with explicit duration
-            with open(concat_file, "w") as f:
-                for frame in preview_frames:
-                    f.write(f"file '{frame.name}'\n")
-                    f.write(f"duration {frame_duration}\n")
-                # Add last file again without duration (concat demuxer quirk)
-                if preview_frames:
-                    f.write(f"file '{preview_frames[-1].name}'\n")
-
-            # Build fast ffmpeg command (ultrafast preset, low quality for speed)
-            cmd = (
-                f"ffmpeg -y -f concat -safe 0 -i '{concat_file}' "
-                f"-vf 'scale=640:360:force_original_aspect_ratio=decrease,"
-                f"pad=640:360:(ow-iw)/2:(oh-ih)/2' "
-                f"-c:v libx264 -preset ultrafast -crf 35 "
-                f"-pix_fmt yuv420p "
-                f"-movflags +faststart "
-                f"'{temp_output}'"
-            )
-
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                cwd=str(frames_dir),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
-
-            if proc.returncode == 0 and temp_output.exists():
-                # Atomic rename to avoid partial reads
-                temp_output.rename(preview_path)
-                return True
-            else:
-                error_msg = stderr.decode()[:500] if stderr else "Unknown error"
-                logger.warning(
-                    "quick_preview_ffmpeg_failed",
-                    returncode=proc.returncode,
-                    error=error_msg,
-                    frame_count=len(preview_frames),
-                )
-                if temp_output.exists():
-                    temp_output.unlink()
-                return False
-
-        except asyncio.TimeoutError:
-            logger.warning("quick_preview_timeout")
-            return False
-        except Exception as e:
-            logger.warning("quick_preview_error", error=str(e))
-            return False
-        finally:
-            # Clean up temp files
-            try:
-                if concat_file.exists():
-                    concat_file.unlink()
-                if temp_output.exists():
-                    temp_output.unlink()
-            except Exception:
-                pass
 
     async def generate_timelapse_preview(
         self,
@@ -1236,111 +468,13 @@ class ObservationService:
         Returns:
             Tuple of (success, message, preview_path)
         """
-        obs_repo = ObservationRepository(session)
-        observation = await obs_repo.get(observation_id)
-
-        if not observation:
-            return False, f"Observation {observation_id} not found", None
-
-        if observation.observation_type != "timelapse":
-            return False, "Preview generation only available for timelapses", None
-
-        folder_path = Path(observation.folder_path)
-        frames_dir = folder_path / "frames"
-
-        if not frames_dir.exists():
-            return False, "Frames directory not found", None
-
-        # Get list of frame files sorted by name
-        frames = sorted(frames_dir.glob("frame_*.jpg"))
-        if len(frames) < 2:
-            return False, "Not enough frames for preview (need at least 2)", None
-
-        # Use the last N frames for preview
-        preview_frames = frames[-max_frames:] if len(frames) > max_frames else frames
-        preview_path = folder_path / "preview.mp4"
-
-        # Build ffmpeg command for preview generation
-        # Using a temporary file list for ffmpeg input
-        concat_file = folder_path / "preview_frames.txt"
-
-        # Calculate duration per frame
-        frame_duration = 1.0 / fps
-
-        try:
-            # Write frame list for ffmpeg concat demuxer with explicit duration
-            with open(concat_file, "w") as f:
-                for frame in preview_frames:
-                    # Use relative path and escape single quotes
-                    f.write(f"file '{frame.name}'\n")
-                    f.write(f"duration {frame_duration}\n")
-                # Add last file again without duration (concat demuxer quirk)
-                if preview_frames:
-                    f.write(f"file '{preview_frames[-1].name}'\n")
-
-            width, height = resolution
-            cmd = (
-                f"ffmpeg -y -f concat -safe 0 -i '{concat_file}' "
-                f"-vf 'scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2' "
-                f"-c:v libx264 -preset ultrafast -crf 28 "
-                f"-pix_fmt yuv420p "
-                f"-movflags +faststart "
-                f"'{preview_path}'"
-            )
-
-            logger.info(
-                "timelapse_preview_generating",
-                observation_id=observation_id,
-                frame_count=len(preview_frames),
-                output=str(preview_path),
-            )
-
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                cwd=str(frames_dir),  # Run in frames directory for relative paths
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
-
-            if proc.returncode == 0 and preview_path.exists():
-                file_size_kb = preview_path.stat().st_size / 1024
-                logger.info(
-                    "timelapse_preview_success",
-                    observation_id=observation_id,
-                    output=str(preview_path),
-                    size_kb=file_size_kb,
-                )
-                return True, "Preview generated", str(preview_path)
-            else:
-                error_msg = stderr.decode() if stderr else "Unknown error"
-                logger.error(
-                    "timelapse_preview_failed",
-                    observation_id=observation_id,
-                    returncode=proc.returncode,
-                    error=error_msg,
-                )
-                return False, f"Preview generation failed: {error_msg[:200]}", None
-
-        except asyncio.TimeoutError:
-            logger.error("timelapse_preview_timeout", observation_id=observation_id)
-            return False, "Preview generation timed out", None
-        except Exception as e:
-            logger.error(
-                "timelapse_preview_exception",
-                observation_id=observation_id,
-                error=str(e),
-            )
-            return False, f"Preview error: {str(e)}", None
-        finally:
-            # Clean up temporary file
-            try:
-                if concat_file.exists():
-                    concat_file.unlink()
-            except Exception:
-                pass
+        return await preview_module.generate_timelapse_preview(
+            observation_id=observation_id,
+            session=session,
+            max_frames=max_frames,
+            fps=fps,
+            resolution=resolution,
+        )
 
     async def cleanup_stale_observations(self, session: AsyncSession) -> int:
         """Mark all running observations as failed (for startup cleanup).
