@@ -11,11 +11,12 @@ import { HomePage } from "./pages/HomePage";
 import { SystemPage } from "./pages/SystemPage";
 import { CameraPage } from "./pages/CameraPage";
 import { ObservationsPage } from "./pages/ObservationsPage";
+import { EnvironmentPage } from "./pages/EnvironmentPage";
 import {
   CamerasPanel,
   OutputConfigPanel,
   NotificationsPanel,
-  TemperaturePanel,
+  EnvironmentPanel,
 } from "./components/settings";
 import "./App.css";
 
@@ -33,11 +34,12 @@ function App() {
                   <Route index element={<HomePage />} />
                   <Route path="camera/:cameraId/:tab?" element={<CameraPage />} />
                   <Route path="files" element={<ObservationsPage />} />
+                  <Route path="environment" element={<EnvironmentPage />} />
                   <Route path="system" element={<SystemPage />}>
                     <Route path="cameras" element={<CamerasPanel />} />
                     <Route path="output" element={<OutputConfigPanel />} />
                     <Route path="notifications" element={<NotificationsPanel />} />
-                    <Route path="temperature" element={<TemperaturePanel />} />
+                    <Route path="environment" element={<EnvironmentPanel />} />
                   </Route>
                 </Route>
               </Routes>

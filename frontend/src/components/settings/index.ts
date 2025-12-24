@@ -6,4 +6,4 @@ export { CamerasPanel } from "./CamerasPanel";
 export { CameraForm } from "./CameraForm";
 export { OutputConfigPanel } from "./OutputConfigPanel";
 export { NotificationsPanel } from "./NotificationsPanel";
-export { TemperaturePanel } from "./TemperaturePanel";
+export { EnvironmentPanel } from "./EnvironmentPanel";

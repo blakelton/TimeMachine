@@ -17,6 +17,7 @@ from app.services.camera import (
     timelapse_service,
 )
 from app.services.camera.resolver import CameraResolver
+from app.services.environment.polling import start_polling_service, stop_polling_service
 from app.services.observation import observation_service
 
 logger = get_logger(__name__)
@@ -265,6 +266,12 @@ async def startup_cleanup() -> dict:
     # Reconcile camera device paths (resolve hardware_id -> current device_path)
     summary["camera_reconciliation"] = await reconcile_camera_device_paths()
 
+    # Start environment sensor polling service
+    # Use mock sensors if TIMEMACHINE_MOCK_SENSORS=true is set
+    use_mock = os.environ.get("TIMEMACHINE_MOCK_SENSORS", "").lower() == "true"
+    await start_polling_service(AsyncSessionLocal, use_mock=use_mock)
+    summary["environment_polling"] = "started"
+
     logger.info("startup_cleanup_complete", **summary)
 
     return summary
@@ -284,7 +291,14 @@ async def shutdown_cleanup() -> dict:
         "previews_stopped": 0,
         "recordings_stopped": 0,
         "timelapses_stopped": 0,
+        "environment_polling": "stopped",
     }
+
+    # Stop environment polling service
+    try:
+        await stop_polling_service()
+    except Exception as e:
+        logger.error("shutdown_environment_polling_failed", error=str(e))
 
     # Stop all previews
     try:

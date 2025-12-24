@@ -54,13 +54,13 @@ export function SystemPage() {
           </NavLink>
 
           <NavLink
-            to="/system/temperature"
+            to="/system/environment"
             className={({ isActive }) =>
               `sidebar-link ${isActive ? "active" : ""}`
             }
           >
             <span className="sidebar-icon">🌡️</span>
-            <span className="sidebar-label">Temperature</span>
+            <span className="sidebar-label">Environment</span>
           </NavLink>
         </nav>
       </aside>

@@ -175,3 +175,68 @@ def check_disk_available(min_mb: int | None = None, path: Path | None = None) ->
         return available >= required, available
     except OSError:
         return False, 0
+
+
+def check_system_pressure() -> tuple[bool, str, dict]:
+    """Check if system is under memory/swap pressure.
+
+    Returns:
+        Tuple of (is_healthy: bool, reason: str, metrics: dict)
+        is_healthy is True if system is NOT under pressure
+    """
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+
+    metrics = {
+        "memory_percent": round(mem.percent, 1),
+        "memory_available_mb": int(mem.available / (1024 * 1024)),
+        "swap_percent": round(swap.percent, 1),
+        "swap_used_mb": int(swap.used / (1024 * 1024)),
+    }
+
+    # Critical: Swap usage over 70% indicates severe memory pressure
+    if swap.percent > 70:
+        return False, f"High swap usage: {swap.percent:.0f}%", metrics
+
+    # Critical: Memory over 85% with swap being used heavily
+    if mem.percent > 85 and swap.percent > 40:
+        return False, f"Memory pressure: {mem.percent:.0f}% RAM, {swap.percent:.0f}% swap", metrics
+
+    # Warning: Memory over 80% - should throttle non-essential operations
+    if mem.percent > 80:
+        return False, f"High memory usage: {mem.percent:.0f}%", metrics
+
+    return True, "System healthy", metrics
+
+
+def get_adaptive_delay_seconds() -> float:
+    """Get recommended delay for operations based on system load.
+
+    Returns:
+        Delay in seconds (0.0 if no throttling needed)
+    """
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+
+    # Calculate pressure score (0-100)
+    pressure = 0
+
+    # Memory pressure contribution (0-50)
+    if mem.percent > 70:
+        pressure += min((mem.percent - 70) * 1.67, 50)  # 70%->0, 100%->50
+
+    # Swap pressure contribution (0-50)
+    if swap.percent > 30:
+        pressure += min((swap.percent - 30) * 0.71, 50)  # 30%->0, 100%->50
+
+    # Convert to delay (0-10 seconds)
+    if pressure < 10:
+        return 0.0
+    elif pressure < 30:
+        return 1.0
+    elif pressure < 50:
+        return 2.0
+    elif pressure < 70:
+        return 5.0
+    else:
+        return 10.0

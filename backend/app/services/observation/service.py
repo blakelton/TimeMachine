@@ -4,6 +4,11 @@ import asyncio
 import json
 import os
 from datetime import datetime, timedelta
+
+# Use local time for all timestamps (simpler for local appliance)
+def now() -> datetime:
+    """Return current local time (naive datetime)."""
+    return datetime.now()
 from pathlib import Path
 from typing import Dict
 
@@ -62,7 +67,7 @@ def _calculate_end_datetime(
         return end_datetime
     elif end_mode == "duration" and duration_value and duration_unit:
         delta_seconds = _interval_to_seconds(duration_value, duration_unit)
-        return datetime.utcnow() + timedelta(seconds=delta_seconds)
+        return now() + timedelta(seconds=delta_seconds)
     return None
 
 
@@ -78,7 +83,7 @@ def _calculate_total_frames(
         end_mode, end_datetime, duration_value, duration_unit
     )
     if target_end:
-        duration_seconds = (target_end - datetime.utcnow()).total_seconds()
+        duration_seconds = (target_end - now()).total_seconds()
         if duration_seconds > 0:
             return int(duration_seconds / interval_seconds)
     return None
@@ -110,7 +115,7 @@ class ObservationService:
     def _create_observation_folder(self, camera_id: int) -> Path:
         """Create a new observation folder with proper structure."""
         base_path = self._get_observations_base_path()
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = now().strftime("%Y%m%d_%H%M%S")
         folder_name = f"camera{camera_id}_{timestamp}"
         folder_path = base_path / folder_name
 
@@ -281,6 +286,25 @@ class ObservationService:
         frames_dir = folder_path / "frames"
         frames_dir.mkdir(exist_ok=True)
 
+        # Get environment device info for overlay if configured
+        env_device_type: str | None = None
+        env_temp_unit: str = "C"
+        polling_service = None
+
+        if config.env_overlay_device_id is not None:
+            # Import and get the environment polling service
+            from app.services.environment.polling import get_polling_service
+            from app.db.repositories.environment_device import EnvironmentDeviceRepository
+
+            polling_service = get_polling_service()
+
+            # Get device info for sensor type and temp unit
+            device_repo = EnvironmentDeviceRepository(session)
+            env_device = await device_repo.get(config.env_overlay_device_id)
+            if env_device:
+                env_device_type = env_device.device_type
+                env_temp_unit = env_device.temperature_unit or "C"
+
         # Create timelapse config for existing service
         tl_config = TimelapseConfig(
             camera_id=camera.id,
@@ -289,6 +313,11 @@ class ObservationService:
             quality=config.quality,
             resolution=(config.resolution_width, config.resolution_height),
             output_fps=config.output_fps,
+            env_overlay_device_id=config.env_overlay_device_id,
+            env_overlay_position=config.env_overlay_position,
+            env_overlay_show_graph=config.env_overlay_show_graph,
+            env_overlay_device_type=env_device_type,
+            env_overlay_temp_unit=env_temp_unit,
         )
 
         # For USB cameras, stop the preview stream to free the device for capture
@@ -338,6 +367,9 @@ class ObservationService:
 
         # Start the timelapse using existing service
         # Pass our frames directory to store frames in the observation folder
+        # Include hardware_id for USB camera recovery support
+        # Include target_end_at for timeout during recovery mode
+        # Include polling_service for environment overlay
         success, message, job_id = await timelapse_service.start_timelapse(
             camera_id=camera.id,
             device_path=camera.device_path,
@@ -345,6 +377,9 @@ class ObservationService:
             config=tl_config,
             session=session,
             frames_dir=frames_dir,
+            hardware_id=camera.hardware_id,
+            target_end_time=target_end_at,
+            polling_service=polling_service,
         )
 
         if not success:
@@ -417,10 +452,10 @@ class ObservationService:
 
         if config.end_mode == "duration" and config.duration_value and config.duration_unit:
             duration_seconds = _interval_to_seconds(config.duration_value, config.duration_unit)
-            target_end_at = datetime.utcnow() + timedelta(seconds=duration_seconds)
+            target_end_at = now() + timedelta(seconds=duration_seconds)
         elif config.end_mode == "datetime" and config.end_datetime:
             target_end_at = config.end_datetime
-            duration_seconds = int((target_end_at - datetime.utcnow()).total_seconds())
+            duration_seconds = int((target_end_at - now()).total_seconds())
 
         # For USB cameras, stop the preview stream to free the device for recording
         # The preview will be restarted when the observation stops
@@ -693,7 +728,7 @@ class ObservationService:
             has_preview = preview_path.exists()
 
         # Calculate elapsed time
-        elapsed = (datetime.utcnow() - observation.started_at).total_seconds()
+        elapsed = (now() - observation.started_at).total_seconds()
 
         # Calculate progress percentage
         percentage = None
@@ -795,20 +830,71 @@ class ObservationService:
                     is_running = state == PipelineState.RUNNING
 
                 if not is_running:
-                    # Pipeline has stopped - check if it completed successfully
+                    # Pipeline has stopped - determine completion status
                     async with SessionFactory() as session:
                         obs_repo = ObservationRepository(session)
                         obs = await obs_repo.get_by_id(observation_id)
 
-                        # For timelapse, get actual frame count from service (DB may not have latest)
+                        # Get timelapse health info for completion details
+                        health = None
                         actual_progress = obs.progress_current if obs else 0
+                        completed_by_duration = False
+                        frames_incomplete = False
+
                         if observation_type == "timelapse":
+                            health = timelapse_service.get_timelapse_health(camera_id)
                             progress = timelapse_service.get_timelapse_progress(camera_id)
                             if progress:
                                 actual_progress = progress[0]
+                            if health:
+                                completed_by_duration = health.get("completed_by_duration", False)
+                                frames_incomplete = health.get("frames_incomplete", False)
 
-                        if obs and obs.progress_total and actual_progress >= obs.progress_total:
-                            # Timelapse/recording reached its target - mark as completed
+                        # DURATION IS KING: If completed by duration, it's a success
+                        # even if we didn't get all expected frames
+                        if observation_type == "timelapse" and completed_by_duration:
+                            # Build completion message
+                            if frames_incomplete:
+                                note = (
+                                    f"Completed by duration. Captured {actual_progress} frames "
+                                    f"(expected {obs.progress_total}). Some frames missed due to camera issues."
+                                )
+                            else:
+                                note = f"Completed by duration with {actual_progress} frames."
+
+                            logger.info(
+                                "observation_completed_by_duration",
+                                observation_id=observation_id,
+                                camera_id=camera_id,
+                                frame_count=actual_progress,
+                                expected_frames=obs.progress_total,
+                                frames_incomplete=frames_incomplete,
+                            )
+
+                            # Assemble video from captured frames
+                            success, msg, output_path = await timelapse_service.stop_timelapse(
+                                camera_id, session, assemble_video=True
+                            )
+                            logger.info(
+                                "observation_timelapse_assembly_result",
+                                observation_id=observation_id,
+                                success=success,
+                                output_path=output_path,
+                            )
+
+                            # Calculate final folder size
+                            folder_path = Path(obs.folder_path) if obs.folder_path else None
+                            size_bytes = None
+                            if folder_path and folder_path.exists():
+                                size_bytes = await self._calculate_folder_size(folder_path)
+
+                            # Update progress to actual and mark completed
+                            await obs_repo.update(observation_id, progress_current=actual_progress, notes=note)
+                            await obs_repo.mark_completed(observation_id, size_bytes)
+                            await session.commit()
+
+                        elif obs and obs.progress_total and actual_progress >= obs.progress_total:
+                            # Frame count target reached (for timelapses without duration, or recordings)
                             logger.info(
                                 "observation_completed",
                                 observation_id=observation_id,
@@ -820,20 +906,12 @@ class ObservationService:
 
                             # For timelapse, trigger video assembly
                             if observation_type == "timelapse":
-                                logger.info(
-                                    "observation_triggering_timelapse_assembly",
-                                    observation_id=observation_id,
-                                    camera_id=camera_id,
-                                )
-                                # Call stop_timelapse to assemble the video
-                                # This will handle cleanup and video assembly
                                 success, msg, output_path = await timelapse_service.stop_timelapse(
                                     camera_id, session, assemble_video=True
                                 )
                                 logger.info(
                                     "observation_timelapse_assembly_result",
                                     observation_id=observation_id,
-                                    camera_id=camera_id,
                                     success=success,
                                     output_path=output_path,
                                 )
@@ -847,16 +925,31 @@ class ObservationService:
                             await obs_repo.mark_completed(observation_id, size_bytes)
                             await session.commit()
                         else:
-                            # Pipeline stopped unexpectedly
+                            # Pipeline stopped unexpectedly (not by duration or frame count)
                             logger.warning(
                                 "observation_pipeline_crashed",
                                 observation_id=observation_id,
                                 camera_id=camera_id,
                                 observation_type=observation_type,
+                                actual_progress=actual_progress,
                             )
+
+                            # Still try to assemble video from any captured frames
+                            if observation_type == "timelapse" and actual_progress > 0:
+                                success, msg, output_path = await timelapse_service.stop_timelapse(
+                                    camera_id, session, assemble_video=True
+                                )
+                                logger.info(
+                                    "observation_timelapse_partial_assembly",
+                                    observation_id=observation_id,
+                                    success=success,
+                                    output_path=output_path,
+                                    frame_count=actual_progress,
+                                )
+
                             await obs_repo.mark_failed(
                                 observation_id,
-                                "Pipeline stopped unexpectedly",
+                                f"Pipeline stopped unexpectedly after {actual_progress} frames",
                             )
                             await session.commit()
 

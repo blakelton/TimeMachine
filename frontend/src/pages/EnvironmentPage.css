@@ -1,0 +1,163 @@
+/**
+ * Environment monitoring page styles
+ */
+
+.environment-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.page-description {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+}
+
+/* Loading, Error, Empty States */
+.page-loading,
+.page-error,
+.page-empty {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.page-loading {
+  color: var(--color-text-muted);
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 1rem;
+  border: 3px solid var(--color-border-light);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.page-error {
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+}
+
+.page-empty {
+  color: var(--color-text-muted);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.6;
+}
+
+.page-empty h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.page-empty p {
+  margin: 0 0 1.5rem 0;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Sensors Grid */
+.sensors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Page Footer */
+.page-footer {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.settings-link {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+}
+
+.settings-link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .environment-page {
+    padding: 1rem;
+  }
+
+  .sensors-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .environment-page {
+    padding: 0.75rem;
+  }
+
+  .page-header {
+    margin-bottom: 0.75rem;
+  }
+
+  .page-header h1 {
+    font-size: var(--font-size-lg);
+  }
+
+  .page-description {
+    display: none;
+  }
+
+  .sensors-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .page-loading,
+  .page-error,
+  .page-empty {
+    padding: 1.5rem;
+  }
+
+  .empty-icon {
+    font-size: 2.5rem;
+  }
+
+  .page-empty h2 {
+    font-size: var(--font-size-base);
+  }
+
+  .page-footer {
+    margin-top: 1rem;
+  }
+}

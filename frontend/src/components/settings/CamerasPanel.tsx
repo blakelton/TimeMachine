@@ -36,7 +36,28 @@ export function CamerasPanel() {
     },
   });
 
+  // Fetch dashboard to know which cameras are in use
+  const { data: dashboardData } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: async () => {
+      const response = await apiClient.GET("/api/v1/cameras/dashboard");
+      if (response.error) {
+        throw new Error("Failed to fetch dashboard");
+      }
+      return response.data;
+    },
+    refetchInterval: 10000, // Refresh every 10 seconds (settings page doesn't need fast updates)
+  });
+
   const cameras = camerasData?.cameras || [];
+
+  // Create a map of camera_id -> in-use status
+  const cameraInUse = new Map<number, string>();
+  dashboardData?.cameras?.forEach((cam) => {
+    if (cam.has_active_observation && cam.observation) {
+      cameraInUse.set(cam.camera_id, cam.observation.observation_type);
+    }
+  });
 
   // Create camera mutation using custom hook
   const createMutation = useApiMutation(
@@ -70,6 +91,8 @@ export function CamerasPanel() {
     async ({ id, data }: { id: number; data: CameraFormData }) => {
       const updateData: CameraUpdate = {
         name: data.name,
+        device_path: data.device_path,
+        camera_type: data.camera_type,
         enabled: data.enabled,
       };
       const response = await apiClient.PATCH("/api/v1/cameras/{camera_id}", {
@@ -77,15 +100,17 @@ export function CamerasPanel() {
         body: updateData,
       });
       if (response.error) {
-        throw new Error("Failed to update camera");
+        // Extract error message from response
+        const errorDetail = (response.error as { detail?: string })?.detail;
+        throw new Error(errorDetail || "Failed to update camera");
       }
       return response.data;
     },
     {
       successMessage: "Camera updated successfully",
-      errorMessage: "Failed to update camera",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["cameras"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
         setEditCamera(null);
       },
     }
@@ -98,12 +123,13 @@ export function CamerasPanel() {
         params: { path: { camera_id: cameraId } },
       });
       if (response.error) {
-        throw new Error("Failed to delete camera");
+        // Extract error message from response
+        const errorDetail = (response.error as { detail?: string })?.detail;
+        throw new Error(errorDetail || "Failed to delete camera");
       }
     },
     {
       successMessage: "Camera deleted successfully",
-      errorMessage: "Failed to delete camera",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["cameras"] });
         setDeleteCamera(null);
@@ -196,14 +222,25 @@ export function CamerasPanel() {
       {/* Cameras list */}
       {!isLoading && !error && cameras.length > 0 && (
         <div className="cameras-list">
-          {cameras.map((camera) => (
-            <div key={camera.id} className="camera-card">
+          {cameras.map((camera) => {
+            const inUseType = cameraInUse.get(camera.id);
+            const isInUse = Boolean(inUseType);
+
+            return (
+            <div key={camera.id} className={`camera-card ${isInUse ? "in-use" : ""}`}>
               <div className="camera-info">
                 <div className="camera-header">
                   <h3>{camera.name}</h3>
-                  <span className={`camera-status ${camera.enabled ? "enabled" : "disabled"}`}>
-                    {camera.enabled ? "Enabled" : "Disabled"}
-                  </span>
+                  <div className="camera-status-badges">
+                    <span className={`camera-status ${camera.enabled ? "enabled" : "disabled"}`}>
+                      {camera.enabled ? "Enabled" : "Disabled"}
+                    </span>
+                    {isInUse && (
+                      <span className="camera-status in-use">
+                        {inUseType === "timelapse" ? "Timelapse" : inUseType === "recording" ? "Recording" : "Capturing"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="camera-details">
                   <div className="camera-detail">
@@ -222,7 +259,8 @@ export function CamerasPanel() {
                   variant="outline"
                   size="sm"
                   onClick={() => handleToggleEnabled(camera)}
-                  disabled={toggleEnabledMutation.isPending}
+                  disabled={toggleEnabledMutation.isPending || isInUse}
+                  title={isInUse ? `Cannot modify while ${inUseType} is running` : undefined}
                 >
                   {camera.enabled ? "Disable" : "Enable"}
                 </Button>
@@ -230,6 +268,8 @@ export function CamerasPanel() {
                   variant="outline"
                   size="sm"
                   onClick={() => setEditCamera(camera)}
+                  disabled={isInUse}
+                  title={isInUse ? `Cannot edit while ${inUseType} is running` : undefined}
                 >
                   Edit
                 </Button>
@@ -237,12 +277,15 @@ export function CamerasPanel() {
                   variant="danger"
                   size="sm"
                   onClick={() => setDeleteCamera(camera)}
+                  disabled={isInUse}
+                  title={isInUse ? `Cannot delete while ${inUseType} is running` : undefined}
                 >
                   Delete
                 </Button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

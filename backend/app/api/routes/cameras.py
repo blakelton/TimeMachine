@@ -458,9 +458,69 @@ async def update_camera(
         Updated camera
 
     Raises:
-        HTTPException: 404 if camera not found
+        HTTPException: 404 if camera not found, 409 if camera is in use
     """
+    from app.db.repositories.observation import ObservationRepository
+
     repo = CameraRepository(session)
+    obs_repo = ObservationRepository(session)
+
+    # Check if camera exists first
+    camera = await repo.get_by_id(camera_id)
+    if camera is None:
+        logger.warning("camera_update_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    # Check if camera is currently in use (has active observation)
+    active_obs = await obs_repo.get_active_by_camera(camera_id)
+    if active_obs:
+        obs_type = active_obs.observation_type
+        logger.warning(
+            "camera_update_blocked_in_use",
+            camera_id=camera_id,
+            observation_id=active_obs.id,
+            observation_type=obs_type,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot edit camera while {obs_type} is running. Stop the {obs_type} first or wait for it to complete.",
+        )
+
+    # Also check if recording or timelapse service has active session
+    # (in case observation status is out of sync)
+    if recording_service.get_recording_state(camera_id) == PipelineState.RUNNING:
+        logger.warning("camera_update_blocked_recording", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot edit camera while recording is running. Stop the recording first.",
+        )
+
+    if timelapse_service.is_running(camera_id):
+        logger.warning("camera_update_blocked_timelapse", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot edit camera while timelapse is running. Stop the timelapse first.",
+        )
+
+    # Validate camera_type if provided
+    if camera_data.camera_type is not None:
+        if camera_data.camera_type not in ("csi", "usb"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="camera_type must be 'csi' or 'usb'",
+            )
+
+    # Validate device_path if provided - check for duplicates (excluding self)
+    if camera_data.device_path is not None:
+        existing = await repo.get_by_device_path(camera_data.device_path)
+        if existing and existing.id != camera_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Device path '{camera_data.device_path}' is already assigned to camera '{existing.name}'",
+            )
 
     # Convert Pydantic model to dict, excluding unset fields
     update_data = camera_data.model_dump(exclude_unset=True)
@@ -468,13 +528,6 @@ async def update_camera(
         update_data["default_settings"] = camera_data.default_settings.model_dump()
 
     camera = await repo.update(camera_id, **update_data)
-
-    if camera is None:
-        logger.warning("camera_update_not_found", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Camera {camera_id} not found",
-        )
 
     logger.info("camera_updated", camera_id=camera.id, updated_fields=update_data)
 
@@ -492,16 +545,59 @@ async def delete_camera(
         session: Database session
 
     Raises:
-        HTTPException: 404 if camera not found
+        HTTPException: 404 if camera not found, 409 if camera is in use
     """
-    repo = CameraRepository(session)
-    deleted = await repo.delete(camera_id)
+    from app.db.repositories.observation import ObservationRepository
 
-    if not deleted:
+    repo = CameraRepository(session)
+    obs_repo = ObservationRepository(session)
+
+    # Check if camera exists first
+    camera = await repo.get_by_id(camera_id)
+    if camera is None:
         logger.warning("camera_delete_not_found", camera_id=camera_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Camera {camera_id} not found",
+        )
+
+    # Check if camera is currently in use (has active observation)
+    active_obs = await obs_repo.get_active_by_camera(camera_id)
+    if active_obs:
+        obs_type = active_obs.observation_type
+        logger.warning(
+            "camera_delete_blocked_in_use",
+            camera_id=camera_id,
+            observation_id=active_obs.id,
+            observation_type=obs_type,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete camera while {obs_type} is running. Stop the {obs_type} first or wait for it to complete.",
+        )
+
+    # Also check if recording or timelapse service has active session
+    if recording_service.get_recording_state(camera_id) == PipelineState.RUNNING:
+        logger.warning("camera_delete_blocked_recording", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete camera while recording is running. Stop the recording first.",
+        )
+
+    if timelapse_service.is_running(camera_id):
+        logger.warning("camera_delete_blocked_timelapse", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete camera while timelapse is running. Stop the timelapse first.",
+        )
+
+    deleted = await repo.delete(camera_id)
+
+    if not deleted:
+        logger.warning("camera_delete_failed", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete camera {camera_id}",
         )
 
     logger.info("camera_deleted", camera_id=camera_id)
@@ -989,7 +1085,7 @@ async def capture_image(
 
     try:
         # Create observation folder for this capture
-        now = datetime.now(timezone.utc)
+        now = datetime.now()  # Use local time
         timestamp_str = now.strftime("%Y%m%d_%H%M%S")
         folder_name = f"camera{camera_id}_{timestamp_str}_still"
         stills_base = Path(settings.media_path) / "stills"

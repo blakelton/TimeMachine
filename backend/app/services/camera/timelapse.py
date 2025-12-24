@@ -1,10 +1,14 @@
 """Timelapse capture and assembly service with Job tracking."""
 
 import asyncio
+import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Optional
+
+if TYPE_CHECKING:
+    from app.services.environment.polling import EnvironmentPollingService
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,8 +17,15 @@ from app.core.logging import get_logger
 from app.core.resources import check_resources_available, encoder_semaphore
 from app.db.repositories.job import JobRepository
 from app.services.camera.capture import CaptureService
+from app.services.camera.overlay import EnvironmentOverlayService
+from app.services.system.stats import check_system_pressure, get_adaptive_delay_seconds
 
 logger = get_logger(__name__)
+
+# Recovery settings
+MAX_CONSECUTIVE_FAILURES = 10  # Trigger recovery after this many failures
+RECOVERY_BACKOFF_SECONDS = 30  # Wait time during recovery attempts
+MAX_RECOVERY_ATTEMPTS = 5  # Max recovery attempts before giving up on this cycle
 
 
 class TimelapseConfig:
@@ -29,6 +40,11 @@ class TimelapseConfig:
         quality: int = 95,
         resolution: tuple[int, int] = (1920, 1080),
         output_fps: int = 30,
+        env_overlay_device_id: int | None = None,
+        env_overlay_position: str = "br",
+        env_overlay_show_graph: bool = False,
+        env_overlay_device_type: str | None = None,
+        env_overlay_temp_unit: str = "C",
     ):
         """Initialize timelapse configuration.
 
@@ -40,12 +56,24 @@ class TimelapseConfig:
             quality: JPEG quality 1-100 (default 95)
             resolution: Output resolution (default 1920x1080)
             output_fps: Output video FPS (default 30)
+            env_overlay_device_id: Environment device ID for overlay (optional)
+            env_overlay_position: Overlay position - tl, tr, bl, br (default: br)
+            env_overlay_show_graph: Whether to show temperature graph
+            env_overlay_device_type: Sensor type (dht22, bme280, etc.)
+            env_overlay_temp_unit: Temperature unit (C or F)
         """
         self.camera_id = camera_id
         self.interval_seconds = interval_seconds
         self.quality = quality
         self.resolution = resolution
         self.output_fps = output_fps
+
+        # Environment overlay settings
+        self.env_overlay_device_id = env_overlay_device_id
+        self.env_overlay_position = env_overlay_position
+        self.env_overlay_show_graph = env_overlay_show_graph
+        self.env_overlay_device_type = env_overlay_device_type
+        self.env_overlay_temp_unit = env_overlay_temp_unit
 
         # Calculate total frames from duration if provided
         if total_frames:
@@ -58,13 +86,23 @@ class TimelapseConfig:
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for database storage."""
-        return {
+        result = {
             "interval_seconds": self.interval_seconds,
             "total_frames": self.total_frames,
             "quality": self.quality,
             "resolution": list(self.resolution),
             "output_fps": self.output_fps,
         }
+
+        # Include overlay settings if configured
+        if self.env_overlay_device_id is not None:
+            result["env_overlay_device_id"] = self.env_overlay_device_id
+            result["env_overlay_position"] = self.env_overlay_position
+            result["env_overlay_show_graph"] = self.env_overlay_show_graph
+            result["env_overlay_device_type"] = self.env_overlay_device_type
+            result["env_overlay_temp_unit"] = self.env_overlay_temp_unit
+
+        return result
 
     @classmethod
     def from_dict(cls, camera_id: int, data: dict) -> "TimelapseConfig":
@@ -76,11 +114,16 @@ class TimelapseConfig:
             quality=data.get("quality", 95),
             resolution=tuple(data.get("resolution", [1920, 1080])),
             output_fps=data.get("output_fps", 30),
+            env_overlay_device_id=data.get("env_overlay_device_id"),
+            env_overlay_position=data.get("env_overlay_position", "br"),
+            env_overlay_show_graph=data.get("env_overlay_show_graph", False),
+            env_overlay_device_type=data.get("env_overlay_device_type"),
+            env_overlay_temp_unit=data.get("env_overlay_temp_unit", "C"),
         )
 
 
 class TimelapseSession:
-    """Active timelapse capture session."""
+    """Active timelapse capture session with automatic recovery."""
 
     def __init__(
         self,
@@ -89,17 +132,48 @@ class TimelapseSession:
         camera_type: str,
         job_id: int | None,
         timelapse_dir: Path,
+        hardware_id: str | None = None,
+        device_resolver: Callable[[str], str | None] | None = None,
+        target_end_time: datetime | None = None,
+        polling_service: "EnvironmentPollingService | None" = None,
     ):
         self.config = config
         self.device_path = device_path
         self.camera_type = camera_type
         self.job_id = job_id
         self.timelapse_dir = timelapse_dir
+        self.hardware_id = hardware_id  # For USB camera recovery
+        self._device_resolver = device_resolver  # Async function to resolve hardware_id
+        self.target_end_time = target_end_time  # When timelapse should end (for timeout)
         self.frame_count = 0
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now()
         self._stop_event = asyncio.Event()
         self._capture_task: asyncio.Task | None = None
         self._capture_service = CaptureService()
+
+        # Recovery tracking
+        self._consecutive_failures = 0
+        self._total_failures = 0
+        self._recovery_attempts = 0
+        self._in_recovery_mode = False
+        self._gap_start_frame: int | None = None
+        self._events: list[dict] = []  # Event log for this session
+
+        # Completion tracking
+        self._completed_by_duration = False  # True if stopped due to duration, not frame count
+        self._frames_incomplete = False  # True if we missed frames due to camera issues
+
+        # Environment overlay service
+        self._overlay_service: EnvironmentOverlayService | None = None
+        self._polling_service = polling_service
+        if config.env_overlay_device_id is not None:
+            self._overlay_service = EnvironmentOverlayService(
+                device_id=config.env_overlay_device_id,
+                position=config.env_overlay_position,
+                show_graph=config.env_overlay_show_graph,
+                device_type=config.env_overlay_device_type,
+                temperature_unit=config.env_overlay_temp_unit,
+            )
 
     @property
     def is_running(self) -> bool:
@@ -113,6 +187,103 @@ class TimelapseSession:
             Tuple of (current_frame, total_frames or None if unlimited)
         """
         return self.frame_count, self.config.total_frames
+
+    def get_events(self) -> list[dict]:
+        """Get all logged events for this session."""
+        return self._events.copy()
+
+    def _log_event(self, event_type: str, message: str, **extra) -> None:
+        """Log an event to the session event list and save to file.
+
+        Args:
+            event_type: Type of event (gap_start, gap_end, recovery, error, etc.)
+            message: Human-readable message
+            **extra: Additional event data
+        """
+        event = {
+            "timestamp": datetime.now().isoformat(),
+            "type": event_type,
+            "message": message,
+            "frame_count": self.frame_count,
+            **extra,
+        }
+        self._events.append(event)
+
+        # Also log to structured logger
+        logger.info(
+            f"timelapse_event_{event_type}",
+            camera_id=self.config.camera_id,
+            message=message,
+            frame_count=self.frame_count,
+            **extra,
+        )
+
+        # Save events to file
+        self._save_events()
+
+    def _save_events(self) -> None:
+        """Save events to JSON file in the timelapse directory."""
+        try:
+            events_file = self.timelapse_dir / "events.json"
+            with open(events_file, "w") as f:
+                json.dump(self._events, f, indent=2)
+        except Exception as e:
+            logger.warning(
+                "timelapse_events_save_failed",
+                camera_id=self.config.camera_id,
+                error=str(e),
+            )
+
+    async def _attempt_recovery(self) -> bool:
+        """Attempt to recover the camera connection.
+
+        Returns:
+            True if recovery successful, False otherwise
+        """
+        if not self.hardware_id or not self._device_resolver:
+            # Can't recover without hardware_id and resolver
+            return False
+
+        self._recovery_attempts += 1
+        logger.info(
+            "timelapse_recovery_attempting",
+            camera_id=self.config.camera_id,
+            attempt=self._recovery_attempts,
+            hardware_id=self.hardware_id,
+        )
+
+        try:
+            # Try to resolve the hardware_id to a new device path
+            new_device_path = await self._device_resolver(self.hardware_id)
+
+            if new_device_path:
+                old_path = self.device_path
+                self.device_path = new_device_path
+                self._log_event(
+                    "recovery_success",
+                    f"Camera recovered: {old_path} -> {new_device_path}",
+                    old_device_path=old_path,
+                    new_device_path=new_device_path,
+                    recovery_attempt=self._recovery_attempts,
+                )
+                self._consecutive_failures = 0
+                self._recovery_attempts = 0
+                return True
+            else:
+                logger.debug(
+                    "timelapse_recovery_device_not_found",
+                    camera_id=self.config.camera_id,
+                    hardware_id=self.hardware_id,
+                )
+                return False
+
+        except Exception as e:
+            logger.warning(
+                "timelapse_recovery_error",
+                camera_id=self.config.camera_id,
+                error=str(e),
+            )
+            return False
 
     async def start(self) -> bool:
         """Start the timelapse capture loop.
@@ -146,7 +317,7 @@ class TimelapseSession:
         return self.frame_count
 
     async def _capture_loop(self) -> None:
-        """Main capture loop."""
+        """Main capture loop with automatic recovery."""
         logger.info(
             "timelapse_capture_started",
             camera_id=self.config.camera_id,
@@ -155,14 +326,87 @@ class TimelapseSession:
         )
 
         while not self._stop_event.is_set():
-            # Check if we've reached the target frame count
-            if self.config.total_frames and self.frame_count >= self.config.total_frames:
+            # DURATION IS KING: Check target_end_time FIRST - this is the absolute authority
+            if self.target_end_time and datetime.now() >= self.target_end_time:
+                self._completed_by_duration = True
+                # Log if we didn't capture expected frames due to gaps
+                if self.config.total_frames and self.frame_count < self.config.total_frames:
+                    self._frames_incomplete = True
+                    missed = self.config.total_frames - self.frame_count
+                    self._log_event(
+                        "duration_complete_incomplete_frames",
+                        f"Duration reached with {self.frame_count}/{self.config.total_frames} frames "
+                        f"({missed} frames missed due to camera issues)",
+                        expected_frames=self.config.total_frames,
+                        actual_frames=self.frame_count,
+                        missed_frames=missed,
+                        total_failures=self._total_failures,
+                    )
                 logger.info(
-                    "timelapse_target_reached",
+                    "timelapse_duration_reached",
                     camera_id=self.config.camera_id,
                     frame_count=self.frame_count,
+                    target_frames=self.config.total_frames,
+                    target_end_time=self.target_end_time.isoformat(),
                 )
                 break
+
+            # Secondary check: frame count target (only if no duration set)
+            if self.config.total_frames and self.frame_count >= self.config.total_frames:
+                # Only stop on frame count if there's no target_end_time
+                if not self.target_end_time:
+                    logger.info(
+                        "timelapse_target_reached",
+                        camera_id=self.config.camera_id,
+                        frame_count=self.frame_count,
+                    )
+                    break
+
+            # If in recovery mode, attempt recovery before capturing
+            if self._in_recovery_mode:
+
+                if self._recovery_attempts >= MAX_RECOVERY_ATTEMPTS:
+                    # Reset recovery attempts and wait longer before trying again
+                    self._recovery_attempts = 0
+                    logger.info(
+                        "timelapse_recovery_cooldown",
+                        camera_id=self.config.camera_id,
+                        consecutive_failures=self._consecutive_failures,
+                    )
+                    # Wait for longer backoff period
+                    try:
+                        await asyncio.wait_for(
+                            self._stop_event.wait(),
+                            timeout=RECOVERY_BACKOFF_SECONDS * 2,
+                        )
+                        break  # Stop requested
+                    except asyncio.TimeoutError:
+                        pass
+
+                recovered = await self._attempt_recovery()
+                if recovered:
+                    self._in_recovery_mode = False
+                    # Log gap end
+                    if self._gap_start_frame is not None:
+                        gap_duration = self._consecutive_failures * self.config.interval_seconds
+                        self._log_event(
+                            "gap_end",
+                            f"Camera recovered after {self._consecutive_failures} missed frames (~{gap_duration}s gap)",
+                            gap_start_frame=self._gap_start_frame,
+                            missed_frames=self._consecutive_failures,
+                            gap_duration_seconds=gap_duration,
+                        )
+                        self._gap_start_frame = None
+                else:
+                    # Recovery failed, wait before next attempt
+                    try:
+                        await asyncio.wait_for(
+                            self._stop_event.wait(),
+                            timeout=RECOVERY_BACKOFF_SECONDS,
+                        )
+                        break  # Stop requested
+                    except asyncio.TimeoutError:
+                        continue  # Try recovery again
 
             # Check resources before each capture
             resources_ok, reason = await check_resources_available(
@@ -180,6 +424,21 @@ class TimelapseSession:
                 await asyncio.sleep(30)
                 continue
 
+            # Check system pressure (memory/swap) and apply adaptive throttling
+            is_healthy, pressure_reason, pressure_metrics = check_system_pressure()
+            if not is_healthy:
+                adaptive_delay = get_adaptive_delay_seconds()
+                if adaptive_delay > 0:
+                    logger.info(
+                        "timelapse_throttling",
+                        camera_id=self.config.camera_id,
+                        reason=pressure_reason,
+                        delay_seconds=adaptive_delay,
+                        metrics=pressure_metrics,
+                    )
+                    # Add delay before capture to reduce system pressure
+                    await asyncio.sleep(adaptive_delay)
+
             # Generate frame filename with zero-padded number
             frame_filename = f"frame_{self.frame_count:06d}"
             output_file = self.timelapse_dir / f"{frame_filename}.jpg"
@@ -193,7 +452,38 @@ class TimelapseSession:
             )
 
             if success:
+                # Reset failure counters on success
+                if self._consecutive_failures > 0:
+                    logger.info(
+                        "timelapse_recovered_naturally",
+                        camera_id=self.config.camera_id,
+                        consecutive_failures=self._consecutive_failures,
+                    )
+                self._consecutive_failures = 0
                 self.frame_count += 1
+
+                # Apply environment overlay if configured
+                if self._overlay_service and self._polling_service and filepath:
+                    try:
+                        overlay_applied = await self._overlay_service.apply_overlay(
+                            image_path=Path(filepath),
+                            frame_number=self.frame_count,
+                            polling_service=self._polling_service,
+                        )
+                        if overlay_applied:
+                            logger.debug(
+                                "timelapse_overlay_applied",
+                                camera_id=self.config.camera_id,
+                                frame=self.frame_count,
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            "timelapse_overlay_error",
+                            camera_id=self.config.camera_id,
+                            frame=self.frame_count,
+                            error=str(e),
+                        )
+
                 logger.debug(
                     "timelapse_frame_captured",
                     camera_id=self.config.camera_id,
@@ -201,12 +491,35 @@ class TimelapseSession:
                     filepath=filepath,
                 )
             else:
+                self._consecutive_failures += 1
+                self._total_failures += 1
+
+                # Log start of gap on first failure
+                if self._consecutive_failures == 1:
+                    self._gap_start_frame = self.frame_count
+                    self._log_event(
+                        "gap_start",
+                        f"Capture failed: {message[:100]}",
+                        error=message[:200],
+                    )
+
                 logger.warning(
                     "timelapse_frame_failed",
                     camera_id=self.config.camera_id,
                     frame=self.frame_count,
+                    consecutive_failures=self._consecutive_failures,
                     error=message,
                 )
+
+                # Check if we should enter recovery mode
+                if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    if not self._in_recovery_mode:
+                        self._in_recovery_mode = True
+                        self._log_event(
+                            "recovery_start",
+                            f"Entering recovery mode after {self._consecutive_failures} consecutive failures",
+                            consecutive_failures=self._consecutive_failures,
+                        )
 
             # Wait for next capture interval
             try:
@@ -248,6 +561,9 @@ class TimelapseService:
         config: TimelapseConfig,
         session: AsyncSession | None = None,
         frames_dir: Path | str | None = None,
+        hardware_id: str | None = None,
+        target_end_time: datetime | None = None,
+        polling_service: "EnvironmentPollingService | None" = None,
     ) -> tuple[bool, str, int | None]:
         """Start a new timelapse capture session.
 
@@ -259,6 +575,9 @@ class TimelapseService:
             session: Database session for Job creation (optional)
             frames_dir: Optional custom directory for storing frames.
                         If not provided, creates a new directory in media_path/timelapses/
+            hardware_id: Hardware ID for USB camera recovery (optional)
+            target_end_time: When the timelapse should end (for timeout during recovery)
+            polling_service: Environment polling service for overlay (optional)
 
         Returns:
             Tuple of (success: bool, message: str, job_id: int | None)
@@ -281,7 +600,7 @@ class TimelapseService:
                 timelapse_dir = Path(frames_dir) if isinstance(frames_dir, str) else frames_dir
                 timelapse_dir.mkdir(parents=True, exist_ok=True)
             else:
-                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 timelapse_dir = Path(settings.media_path) / "timelapses" / f"camera{camera_id}_{timestamp}"
                 timelapse_dir.mkdir(parents=True, exist_ok=True)
 
@@ -299,13 +618,20 @@ class TimelapseService:
                 job_id = job.id
                 await session.commit()
 
-            # Create and start session
+            # Import resolver for recovery (lazy import to avoid circular deps)
+            from app.services.camera.resolver import resolve_hardware_id
+
+            # Create and start session with recovery support for USB cameras
             timelapse_session = TimelapseSession(
                 config=config,
                 device_path=device_path,
                 camera_type=camera_type,
                 job_id=job_id,
                 timelapse_dir=timelapse_dir,
+                hardware_id=hardware_id if camera_type == "usb" else None,
+                device_resolver=resolve_hardware_id if camera_type == "usb" and hardware_id else None,
+                target_end_time=target_end_time,
+                polling_service=polling_service,
             )
 
             success = await timelapse_session.start()
@@ -516,6 +842,46 @@ class TimelapseService:
             True if running
         """
         return camera_id in self._sessions and self._sessions[camera_id].is_running
+
+    def get_timelapse_events(self, camera_id: int) -> list[dict]:
+        """Get events logged during timelapse capture.
+
+        Args:
+            camera_id: Camera database ID
+
+        Returns:
+            List of event dictionaries
+        """
+        if camera_id in self._sessions:
+            return self._sessions[camera_id].get_events()
+        return []
+
+    def get_timelapse_health(self, camera_id: int) -> dict | None:
+        """Get health status of a running timelapse.
+
+        Args:
+            camera_id: Camera database ID
+
+        Returns:
+            Health status dict or None if not running
+        """
+        if camera_id not in self._sessions:
+            return None
+
+        session = self._sessions[camera_id]
+        return {
+            "is_running": session.is_running,
+            "frame_count": session.frame_count,
+            "completed_by_duration": session._completed_by_duration,
+            "frames_incomplete": session._frames_incomplete,
+            "consecutive_failures": session._consecutive_failures,
+            "total_failures": session._total_failures,
+            "in_recovery_mode": session._in_recovery_mode,
+            "recovery_attempts": session._recovery_attempts,
+            "device_path": session.device_path,
+            "hardware_id": session.hardware_id,
+            "events_count": len(session._events),
+        }
 
     async def get_interrupted_frame_info(self, job_id: int, timelapse_dir: str) -> dict:
         """Get information about frames from an interrupted timelapse.

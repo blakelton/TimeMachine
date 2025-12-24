@@ -86,7 +86,7 @@ class RecordingService:
             # Handle filename/path
             if not filename:
                 # Generate default filename with timestamp
-                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"camera{camera_id}_{timestamp}"
                 recording_path = Path(settings.media_path) / "recordings"
                 recording_path.mkdir(parents=True, exist_ok=True)

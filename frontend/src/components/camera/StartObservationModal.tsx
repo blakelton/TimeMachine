@@ -1,25 +1,72 @@
 /**
  * Modal for starting a new observation (timelapse or recording)
+ * Touch-screen friendly - no keyboard required
  */
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
 import { Modal } from "../Modal";
 import { Button } from "../Button";
-import { FormField } from "../FormField";
+import { TouchNumberInput } from "../TouchNumberInput";
+import { TouchSelect } from "../TouchSelect";
 import { useToast } from "../../contexts/ToastContext";
 import "./StartObservationModal.css";
 
 type ObservationType = "timelapse" | "recording";
 type TimeUnit = "seconds" | "minutes" | "hours";
-type EndMode = "duration" | "datetime" | "manual";
+type EndMode = "duration" | "manual";
+type OverlayPosition = "tl" | "tr" | "bl" | "br";
 
 interface StartObservationModalProps {
   cameraId: number;
   isOpen: boolean;
   onClose: () => void;
   onStarted: () => void;
+}
+
+// Preset options for quick selection
+const INTERVAL_PRESETS = [
+  { value: 10, unit: "seconds" as TimeUnit, label: "10s" },
+  { value: 30, unit: "seconds" as TimeUnit, label: "30s" },
+  { value: 1, unit: "minutes" as TimeUnit, label: "1m" },
+  { value: 5, unit: "minutes" as TimeUnit, label: "5m" },
+  { value: 10, unit: "minutes" as TimeUnit, label: "10m" },
+];
+
+const DURATION_PRESETS = [
+  { value: 1, unit: "hours" as TimeUnit, label: "1h" },
+  { value: 2, unit: "hours" as TimeUnit, label: "2h" },
+  { value: 6, unit: "hours" as TimeUnit, label: "6h" },
+  { value: 12, unit: "hours" as TimeUnit, label: "12h" },
+  { value: 24, unit: "hours" as TimeUnit, label: "24h" },
+];
+
+const TIME_UNIT_OPTIONS = [
+  { value: "seconds" as TimeUnit, label: "Sec" },
+  { value: "minutes" as TimeUnit, label: "Min" },
+  { value: "hours" as TimeUnit, label: "Hr" },
+];
+
+const OUTPUT_FPS_OPTIONS = [
+  { value: 15, label: "15" },
+  { value: 24, label: "24" },
+  { value: 30, label: "30" },
+  { value: 60, label: "60" },
+];
+
+const OVERLAY_POSITION_OPTIONS = [
+  { value: "tl" as OverlayPosition, label: "Top Left" },
+  { value: "tr" as OverlayPosition, label: "Top Right" },
+  { value: "bl" as OverlayPosition, label: "Bottom Left" },
+  { value: "br" as OverlayPosition, label: "Bottom Right" },
+];
+
+interface EnvironmentDevice {
+  id: number;
+  name: string;
+  device_type: string;
+  enabled: boolean;
 }
 
 export function StartObservationModal({
@@ -48,6 +95,36 @@ export function StartObservationModal({
   const [recDurationValue, setRecDurationValue] = useState(30);
   const [recDurationUnit, setRecDurationUnit] = useState<TimeUnit>("minutes");
 
+  // Environment overlay settings
+  const [envOverlayDeviceId, setEnvOverlayDeviceId] = useState<number | null>(null);
+  const [envOverlayPosition, setEnvOverlayPosition] = useState<OverlayPosition>("br");
+  const [envOverlayShowGraph, setEnvOverlayShowGraph] = useState(false);
+
+  // Fetch environment devices for overlay dropdown
+  const { data: envDevicesData } = useQuery({
+    queryKey: ["environmentDevices"],
+    queryFn: async () => {
+      const response = await apiClient.GET("/api/v1/environment/devices");
+      if (response.error) throw new Error("Failed to fetch environment devices");
+      return response.data as { devices: EnvironmentDevice[] };
+    },
+    staleTime: 30000,
+  });
+
+  const enabledEnvDevices = envDevicesData?.devices?.filter(d => d.enabled) || [];
+
+  // Apply interval preset
+  const applyIntervalPreset = (preset: typeof INTERVAL_PRESETS[0]) => {
+    setIntervalValue(preset.value);
+    setIntervalUnit(preset.unit);
+  };
+
+  // Apply duration preset
+  const applyDurationPreset = (preset: typeof DURATION_PRESETS[0]) => {
+    setTlDurationValue(preset.value);
+    setTlDurationUnit(preset.unit);
+  };
+
   // Mutation for starting observation
   const startMutation = useMutation({
     mutationFn: async () => {
@@ -67,6 +144,10 @@ export function StartObservationModal({
           resolution_width: 1920,
           resolution_height: 1080,
           quality: 95,
+          // Environment overlay settings
+          env_overlay_device_id: envOverlayDeviceId,
+          env_overlay_position: envOverlayDeviceId ? envOverlayPosition : "br",
+          env_overlay_show_graph: envOverlayDeviceId ? envOverlayShowGraph : false,
         };
       } else {
         body.recording_config = {
@@ -127,9 +208,6 @@ export function StartObservationModal({
       <form onSubmit={handleSubmit} className="observation-modal">
         {/* Observation Type Selector */}
         <div className="observation-modal__type-selector">
-          <label className="observation-modal__type-label">
-            Observation Type
-          </label>
           <div className="observation-modal__type-options">
             <button
               type="button"
@@ -142,9 +220,6 @@ export function StartObservationModal({
             >
               <span className="observation-modal__type-icon">⏱️</span>
               <span className="observation-modal__type-name">Time-Lapse</span>
-              <span className="observation-modal__type-desc">
-                Capture frames at intervals
-              </span>
             </button>
             <button
               type="button"
@@ -157,164 +232,240 @@ export function StartObservationModal({
             >
               <span className="observation-modal__type-icon">🎬</span>
               <span className="observation-modal__type-name">Recording</span>
-              <span className="observation-modal__type-desc">
-                Continuous video recording
-              </span>
             </button>
           </div>
         </div>
 
-        <div className="observation-modal__divider" />
-
         {/* Timelapse Settings */}
         {observationType === "timelapse" && (
           <div className="observation-modal__settings">
-            <h3 className="observation-modal__settings-title">
-              Timelapse Settings
-            </h3>
-
-            {/* Interval */}
-            <div className="observation-modal__row">
-              <FormField
-                label="Capture Interval"
-                type="number"
-                value={intervalValue}
-                onChange={(e) => setIntervalValue(Number(e.target.value))}
-                min={1}
-                max={999}
-                className="observation-modal__field--narrow"
-              />
-              <FormField
-                label="Unit"
-                element="select"
-                value={intervalUnit}
-                onChange={(e) => setIntervalUnit(e.target.value as TimeUnit)}
-                className="observation-modal__field--narrow"
-              >
-                <option value="seconds">Seconds</option>
-                <option value="minutes">Minutes</option>
-                <option value="hours">Hours</option>
-              </FormField>
+            {/* Interval Presets */}
+            <div className="observation-modal__section">
+              <label className="observation-modal__section-label">
+                Capture Every
+              </label>
+              <div className="observation-modal__presets">
+                {INTERVAL_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    className={`observation-modal__preset ${
+                      intervalValue === preset.value &&
+                      intervalUnit === preset.unit
+                        ? "observation-modal__preset--active"
+                        : ""
+                    }`}
+                    onClick={() => applyIntervalPreset(preset)}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="observation-modal__custom-row">
+                <TouchNumberInput
+                  value={intervalValue}
+                  onChange={setIntervalValue}
+                  min={1}
+                  max={999}
+                  className="observation-modal__number-input"
+                />
+                <TouchSelect
+                  value={intervalUnit}
+                  onChange={setIntervalUnit}
+                  options={TIME_UNIT_OPTIONS}
+                  className="observation-modal__unit-select"
+                />
+              </div>
             </div>
 
             {/* End Mode */}
-            <FormField
-              label="Run Until"
-              element="select"
-              value={tlEndMode}
-              onChange={(e) => setTlEndMode(e.target.value as EndMode)}
-            >
-              <option value="duration">For a Duration</option>
-              <option value="manual">Until Manually Stopped</option>
-            </FormField>
+            <div className="observation-modal__section">
+              <label className="observation-modal__section-label">
+                Run Until
+              </label>
+              <TouchSelect
+                value={tlEndMode}
+                onChange={setTlEndMode}
+                options={[
+                  { value: "duration" as EndMode, label: "Set Duration" },
+                  { value: "manual" as EndMode, label: "Manual Stop" },
+                ]}
+              />
+            </div>
 
             {/* Duration (if duration mode) */}
             {tlEndMode === "duration" && (
-              <div className="observation-modal__row">
-                <FormField
-                  label="Duration"
-                  type="number"
-                  value={tlDurationValue}
-                  onChange={(e) => setTlDurationValue(Number(e.target.value))}
-                  min={1}
-                  max={999}
-                  className="observation-modal__field--narrow"
-                />
-                <FormField
-                  label="Unit"
-                  element="select"
-                  value={tlDurationUnit}
-                  onChange={(e) =>
-                    setTlDurationUnit(e.target.value as TimeUnit)
-                  }
-                  className="observation-modal__field--narrow"
-                >
-                  <option value="seconds">Seconds</option>
-                  <option value="minutes">Minutes</option>
-                  <option value="hours">Hours</option>
-                </FormField>
+              <div className="observation-modal__section">
+                <label className="observation-modal__section-label">
+                  Duration
+                </label>
+                <div className="observation-modal__presets">
+                  {DURATION_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      className={`observation-modal__preset ${
+                        tlDurationValue === preset.value &&
+                        tlDurationUnit === preset.unit
+                          ? "observation-modal__preset--active"
+                          : ""
+                      }`}
+                      onClick={() => applyDurationPreset(preset)}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="observation-modal__custom-row">
+                  <TouchNumberInput
+                    value={tlDurationValue}
+                    onChange={setTlDurationValue}
+                    min={1}
+                    max={999}
+                    className="observation-modal__number-input"
+                  />
+                  <TouchSelect
+                    value={tlDurationUnit}
+                    onChange={setTlDurationUnit}
+                    options={TIME_UNIT_OPTIONS}
+                    className="observation-modal__unit-select"
+                  />
+                </div>
               </div>
             )}
 
             {/* Output FPS */}
-            <FormField
-              label="Output Video FPS"
-              element="select"
-              value={outputFps}
-              onChange={(e) => setOutputFps(Number(e.target.value))}
-            >
-              <option value={15}>15 fps</option>
-              <option value={24}>24 fps</option>
-              <option value={30}>30 fps (recommended)</option>
-              <option value={60}>60 fps</option>
-            </FormField>
+            <div className="observation-modal__section">
+              <label className="observation-modal__section-label">
+                Output Video FPS
+              </label>
+              <TouchSelect
+                value={outputFps}
+                onChange={setOutputFps}
+                options={OUTPUT_FPS_OPTIONS}
+              />
+            </div>
+
+            {/* Environment Overlay */}
+            {enabledEnvDevices.length > 0 && (
+              <>
+                <div className="observation-modal__divider" />
+                <div className="observation-modal__section">
+                  <label className="observation-modal__section-label">
+                    Environment Overlay
+                  </label>
+                  <TouchSelect
+                    value={envOverlayDeviceId ?? 0}
+                    onChange={(val) => setEnvOverlayDeviceId(val === 0 ? null : val)}
+                    options={[
+                      { value: 0, label: "None" },
+                      ...enabledEnvDevices.map(d => ({
+                        value: d.id,
+                        label: `${d.name} (${d.device_type})`,
+                      })),
+                    ]}
+                  />
+                </div>
+
+                {envOverlayDeviceId && (
+                  <>
+                    <div className="observation-modal__section">
+                      <label className="observation-modal__section-label">
+                        Overlay Position
+                      </label>
+                      <TouchSelect
+                        value={envOverlayPosition}
+                        onChange={setEnvOverlayPosition}
+                        options={OVERLAY_POSITION_OPTIONS}
+                      />
+                    </div>
+
+                    <div className="observation-modal__section">
+                      <label className="observation-modal__section-label">
+                        Show Temperature Graph
+                      </label>
+                      <TouchSelect
+                        value={envOverlayShowGraph ? 1 : 0}
+                        onChange={(val) => setEnvOverlayShowGraph(val === 1)}
+                        options={[
+                          { value: 0, label: "No" },
+                          { value: 1, label: "Yes" },
+                        ]}
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         )}
 
         {/* Recording Settings */}
         {observationType === "recording" && (
           <div className="observation-modal__settings">
-            <h3 className="observation-modal__settings-title">
-              Recording Settings
-            </h3>
-
             {/* End Mode */}
-            <FormField
-              label="Record Until"
-              element="select"
-              value={recEndMode}
-              onChange={(e) => setRecEndMode(e.target.value as EndMode)}
-            >
-              <option value="manual">Until Manually Stopped</option>
-              <option value="duration">For a Duration</option>
-            </FormField>
+            <div className="observation-modal__section">
+              <label className="observation-modal__section-label">
+                Record Until
+              </label>
+              <TouchSelect
+                value={recEndMode}
+                onChange={setRecEndMode}
+                options={[
+                  { value: "manual" as EndMode, label: "Manual Stop" },
+                  { value: "duration" as EndMode, label: "Set Duration" },
+                ]}
+              />
+            </div>
 
             {/* Duration (if duration mode) */}
             {recEndMode === "duration" && (
-              <div className="observation-modal__row">
-                <FormField
-                  label="Duration"
-                  type="number"
-                  value={recDurationValue}
-                  onChange={(e) => setRecDurationValue(Number(e.target.value))}
-                  min={1}
-                  max={999}
-                  className="observation-modal__field--narrow"
-                />
-                <FormField
-                  label="Unit"
-                  element="select"
-                  value={recDurationUnit}
-                  onChange={(e) =>
-                    setRecDurationUnit(e.target.value as TimeUnit)
-                  }
-                  className="observation-modal__field--narrow"
-                >
-                  <option value="seconds">Seconds</option>
-                  <option value="minutes">Minutes</option>
-                  <option value="hours">Hours</option>
-                </FormField>
+              <div className="observation-modal__section">
+                <label className="observation-modal__section-label">
+                  Duration
+                </label>
+                <div className="observation-modal__custom-row">
+                  <TouchNumberInput
+                    value={recDurationValue}
+                    onChange={setRecDurationValue}
+                    min={1}
+                    max={999}
+                    className="observation-modal__number-input"
+                  />
+                  <TouchSelect
+                    value={recDurationUnit}
+                    onChange={setRecDurationUnit}
+                    options={TIME_UNIT_OPTIONS}
+                    className="observation-modal__unit-select"
+                  />
+                </div>
               </div>
             )}
 
             <p className="observation-modal__note">
-              Recording uses H.264 encoding at 4 Mbps. Only one recording can be
-              active at a time due to hardware encoder limitations.
+              Recording uses H.264 at 4 Mbps. Only one recording active at a
+              time due to hardware encoder limits.
             </p>
           </div>
         )}
 
         {/* Footer */}
         <div className="observation-modal__footer">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            className="observation-modal__btn"
+          >
             Cancel
           </Button>
           <Button
             type="submit"
             variant="primary"
             disabled={startMutation.isPending}
+            className="observation-modal__btn observation-modal__btn--primary"
           >
-            {startMutation.isPending ? "Starting..." : "Start Observation"}
+            {startMutation.isPending ? "Starting..." : "Start"}
           </Button>
         </div>
       </form>

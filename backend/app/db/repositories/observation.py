@@ -146,7 +146,7 @@ class ObservationRepository(BaseRepository[Observation]):
         """
         update_data = {
             "status": "completed",
-            "completed_at": datetime.utcnow(),
+            "completed_at": datetime.now(),
         }
         if size_bytes is not None:
             update_data["size_bytes"] = size_bytes
@@ -166,7 +166,7 @@ class ObservationRepository(BaseRepository[Observation]):
         """
         update_data = {
             "status": "stopped",
-            "completed_at": datetime.utcnow(),
+            "completed_at": datetime.now(),
         }
         if size_bytes is not None:
             update_data["size_bytes"] = size_bytes
@@ -187,7 +187,7 @@ class ObservationRepository(BaseRepository[Observation]):
         return await self.update(
             observation_id,
             status="failed",
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(),
             error_message=error_message,
         )
 
@@ -237,7 +237,7 @@ class ObservationRepository(BaseRepository[Observation]):
 
         for obs in observations:
             obs.status = "failed"
-            obs.completed_at = datetime.utcnow()
+            obs.completed_at = datetime.now()
             obs.error_message = "Observation interrupted by system restart"
 
         await self.session.flush()

@@ -64,6 +64,14 @@ class CameraUpdate(BaseModel):
     device_path: str | None = Field(
         None, min_length=1, max_length=255, description="Device path (e.g., /dev/video0)"
     )
+    camera_type: str | None = Field(
+        None, description="Camera type: 'csi' or 'usb'"
+    )
+    hardware_id: str | None = Field(
+        None,
+        max_length=500,
+        description="Stable hardware identifier (by-path for USB, libcamera:N for CSI)",
+    )
     enabled: bool | None = None
     default_settings: CameraSettings | None = None
 

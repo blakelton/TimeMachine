@@ -55,6 +55,17 @@ class TimelapseObservationConfig(BaseModel):
     resolution_height: int = Field(1080, ge=480, description="Output height")
     quality: int = Field(95, ge=1, le=100, description="JPEG quality (1-100)")
 
+    # Environment overlay settings
+    env_overlay_device_id: int | None = Field(
+        None, description="Environment device ID for data overlay (optional)"
+    )
+    env_overlay_position: Literal["tl", "tr", "bl", "br"] = Field(
+        "br", description="Overlay position: tl, tr, bl, br"
+    )
+    env_overlay_show_graph: bool = Field(
+        False, description="Show temperature mini-graph on overlay"
+    )
+
 
 class RecordingObservationConfig(BaseModel):
     """Configuration for recording observations."""

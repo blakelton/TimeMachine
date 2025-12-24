@@ -1,0 +1,68 @@
+/**
+ * Sensor graph styles
+ */
+
+.sensor-graph {
+  margin-bottom: 0.75rem;
+}
+
+.sensor-graph:last-child {
+  margin-bottom: 0;
+}
+
+.graph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.graph-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.graph-stats {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.stat {
+  display: flex;
+  gap: 0.25rem;
+  font-size: var(--font-size-xs);
+}
+
+.stat-label {
+  color: var(--color-text-muted);
+}
+
+.stat-value {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.graph-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-secondary);
+}
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .sensor-graph {
+    margin-bottom: 0.5rem;
+  }
+
+  .graph-stats {
+    gap: 0.5rem;
+  }
+
+  .stat {
+    font-size: 10px;
+  }
+}

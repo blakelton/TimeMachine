@@ -1,0 +1,359 @@
+/**
+ * Environment panel styles
+ */
+
+.environment-panel {
+  max-width: 1200px;
+}
+
+/* Panel Section */
+.panel-section {
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  gap: 1.5rem;
+}
+
+.section-header h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.section-description {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.section-actions {
+  flex-shrink: 0;
+}
+
+/* Loading, Error, Empty States */
+.panel-loading,
+.panel-error,
+.panel-empty {
+  text-align: center;
+  padding: 3rem 2rem;
+}
+
+.panel-loading {
+  color: var(--color-text-muted);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 1rem;
+  border: 3px solid var(--color-border-light);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.panel-error {
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+  border-radius: var(--radius-md);
+}
+
+.panel-empty {
+  color: var(--color-text-muted);
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.panel-empty h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.panel-empty p {
+  margin: 0 0 1.5rem 0;
+}
+
+/* Devices List */
+.devices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Device Card */
+.device-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  transition: box-shadow 0.2s ease;
+}
+
+.device-card:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.device-info {
+  flex: 1;
+}
+
+.device-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.device-header h3 {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.device-status {
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-status.enabled {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.device-status.disabled {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.device-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.device-detail {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.detail-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.detail-value {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-family: monospace;
+}
+
+.device-notes {
+  margin-top: 0.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.device-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Device Form */
+.device-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.device-type-info {
+  background: var(--color-bg-secondary);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.device-type-info p {
+  margin: 0;
+}
+
+.device-type-info .measures {
+  margin-top: 0.25rem;
+}
+
+.device-type-info .measures strong {
+  color: var(--color-text-primary);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Form Section Header */
+.form-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0 0.5rem;
+  border-top: 1px solid var(--color-border-light);
+  margin-top: 0.5rem;
+}
+
+.form-section-header > span:first-child {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-section-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* Form Row for side-by-side fields */
+.form-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0.75rem;
+}
+
+/* Coming Soon placeholder */
+.coming-soon {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .device-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .device-actions {
+    justify-content: stretch;
+  }
+
+  .device-actions .btn {
+    flex: 1;
+  }
+}
+
+/* 800x480 Touchscreen Optimization */
+@media (max-width: 850px) and (max-height: 520px) and (orientation: landscape) {
+  .environment-panel {
+    max-width: 100%;
+  }
+
+  .panel-section {
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .section-header {
+    margin-bottom: 0.75rem;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .section-header h2 {
+    font-size: var(--font-size-base);
+    margin-bottom: 0;
+  }
+
+  .section-description {
+    display: none;
+  }
+
+  .panel-loading,
+  .panel-error,
+  .panel-empty {
+    padding: 1.5rem;
+  }
+
+  .empty-icon {
+    font-size: 2rem;
+  }
+
+  .panel-empty h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .devices-list {
+    gap: 0.5rem;
+  }
+
+  .device-card {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .device-header {
+    margin-bottom: 0.25rem;
+  }
+
+  .device-header h3 {
+    font-size: var(--font-size-sm);
+  }
+
+  .device-details {
+    gap: 0.75rem;
+  }
+
+  .detail-label,
+  .detail-value {
+    font-size: var(--font-size-xs);
+  }
+
+  .device-notes {
+    font-size: var(--font-size-xs);
+  }
+
+  .coming-soon {
+    padding: 1rem;
+  }
+}

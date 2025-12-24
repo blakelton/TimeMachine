@@ -53,9 +53,10 @@ export function CameraForm({
   const [discoveredCameras, setDiscoveredCameras] = useState<DiscoveredCameraResponse[]>([]);
   const [discoveringCameras, setDiscoveringCameras] = useState(false);
 
-  // Discover available cameras when camera type changes (only when adding new camera)
+  // Discover available cameras when camera type changes
+  // Also runs in edit mode to show available options (including current device)
   useEffect(() => {
-    if (!camera && formData.camera_type) {
+    if (formData.camera_type) {
       const discoverCameras = async () => {
         setDiscoveringCameras(true);
         setDiscoveredCameras([]); // Clear previous results
@@ -65,10 +66,26 @@ export function CameraForm({
           const response = await fetch(url, { method: "POST" });
 
           if (response.ok) {
-            const data = await response.json();
+            let data: DiscoveredCameraResponse[] = await response.json();
+
+            // When editing, add the current camera's device to the list if not already present
+            // (discovery excludes already-configured cameras)
+            if (camera && !data.some(d => d.device_path === camera.device_path)) {
+              data = [
+                {
+                  name: camera.name,
+                  device_path: camera.device_path,
+                  camera_type: camera.camera_type,
+                  hardware_id: null,
+                  capabilities: null,
+                },
+                ...data,
+              ];
+            }
+
             setDiscoveredCameras(data);
-            // Auto-select first camera if available and device path is empty or "custom"
-            if (data.length > 0 && (!formData.device_path || formData.device_path === "custom")) {
+            // Auto-select first camera if available and device path is empty or "custom" (only when adding)
+            if (!camera && data.length > 0 && (!formData.device_path || formData.device_path === "custom")) {
               setFormData((prev) => ({
                 ...prev,
                 device_path: data[0].device_path,
@@ -87,7 +104,7 @@ export function CameraForm({
       discoverCameras();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera, formData.camera_type]); // Only trigger on camera_type change, not on device_path or name changes
+  }, [formData.camera_type]); // Only trigger on camera_type change
 
   // Update form when camera prop changes (for edit mode)
   // eslint-disable-next-line react-compiler/react-compiler
@@ -161,7 +178,7 @@ export function CameraForm({
         onChange={(e) => handleChange("camera_type", e.target.value)}
         error={errors.camera_type}
         required
-        disabled={loading || Boolean(camera)} // Disable type change when editing
+        disabled={loading}
       >
         <option value="usb">USB Camera</option>
         <option value="csi">CSI Camera</option>
@@ -181,7 +198,7 @@ export function CameraForm({
             : "No cameras detected - enter path manually"
         }
         required
-        disabled={loading || Boolean(camera) || discoveringCameras}
+        disabled={loading || discoveringCameras}
       >
         {discoveredCameras.length === 0 && !discoveringCameras && (
           <option value="">-- No cameras detected --</option>

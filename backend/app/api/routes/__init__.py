@@ -2,6 +2,7 @@
 
 from app.api.routes import (
     cameras,
+    environment,
     health,
     jobs,
     observations,
@@ -12,6 +13,7 @@ from app.api.routes import (
 
 __all__ = [
     "cameras",
+    "environment",
     "health",
     "jobs",
     "observations",

@@ -60,7 +60,8 @@ export function CameraPage() {
       return data as { has_active: boolean; observation: ActiveObservation | null };
     },
     enabled: !isNaN(cameraIdNum) && cameraIdNum > 0,
-    refetchInterval: 3000,
+    refetchInterval: 5000, // Reduced from 3s for performance
+    staleTime: 4000,
   });
 
   const activeObservation = activeObsData?.observation || null;

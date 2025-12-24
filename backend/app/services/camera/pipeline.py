@@ -94,7 +94,7 @@ class ManagedPipeline:
             )
 
             self.pid = self.process.pid
-            self.started_at = datetime.utcnow()
+            self.started_at = datetime.now()
 
             # Wait briefly to detect immediate failures (e.g., missing device)
             # Reduced from 150ms to 50ms - balance between detection and speed
@@ -383,5 +383,5 @@ class ManagedPipeline:
             Uptime in seconds or None if not running
         """
         if self.started_at and self.state == PipelineState.RUNNING:
-            return (datetime.utcnow() - self.started_at).total_seconds()
+            return (datetime.now() - self.started_at).total_seconds()
         return None

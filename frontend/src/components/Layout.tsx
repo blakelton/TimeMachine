@@ -36,7 +36,7 @@ export function Layout() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1><span className="header-icon">⏰</span> TimeMachine</h1>
+        <h1><span className="header-icon">⏰</span></h1>
         <nav className="main-nav">
           <Link
             to="/"
@@ -68,6 +68,12 @@ export function Layout() {
             className={isActive("/files") ? "nav-link active" : "nav-link"}
           >
             <span className="nav-icon">📁</span> Observations
+          </Link>
+          <Link
+            to="/environment"
+            className={location.pathname.startsWith("/environment") ? "nav-link active" : "nav-link"}
+          >
+            <span className="nav-icon">🌡️</span> Environment
           </Link>
           <Link
             to="/system"

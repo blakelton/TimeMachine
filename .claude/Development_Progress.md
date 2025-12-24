@@ -60,6 +60,141 @@ Track all:
 
 <!-- New entries should be added at the top, below this line -->
 
+### [2025-12-23 19:45] Feature: Environment Overlay for Timelapse - Complete
+**Type**: Feature
+**Status**: COMPLETED
+
+**Description**:
+Added ability to stamp environmental sensor data (temperature, humidity, pressure) onto timelapse frames as they are captured.
+
+**Features**:
+- Optional environment device selection when starting timelapse
+- Configurable overlay position (top-left, top-right, bottom-left, bottom-right)
+- Optional mini temperature graph showing last 30 minutes of readings
+- Sensor-specific data display (only shows what the sensor measures)
+- Graph cached and regenerated every 10 frames for performance
+
+**Files Created**:
+- `backend/app/services/camera/overlay.py` - EnvironmentOverlayService using PIL/Pillow
+
+**Files Modified**:
+- `backend/app/services/camera/timelapse.py` - Integrated overlay into capture loop
+- `backend/app/services/observation/service.py` - Pass overlay config to timelapse
+- `backend/app/schemas/observation.py` - Added overlay fields to TimelapseObservationConfig
+- `frontend/src/components/camera/StartObservationModal.tsx` - Added overlay UI
+
+**Performance**:
+- Overlay without graph: ~5ms per frame
+- Overlay with graph: ~10ms per frame (graph cached)
+
+---
+
+### [2025-12-23 17:00] Feature: Touch-Friendly Observation Modal - Complete
+**Type**: Feature
+**Status**: COMPLETED
+
+**Description**:
+Redesigned the observation start modal to be fully touch-screen friendly with no keyboard input required.
+
+**Features**:
+- TouchNumberInput component with +/- stepper buttons
+- TouchSelect component with segmented button style
+- Preset buttons for common intervals (10s, 30s, 1m, 5m, 10m)
+- Preset buttons for common durations (1h, 2h, 6h, 12h, 24h)
+
+**Files Created**:
+- `frontend/src/components/TouchNumberInput.tsx`
+- `frontend/src/components/TouchNumberInput.css`
+- `frontend/src/components/TouchSelect.tsx`
+- `frontend/src/components/TouchSelect.css`
+
+**Files Modified**:
+- `frontend/src/components/camera/StartObservationModal.tsx`
+- `frontend/src/components/camera/StartObservationModal.css`
+
+---
+
+### [2025-12-23 16:00] Feature: System Pressure Detection & Adaptive Throttling
+**Type**: Feature
+**Status**: COMPLETED
+
+**Description**:
+Added system health monitoring and adaptive throttling to prevent resource exhaustion on the Raspberry Pi.
+
+**Features**:
+- `check_system_pressure()` monitors memory/swap usage
+- `get_adaptive_delay_seconds()` calculates recommended delays based on load
+- Timelapse captures throttled when system is under pressure
+- Reduced frontend polling intervals (3s→5s) with staleTime caching
+
+**Files Modified**:
+- `backend/app/services/system/stats.py` - Added pressure detection functions
+- `backend/app/services/camera/timelapse.py` - Added adaptive throttling
+- `frontend/src/pages/HomePage.tsx` - Reduced polling interval
+- `frontend/src/components/SystemStats.tsx` - Reduced polling interval
+- `frontend/src/pages/CameraPage.tsx` - Reduced polling interval
+- `frontend/src/components/camera/ObservationInProgress.tsx` - Reduced polling interval
+- `frontend/src/components/settings/CamerasPanel.tsx` - Reduced polling interval
+
+---
+
+### [2025-12-23 12:00] Feature: Environment Monitoring System - Complete
+**Type**: Feature (Phase 1 Implementation)
+**Status**: COMPLETED
+**Plan**: phase1_temperature_monitoring.ready.md
+
+**Description**:
+Full implementation of environment sensor monitoring for DHT11/DHT22/AM2302/BME280 sensors.
+
+**Features**:
+- Environment device management (add/edit/delete sensors)
+- Real-time sensor polling service with automatic retries
+- Historical readings storage and retrieval
+- Live dashboard with current readings and graphs
+- Target value alerts (visual indicators when out of range)
+- Temperature unit preference (Celsius/Fahrenheit) per device
+
+**Files Created**:
+- `backend/app/db/models/environment_device.py`
+- `backend/app/db/models/environment_reading.py`
+- `backend/app/db/repositories/environment_device.py`
+- `backend/app/db/repositories/environment_reading.py`
+- `backend/app/schemas/environment.py`
+- `backend/app/api/routes/environment.py`
+- `backend/app/services/environment/__init__.py`
+- `backend/app/services/environment/polling.py`
+- `backend/app/services/environment/sensors.py`
+- `backend/app/db/migrations/versions/20241223_0005_add_environment_devices.py`
+- `backend/app/db/migrations/versions/20241223_0006_add_environment_readings.py`
+- `backend/app/db/migrations/versions/20241223_0007_add_temperature_unit.py`
+- `backend/app/db/migrations/versions/20241223_0008_add_target_values.py`
+- `frontend/src/pages/EnvironmentPage.tsx`
+- `frontend/src/pages/EnvironmentPage.css`
+- `frontend/src/components/environment/SensorCard.tsx`
+- `frontend/src/components/environment/SensorCard.css`
+- `frontend/src/components/environment/SensorGraph.tsx`
+- `frontend/src/components/environment/SensorGraph.css`
+- `frontend/src/components/environment/index.ts`
+- `frontend/src/components/settings/EnvironmentPanel.tsx`
+- `frontend/src/components/settings/EnvironmentPanel.css`
+
+**Files Modified**:
+- `backend/app/main.py` - Added environment polling startup
+- `backend/app/api/routes/__init__.py` - Added environment router
+- `backend/app/db/models/__init__.py` - Exported new models
+- `backend/app/services/startup.py` - Start polling service
+- `frontend/src/App.tsx` - Added Environment route
+- `frontend/src/components/Layout.tsx` - Added Environment nav link
+- `frontend/src/components/settings/index.ts` - Export EnvironmentPanel
+- `scripts/install.sh` - Added adafruit-circuitpython-dht dependency
+
+**Hardware Support**:
+- DHT11 temperature/humidity sensor
+- DHT22/AM2302 temperature/humidity sensor
+- BME280 temperature/humidity/pressure sensor (via I2C)
+
+---
+
 ### [2025-12-21 22:15] Feature: Persistent Camera Identification - Complete
 **Type**: Feature
 **Status**: COMPLETED

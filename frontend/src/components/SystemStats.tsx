@@ -40,8 +40,9 @@ export function SystemStats() {
         timestamp: statsData.timestamp,
       };
     },
-    refetchInterval: 3000, // Poll every 3 seconds
+    refetchInterval: 5000, // Poll every 5 seconds (reduced from 3s for performance)
     retry: 2,
+    staleTime: 4000, // Consider data fresh for 4 seconds
   });
 
   if (isLoading) {

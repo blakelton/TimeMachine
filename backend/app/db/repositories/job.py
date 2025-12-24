@@ -100,7 +100,7 @@ class JobRepository(BaseRepository[Job]):
         return await self.update(
             job_id,
             status="completed",
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(),
             output_path=output_path,
         )
 
@@ -117,7 +117,7 @@ class JobRepository(BaseRepository[Job]):
         return await self.update(
             job_id,
             status="failed",
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(),
             error_message=error_message,
         )
 
@@ -133,7 +133,7 @@ class JobRepository(BaseRepository[Job]):
         return await self.update(
             job_id,
             status="interrupted",
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(),
         )
 
     async def update_timelapse_progress(
@@ -184,7 +184,7 @@ class JobRepository(BaseRepository[Job]):
 
         for job in jobs:
             job.status = "interrupted"
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now()
             job.error_message = "Job interrupted by system restart"
 
         await self.session.flush()

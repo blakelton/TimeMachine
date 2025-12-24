@@ -596,8 +596,9 @@ async def get_observation_media(
     media_type = "application/octet-stream"
 
     if observation.observation_type == "timelapse":
-        # Look for assembled video or preview
-        for name in ["output.mp4", "timelapse.mp4", "preview.mp4"]:
+        # Look for assembled video (frames.mp4) or fallback to preview
+        # Priority: frames.mp4 (full video) > output.mp4 > timelapse.mp4 > preview.mp4 (short preview)
+        for name in ["frames.mp4", "output.mp4", "timelapse.mp4", "preview.mp4"]:
             candidate = folder_path / name
             if candidate.exists():
                 media_file = candidate

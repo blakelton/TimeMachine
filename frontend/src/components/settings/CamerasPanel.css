@@ -152,6 +152,21 @@
   color: var(--color-danger-text);
 }
 
+.camera-status.in-use {
+  background: var(--color-warning-bg, #fef3c7);
+  color: var(--color-warning-text, #92400e);
+}
+
+.camera-status-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.camera-card.in-use {
+  border-left: 3px solid var(--color-warning-text, #92400e);
+}
+
 .camera-details {
   display: flex;
   flex-wrap: wrap;

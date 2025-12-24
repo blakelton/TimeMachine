@@ -92,9 +92,10 @@ export function ObservationInProgress({
 
       return result;
     },
-    refetchInterval: 2000,
+    refetchInterval: 3000, // Reduced from 2s for performance
     retry: 3,
     retryDelay: 1000,
+    staleTime: 2500,
   });
 
   // Stop mutation

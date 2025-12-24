@@ -1,11 +1,11 @@
 /**
- * Start Observation Modal styles
+ * Start Observation Modal styles - Touch-friendly design
  */
 
 .observation-modal {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 /* Type Selector */
@@ -13,12 +13,6 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.observation-modal__type-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-primary);
 }
 
 .observation-modal__type-options {
@@ -29,15 +23,19 @@
 
 .observation-modal__type-option {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 16px 12px;
+  min-height: 60px;
   border: 2px solid var(--color-border-light);
   border-radius: var(--radius-md);
   background: var(--color-bg-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
-  text-align: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .observation-modal__type-option:hover {
@@ -45,33 +43,27 @@
   background: var(--color-primary-bg);
 }
 
+.observation-modal__type-option:active {
+  transform: scale(0.98);
+}
+
 .observation-modal__type-option--active {
   border-color: var(--color-primary);
-  background: var(--color-primary-bg);
+  background: var(--color-primary);
+}
+
+.observation-modal__type-option--active .observation-modal__type-name {
+  color: white;
 }
 
 .observation-modal__type-icon {
-  font-size: 28px;
-  margin-bottom: 8px;
+  font-size: 24px;
 }
 
 .observation-modal__type-name {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text-primary);
-  margin-bottom: 4px;
-}
-
-.observation-modal__type-desc {
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-/* Divider */
-.observation-modal__divider {
-  height: 1px;
-  background: var(--color-border-light);
-  margin: 4px 0;
 }
 
 /* Settings Section */
@@ -81,22 +73,78 @@
   gap: 16px;
 }
 
-.observation-modal__settings-title {
-  font-size: 16px;
+.observation-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.observation-modal__section-label {
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
-  margin: 0;
 }
 
-/* Row for side-by-side fields */
-.observation-modal__row {
+/* Preset Buttons */
+.observation-modal__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.observation-modal__preset {
+  flex: 1;
+  min-width: 50px;
+  padding: 10px 14px;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.observation-modal__preset:hover {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-primary);
+}
+
+.observation-modal__preset:active {
+  transform: scale(0.97);
+}
+
+.observation-modal__preset--active {
+  color: white;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Custom Row (number input + unit select) */
+.observation-modal__custom-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
+  margin-top: 8px;
 }
 
-.observation-modal__field--narrow {
-  max-width: 100%;
+.observation-modal__number-input {
+  flex: 1;
+}
+
+.observation-modal__unit-select {
+  flex: 1;
+}
+
+/* Divider */
+.observation-modal__divider {
+  height: 1px;
+  background: var(--color-border-light);
+  margin: 4px 0;
 }
 
 /* Note */
@@ -112,102 +160,87 @@
 /* Footer */
 .observation-modal__footer {
   display: flex;
-  justify-content: flex-end;
   gap: 12px;
   padding-top: 16px;
   border-top: 1px solid var(--color-border-light);
 }
 
-/* Dark mode handled by CSS variables in index.css */
-
-/* Responsive */
-@media (max-width: 480px) {
-  .observation-modal__type-options {
-    grid-template-columns: 1fr;
-  }
-
-  .observation-modal__row {
-    grid-template-columns: 1fr;
-  }
-
-  .observation-modal__type-option {
-    flex-direction: row;
-    text-align: left;
-    gap: 12px;
-  }
-
-  .observation-modal__type-icon {
-    font-size: 24px;
-    margin: 0;
-  }
-
-  .observation-modal__type-option > :last-child {
-    flex: 1;
-  }
+.observation-modal__btn {
+  flex: 1;
+  min-height: 48px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
-/* 800x480 Touchscreen Optimization */
+.observation-modal__btn--primary {
+  flex: 1.5;
+}
+
+/* Small touchscreen (800x480) and mobile */
 @media (max-width: 850px) and (max-height: 520px),
        (max-width: 480px) {
   .observation-modal {
     gap: 12px;
   }
 
-  .observation-modal__type-selector {
-    gap: 6px;
-  }
-
-  .observation-modal__type-label {
-    font-size: 13px;
-  }
-
   .observation-modal__type-options {
     gap: 8px;
   }
 
   .observation-modal__type-option {
-    padding: 10px 8px;
-    min-height: 44px;
+    padding: 12px 10px;
+    min-height: 52px;
+    gap: 8px;
   }
 
   .observation-modal__type-icon {
     font-size: 20px;
-    margin-bottom: 4px;
   }
 
   .observation-modal__type-name {
     font-size: 14px;
-    margin-bottom: 2px;
-  }
-
-  .observation-modal__type-desc {
-    font-size: 11px;
-  }
-
-  .observation-modal__divider {
-    margin: 2px 0;
   }
 
   .observation-modal__settings {
-    gap: 10px;
+    gap: 12px;
   }
 
-  .observation-modal__settings-title {
+  .observation-modal__section {
+    gap: 6px;
+  }
+
+  .observation-modal__section-label {
+    font-size: 13px;
+  }
+
+  .observation-modal__presets {
+    gap: 6px;
+  }
+
+  .observation-modal__preset {
+    padding: 8px 10px;
+    min-height: 40px;
     font-size: 14px;
   }
 
-  .observation-modal__row {
+  .observation-modal__custom-row {
     gap: 8px;
+    margin-top: 6px;
   }
 
   .observation-modal__note {
     font-size: 12px;
-    padding: 8px;
+    padding: 10px;
   }
 
   .observation-modal__footer {
     gap: 8px;
-    padding-top: 10px;
+    padding-top: 12px;
+  }
+
+  .observation-modal__btn {
+    min-height: 44px;
+    font-size: 15px;
   }
 }
 
@@ -224,50 +257,58 @@
 
   .observation-modal__type-option {
     padding: 8px;
-    flex-direction: row;
-    text-align: left;
-    gap: 8px;
-    min-height: 36px;
+    min-height: 44px;
+    gap: 6px;
   }
 
   .observation-modal__type-icon {
     font-size: 18px;
-    margin: 0;
   }
 
   .observation-modal__type-name {
     font-size: 13px;
   }
 
-  .observation-modal__type-desc {
-    font-size: 10px;
-    display: none; /* Hide descriptions to save space */
-  }
-
-  .observation-modal__divider {
-    display: none;
-  }
-
   .observation-modal__settings {
     gap: 8px;
   }
 
-  .observation-modal__settings-title {
-    font-size: 13px;
+  .observation-modal__section {
+    gap: 4px;
   }
 
-  .observation-modal__row {
-    grid-template-columns: 1fr 1fr;
+  .observation-modal__section-label {
+    font-size: 12px;
+  }
+
+  .observation-modal__presets {
+    gap: 4px;
+  }
+
+  .observation-modal__preset {
+    padding: 6px 8px;
+    min-height: 34px;
+    font-size: 13px;
+    min-width: 40px;
+  }
+
+  .observation-modal__custom-row {
     gap: 6px;
+    margin-top: 4px;
   }
 
   .observation-modal__note {
     font-size: 11px;
-    padding: 6px 8px;
+    padding: 8px;
   }
 
   .observation-modal__footer {
     gap: 6px;
     padding-top: 8px;
+  }
+
+  .observation-modal__btn {
+    min-height: 38px;
+    font-size: 14px;
   }
 }

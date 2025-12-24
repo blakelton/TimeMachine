@@ -19,8 +19,9 @@ export function HomePage() {
 
   // Fetch camera dashboard data with preview states
   // Pass settings to auto-start previews when enabled
+  // Use 5 second interval to reduce CPU/memory pressure on Pi
   const { cameras, isLoading, isError } = useCameraDashboard({
-    refetchInterval: 3000, // Poll every 3 seconds
+    refetchInterval: 5000, // Poll every 5 seconds (reduced from 3s)
     previewSettings,
   });
 

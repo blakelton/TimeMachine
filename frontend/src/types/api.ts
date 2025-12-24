@@ -162,7 +162,7 @@ export interface paths {
          *         session: Database session
          *
          *     Raises:
-         *         HTTPException: 404 if camera not found
+         *         HTTPException: 404 if camera not found, 409 if camera is in use
          */
         delete: operations["delete_camera_api_v1_cameras__camera_id__delete"];
         options?: never;
@@ -180,7 +180,7 @@ export interface paths {
          *         Updated camera
          *
          *     Raises:
-         *         HTTPException: 404 if camera not found
+         *         HTTPException: 404 if camera not found, 409 if camera is in use
          */
         patch: operations["update_camera_api_v1_cameras__camera_id__patch"];
         trace?: never;
@@ -384,6 +384,9 @@ export interface paths {
         /**
          * Capture Image
          * @description Capture a still image from a camera.
+         *
+         *     Creates an observation record for the captured image so it appears
+         *     in the observations list alongside timelapses and recordings.
          *
          *     Args:
          *         camera_id: Camera ID
@@ -709,6 +712,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/environment/device-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Device Types
+         * @description Get available environment device types.
+         *
+         *     Returns information about supported sensor types including
+         *     what they measure and how to configure them.
+         */
+        get: operations["get_device_types_api_v1_environment_device_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Devices
+         * @description List all configured environment devices.
+         *
+         *     Args:
+         *         enabled_only: If True, only return enabled devices
+         *         session: Database session
+         *
+         *     Returns:
+         *         List of environment devices
+         */
+        get: operations["list_devices_api_v1_environment_devices_get"];
+        put?: never;
+        /**
+         * Create Device
+         * @description Create a new environment device.
+         *
+         *     Args:
+         *         device_data: Device configuration
+         *         session: Database session
+         *
+         *     Returns:
+         *         Created device
+         *
+         *     Raises:
+         *         HTTPException: 409 if pin/address already in use
+         */
+        post: operations["create_device_api_v1_environment_devices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment/devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Device
+         * @description Get a specific environment device.
+         *
+         *     Args:
+         *         device_id: Device ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Environment device details
+         *
+         *     Raises:
+         *         HTTPException: 404 if device not found
+         */
+        get: operations["get_device_api_v1_environment_devices__device_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Device
+         * @description Delete an environment device.
+         *
+         *     Args:
+         *         device_id: Device ID
+         *         session: Database session
+         *
+         *     Raises:
+         *         HTTPException: 404 if device not found
+         */
+        delete: operations["delete_device_api_v1_environment_devices__device_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Device
+         * @description Update an environment device.
+         *
+         *     Args:
+         *         device_id: Device ID
+         *         device_data: Fields to update
+         *         session: Database session
+         *
+         *     Returns:
+         *         Updated device
+         *
+         *     Raises:
+         *         HTTPException: 404 if device not found, 409 if pin/address conflict
+         */
+        patch: operations["update_device_api_v1_environment_devices__device_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/environment/readings/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Current Readings
+         * @description Get current readings from all enabled devices.
+         *
+         *     Returns the most recent reading for each enabled device,
+         *     combining in-memory cache with database values.
+         *
+         *     Returns:
+         *         Current readings from all devices
+         */
+        get: operations["get_current_readings_api_v1_environment_readings_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment/readings/{device_id}/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Device Current Reading
+         * @description Get current reading for a specific device.
+         *
+         *     Args:
+         *         device_id: Device ID
+         *         session: Database session
+         *
+         *     Returns:
+         *         Current reading for the device
+         *
+         *     Raises:
+         *         HTTPException: 404 if device not found
+         */
+        get: operations["get_device_current_reading_api_v1_environment_readings__device_id__current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/environment/readings/{device_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Device History
+         * @description Get historical readings for a device.
+         *
+         *     Args:
+         *         device_id: Device ID
+         *         session: Database session
+         *         hours: Number of hours of history (1-168, default 24)
+         *         limit: Maximum readings to return (1-2000, default 500)
+         *
+         *     Returns:
+         *         Historical readings for the device
+         *
+         *     Raises:
+         *         HTTPException: 404 if device not found
+         */
+        get: operations["get_device_history_api_v1_environment_readings__device_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs": {
         parameters: {
             query?: never;
@@ -886,6 +1097,39 @@ export interface paths {
          *         List of active observations
          */
         get: operations["list_active_observations_api_v1_observations_active_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observations/completed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Completed Observations
+         * @description List completed observations for the browser.
+         *
+         *     Returns observations that are completed, stopped, or failed (not running).
+         *     Includes thumbnail and media URLs for display.
+         *
+         *     Args:
+         *         session: Database session
+         *         camera_id: Optional filter by camera
+         *         observation_type: Optional filter by type (timelapse, recording, still)
+         *         limit: Maximum results to return
+         *         offset: Pagination offset
+         *
+         *     Returns:
+         *         List of completed observations with media URLs
+         */
+        get: operations["list_completed_observations_api_v1_observations_completed_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1123,39 +1367,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/observations/completed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Completed Observations
-         * @description List completed observations for the browser.
-         *
-         *     Returns observations that are completed, stopped, or failed (not running).
-         *     Includes thumbnail and media URLs for display.
-         *
-         *     Args:
-         *         session: Database session
-         *         camera_id: Optional filter by camera
-         *         observation_type: Optional filter by type (timelapse, recording, still)
-         *         limit: Maximum results to return
-         *         offset: Pagination offset
-         *
-         *     Returns:
-         *         List of completed observations with media URLs
-         */
-        get: operations["list_completed_observations_api_v1_observations_completed_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/observations/{observation_id}/thumbnail": {
         parameters: {
             query?: never;
@@ -1216,6 +1427,36 @@ export interface paths {
         get: operations["get_observation_media_api_v1_observations__observation_id__media_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observations/batch-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Delete Observations
+         * @description Delete multiple observations and their files.
+         *
+         *     Only completed/stopped/failed observations can be deleted.
+         *     Running observations are skipped.
+         *
+         *     Args:
+         *         session: Database session
+         *         observation_ids: List of observation IDs to delete
+         *
+         *     Returns:
+         *         Summary of deleted and skipped observations
+         */
+        post: operations["batch_delete_observations_api_v1_observations_batch_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1803,6 +2044,16 @@ export interface components {
              * @description Device path (e.g., /dev/video0)
              */
             device_path?: string | null;
+            /**
+             * Camera Type
+             * @description Camera type: 'csi' or 'usb'
+             */
+            camera_type?: string | null;
+            /**
+             * Hardware Id
+             * @description Stable hardware identifier (by-path for USB, libcamera:N for CSI)
+             */
+            hardware_id?: string | null;
             /** Enabled */
             enabled?: boolean | null;
             default_settings?: components["schemas"]["CameraSettings"] | null;
@@ -1908,6 +2159,208 @@ export interface components {
             media_url: string;
         };
         /**
+         * CurrentReadingsResponse
+         * @description Response with current readings from all devices.
+         */
+        CurrentReadingsResponse: {
+            /** Readings */
+            readings?: components["schemas"]["DeviceCurrentReading"][];
+            /**
+             * Total
+             * @description Total number of devices
+             */
+            total: number;
+        };
+        /**
+         * DeviceCurrentReading
+         * @description Current reading for a device with device info.
+         */
+        DeviceCurrentReading: {
+            /**
+             * Device Id
+             * @description Device ID
+             */
+            device_id: number;
+            /**
+             * Device Name
+             * @description Device name
+             */
+            device_name: string;
+            /** @description Device type */
+            device_type: components["schemas"]["DeviceType"];
+            /**
+             * Enabled
+             * @description Whether device is enabled
+             */
+            enabled: boolean;
+            /** @description Temperature display unit */
+            temperature_unit: components["schemas"]["TemperatureUnit"];
+            /**
+             * Temperature
+             * @description Temperature in configured unit
+             */
+            temperature?: number | null;
+            /**
+             * Humidity
+             * @description Relative humidity %
+             */
+            humidity?: number | null;
+            /**
+             * Pressure
+             * @description Atmospheric pressure in hPa
+             */
+            pressure?: number | null;
+            /**
+             * Target Temperature
+             * @description Target temperature in configured unit
+             */
+            target_temperature?: number | null;
+            /**
+             * Target Humidity
+             * @description Target humidity %
+             */
+            target_humidity?: number | null;
+            /**
+             * Target Pressure
+             * @description Target pressure in hPa
+             */
+            target_pressure?: number | null;
+            /**
+             * Temperature Tolerance
+             * @description Temperature tolerance ±
+             */
+            temperature_tolerance?: number | null;
+            /**
+             * Humidity Tolerance
+             * @description Humidity tolerance ±
+             */
+            humidity_tolerance?: number | null;
+            /**
+             * Pressure Tolerance
+             * @description Pressure tolerance ±
+             */
+            pressure_tolerance?: number | null;
+            /**
+             * @description Temperature vs target
+             * @default unknown
+             */
+            temperature_status: components["schemas"]["ReadingStatus"];
+            /**
+             * @description Humidity vs target
+             * @default unknown
+             */
+            humidity_status: components["schemas"]["ReadingStatus"];
+            /**
+             * @description Pressure vs target
+             * @default unknown
+             */
+            pressure_status: components["schemas"]["ReadingStatus"];
+            /**
+             * Temperature Deviation
+             * @description How far from target temperature
+             */
+            temperature_deviation?: number | null;
+            /**
+             * Humidity Deviation
+             * @description How far from target humidity
+             */
+            humidity_deviation?: number | null;
+            /**
+             * Pressure Deviation
+             * @description How far from target pressure
+             */
+            pressure_deviation?: number | null;
+            /**
+             * Timestamp
+             * @description Reading timestamp
+             */
+            timestamp?: string | null;
+            /**
+             * Error
+             * @description Error message if reading failed
+             */
+            error?: string | null;
+        };
+        /**
+         * DeviceHistoryResponse
+         * @description Historical readings for a single device.
+         */
+        DeviceHistoryResponse: {
+            /**
+             * Device Id
+             * @description Device ID
+             */
+            device_id: number;
+            /**
+             * Device Name
+             * @description Device name
+             */
+            device_name: string;
+            /** @description Device type */
+            device_type: components["schemas"]["DeviceType"];
+            /** @description Temperature display unit */
+            temperature_unit: components["schemas"]["TemperatureUnit"];
+            /** Readings */
+            readings?: components["schemas"]["EnvironmentReadingResponse"][];
+            /**
+             * Total
+             * @description Number of readings returned
+             */
+            total: number;
+        };
+        /**
+         * DeviceType
+         * @description Supported feedback device types.
+         * @enum {string}
+         */
+        DeviceType: "dht22" | "dht11" | "am2303" | "bme280" | "ds18b20";
+        /**
+         * DeviceTypeInfo
+         * @description Information about a device type.
+         */
+        DeviceTypeInfo: {
+            /** @description Device type identifier */
+            type: components["schemas"]["DeviceType"];
+            /**
+             * Name
+             * @description Human-readable name
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description of the device
+             */
+            description: string;
+            /**
+             * Measures
+             * @description What this device measures
+             */
+            measures: string[];
+            /**
+             * Interface
+             * @description Interface type (GPIO, I2C, 1-Wire)
+             */
+            interface: string;
+            /**
+             * Pin Label
+             * @description Label for the pin/address field
+             */
+            pin_label: string;
+            /**
+             * Pin Placeholder
+             * @description Example value for pin/address
+             */
+            pin_placeholder: string;
+        };
+        /**
+         * DeviceTypesResponse
+         * @description Schema for available device types.
+         */
+        DeviceTypesResponse: {
+            /** Device Types */
+            device_types?: components["schemas"]["DeviceTypeInfo"][];
+        };
+        /**
          * DiscoveredCameraResponse
          * @description Schema for discovered camera response.
          */
@@ -1957,6 +2410,249 @@ export interface components {
             percent_used: number;
             /** Is Available */
             is_available: boolean;
+        };
+        /**
+         * EnvironmentDeviceCreate
+         * @description Schema for creating an environment device.
+         */
+        EnvironmentDeviceCreate: {
+            /**
+             * Name
+             * @description Device display name
+             */
+            name: string;
+            /** @description Type of sensor device */
+            device_type: components["schemas"]["DeviceType"];
+            /**
+             * Pin Or Address
+             * @description GPIO pin number, I2C address, or device ID
+             */
+            pin_or_address: string;
+            /**
+             * Enabled
+             * @description Whether device is enabled for reading
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Poll Interval Seconds
+             * @description Polling interval in seconds (5-3600)
+             * @default 10
+             */
+            poll_interval_seconds: number;
+            /**
+             * @description Temperature display unit (C or F)
+             * @default C
+             */
+            temperature_unit: components["schemas"]["TemperatureUnit"];
+            /**
+             * Notes
+             * @description Optional notes
+             */
+            notes?: string | null;
+            /**
+             * Target Temperature
+             * @description Target temperature in Celsius
+             */
+            target_temperature?: number | null;
+            /**
+             * Target Humidity
+             * @description Target humidity percentage
+             */
+            target_humidity?: number | null;
+            /**
+             * Target Pressure
+             * @description Target pressure in hPa
+             */
+            target_pressure?: number | null;
+            /**
+             * Temperature Tolerance
+             * @description Acceptable ± range for temperature
+             * @default 5
+             */
+            temperature_tolerance: number | null;
+            /**
+             * Humidity Tolerance
+             * @description Acceptable ± range for humidity
+             * @default 10
+             */
+            humidity_tolerance: number | null;
+            /**
+             * Pressure Tolerance
+             * @description Acceptable ± range for pressure
+             * @default 20
+             */
+            pressure_tolerance: number | null;
+        };
+        /**
+         * EnvironmentDeviceListResponse
+         * @description Schema for list of environment devices.
+         */
+        EnvironmentDeviceListResponse: {
+            /** Devices */
+            devices?: components["schemas"]["EnvironmentDeviceResponse"][];
+            /**
+             * Total
+             * @description Total number of devices
+             */
+            total: number;
+        };
+        /**
+         * EnvironmentDeviceResponse
+         * @description Schema for environment device response.
+         */
+        EnvironmentDeviceResponse: {
+            /**
+             * Name
+             * @description Device display name
+             */
+            name: string;
+            /** @description Type of sensor device */
+            device_type: components["schemas"]["DeviceType"];
+            /**
+             * Pin Or Address
+             * @description GPIO pin number, I2C address, or device ID
+             */
+            pin_or_address: string;
+            /**
+             * Enabled
+             * @description Whether device is enabled for reading
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Poll Interval Seconds
+             * @description Polling interval in seconds (5-3600)
+             * @default 10
+             */
+            poll_interval_seconds: number;
+            /**
+             * @description Temperature display unit (C or F)
+             * @default C
+             */
+            temperature_unit: components["schemas"]["TemperatureUnit"];
+            /**
+             * Notes
+             * @description Optional notes
+             */
+            notes?: string | null;
+            /**
+             * Target Temperature
+             * @description Target temperature in Celsius
+             */
+            target_temperature?: number | null;
+            /**
+             * Target Humidity
+             * @description Target humidity percentage
+             */
+            target_humidity?: number | null;
+            /**
+             * Target Pressure
+             * @description Target pressure in hPa
+             */
+            target_pressure?: number | null;
+            /**
+             * Temperature Tolerance
+             * @description Acceptable ± range for temperature
+             * @default 5
+             */
+            temperature_tolerance: number | null;
+            /**
+             * Humidity Tolerance
+             * @description Acceptable ± range for humidity
+             * @default 10
+             */
+            humidity_tolerance: number | null;
+            /**
+             * Pressure Tolerance
+             * @description Acceptable ± range for pressure
+             * @default 20
+             */
+            pressure_tolerance: number | null;
+            /**
+             * Id
+             * @description Device ID
+             */
+            id: number;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description Last update timestamp
+             */
+            updated_at: string;
+        };
+        /**
+         * EnvironmentDeviceUpdate
+         * @description Schema for updating an environment device (all fields optional).
+         */
+        EnvironmentDeviceUpdate: {
+            /** Name */
+            name?: string | null;
+            device_type?: components["schemas"]["DeviceType"] | null;
+            /** Pin Or Address */
+            pin_or_address?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Poll Interval Seconds */
+            poll_interval_seconds?: number | null;
+            temperature_unit?: components["schemas"]["TemperatureUnit"] | null;
+            /** Notes */
+            notes?: string | null;
+            /** Target Temperature */
+            target_temperature?: number | null;
+            /** Target Humidity */
+            target_humidity?: number | null;
+            /** Target Pressure */
+            target_pressure?: number | null;
+            /** Temperature Tolerance */
+            temperature_tolerance?: number | null;
+            /** Humidity Tolerance */
+            humidity_tolerance?: number | null;
+            /** Pressure Tolerance */
+            pressure_tolerance?: number | null;
+        };
+        /**
+         * EnvironmentReadingResponse
+         * @description A single sensor reading from the database.
+         */
+        EnvironmentReadingResponse: {
+            /**
+             * Id
+             * @description Reading ID
+             */
+            id: number;
+            /**
+             * Device Id
+             * @description Device ID
+             */
+            device_id: number;
+            /**
+             * Temperature
+             * @description Temperature in Celsius
+             */
+            temperature?: number | null;
+            /**
+             * Humidity
+             * @description Relative humidity %
+             */
+            humidity?: number | null;
+            /**
+             * Pressure
+             * @description Atmospheric pressure in hPa
+             */
+            pressure?: number | null;
+            /**
+             * Timestamp
+             * Format: date-time
+             * @description Reading timestamp
+             */
+            timestamp: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2344,6 +3040,12 @@ export interface components {
             /** Dashboard Preview Fps */
             dashboard_preview_fps?: number | null;
         };
+        /**
+         * ReadingStatus
+         * @description Status of a reading compared to target.
+         * @enum {string}
+         */
+        ReadingStatus: "normal" | "high" | "low" | "unknown";
         /**
          * RecordingObservationConfig
          * @description Configuration for recording observations.
@@ -2883,6 +3585,12 @@ export interface components {
              */
             enabled: boolean;
         };
+        /**
+         * TemperatureUnit
+         * @description Temperature display units.
+         * @enum {string}
+         */
+        TemperatureUnit: "C" | "F";
         /**
          * ThrottleInfo
          * @description Throttle status information.
@@ -3849,6 +4557,272 @@ export interface operations {
             };
         };
     };
+    get_device_types_api_v1_environment_device_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceTypesResponse"];
+                };
+            };
+        };
+    };
+    list_devices_api_v1_environment_devices_get: {
+        parameters: {
+            query?: {
+                enabled_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentDeviceListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_device_api_v1_environment_devices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnvironmentDeviceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentDeviceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_device_api_v1_environment_devices__device_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentDeviceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_device_api_v1_environment_devices__device_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_device_api_v1_environment_devices__device_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnvironmentDeviceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentDeviceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_current_readings_api_v1_environment_readings_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentReadingsResponse"];
+                };
+            };
+        };
+    };
+    get_device_current_reading_api_v1_environment_readings__device_id__current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceCurrentReading"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_device_history_api_v1_environment_readings__device_id__history_get: {
+        parameters: {
+            query?: {
+                /** @description Hours of history to retrieve */
+                hours?: number;
+                /** @description Maximum readings to return */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                device_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_jobs_api_v1_jobs_get: {
         parameters: {
             query?: {
@@ -4060,6 +5034,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObservationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_completed_observations_api_v1_observations_completed_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by camera ID */
+                camera_id?: number | null;
+                /** @description Filter by type */
+                observation_type?: string | null;
+                /** @description Maximum results */
+                limit?: number;
+                /** @description Pagination offset */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompletedObservationListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4336,44 +5348,6 @@ export interface operations {
             };
         };
     };
-    list_completed_observations_api_v1_observations_completed_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by camera ID */
-                camera_id?: number | null;
-                /** @description Filter by type */
-                observation_type?: string | null;
-                /** @description Maximum results */
-                limit?: number;
-                /** @description Pagination offset */
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompletedObservationListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_observation_thumbnail_api_v1_observations__observation_id__thumbnail_get: {
         parameters: {
             query?: never;
@@ -4423,6 +5397,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_delete_observations_api_v1_observations_batch_delete_post: {
+        parameters: {
+            query: {
+                /** @description List of observation IDs to delete */
+                observation_ids: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

@@ -57,7 +57,7 @@ class CaptureService:
         else:
             # Generate default path
             if not filename:
-                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"camera{camera_id}_{timestamp}"
 
             # Ensure still base path exists

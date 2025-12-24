@@ -139,6 +139,7 @@ apt-get install -y \
   python3-pip \
   python3-venv \
   python3-picamera2 \
+  python3-libgpiod \
   nginx \
   libcamera-apps \
   gstreamer1.0-tools \
@@ -149,7 +150,8 @@ apt-get install -y \
   v4l-utils \
   ffmpeg \
   git \
-  curl
+  curl \
+  gpiod
 
 # Install Node.js 22.x (required for Vite 6.x which needs Node.js 20.19+ or 22.12+)
 NODE_REQUIRED_MAJOR=22
@@ -191,8 +193,12 @@ if ! id -u timemachine &>/dev/null; then
   echo "👤 Creating timemachine user..."
   useradd -r -s /bin/false -d /opt/timemachine -m timemachine
   usermod -aG video timemachine
+  usermod -aG gpio timemachine
 else
   echo "✓ User timemachine already exists"
+  # Ensure user is in required groups (may have been added after initial creation)
+  usermod -aG video timemachine 2>/dev/null || true
+  usermod -aG gpio timemachine 2>/dev/null || true
 fi
 
 # Ensure /opt/timemachine is world-readable for nginx to serve static files
@@ -245,6 +251,10 @@ fi
 python3 -m venv /opt/timemachine/venv --system-site-packages
 /opt/timemachine/venv/bin/pip install --upgrade pip
 /opt/timemachine/venv/bin/pip install -r /opt/timemachine/backend/requirements.txt
+
+# Install environment sensor libraries
+echo "  Installing environment sensor libraries..."
+/opt/timemachine/venv/bin/pip install adafruit-circuitpython-dht adafruit-circuitpython-bme280 w1thermsensor
 
 # ============================================================================
 # FRONTEND TYPE GENERATION
