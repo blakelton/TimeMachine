@@ -224,16 +224,24 @@ class ObservationRepository(BaseRepository[Observation]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
+    async def get_stale_running(self) -> list[Observation]:
+        """Get all running observations (stale after restart).
+
+        Returns:
+            List of observations that were still running.
+        """
+        result = await self.session.execute(
+            select(Observation).where(Observation.status == "running")
+        )
+        return list(result.scalars().all())
+
     async def cleanup_stale_running(self) -> int:
         """Mark all running observations as failed (for startup cleanup).
 
         Returns:
             Number of observations cleaned up.
         """
-        result = await self.session.execute(
-            select(Observation).where(Observation.status == "running")
-        )
-        observations = list(result.scalars().all())
+        observations = await self.get_stale_running()
 
         for obs in observations:
             obs.status = "failed"

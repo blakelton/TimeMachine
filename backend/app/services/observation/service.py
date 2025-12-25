@@ -476,8 +476,87 @@ class ObservationService:
             resolution=resolution,
         )
 
+    async def repair_observation(
+        self,
+        observation_id: int,
+        session: AsyncSession,
+    ) -> tuple[bool, str, str | None]:
+        """Repair a failed timelapse observation by assembling its video.
+
+        Args:
+            observation_id: Observation ID to repair
+            session: Database session
+
+        Returns:
+            Tuple of (success, message, output_path)
+        """
+        from app.services.camera.timelapse import assemble_video
+
+        obs_repo = ObservationRepository(session)
+        observation = await obs_repo.get(observation_id)
+
+        if not observation:
+            return False, f"Observation {observation_id} not found", None
+
+        if observation.observation_type != "timelapse":
+            return False, "Repair only available for timelapse observations", None
+
+        if not observation.folder_path:
+            return False, "Observation has no folder path", None
+
+        folder_path = Path(observation.folder_path)
+        frames_dir = folder_path / "frames"
+
+        if not frames_dir.exists():
+            return False, "Frames directory not found", None
+
+        # Check for existing assembled video
+        existing_video = folder_path / "frames.mp4"
+        if existing_video.exists():
+            return True, "Video already assembled", str(existing_video)
+
+        # Count frames
+        frames = list(frames_dir.glob("frame_*.jpg"))
+        if len(frames) < 2:
+            return False, f"Not enough frames to assemble ({len(frames)} found, need at least 2)", None
+
+        logger.info(
+            "observation_repair_starting",
+            observation_id=observation_id,
+            frame_count=len(frames),
+        )
+
+        try:
+            output_path = await assemble_video(
+                timelapse_dir=frames_dir,
+                fps=30,  # Default FPS
+                camera_id=observation.camera_id,
+            )
+
+            if output_path:
+                logger.info(
+                    "observation_repair_success",
+                    observation_id=observation_id,
+                    output_path=output_path,
+                )
+                return True, f"Video assembled: {len(frames)} frames", output_path
+            else:
+                return False, "Video assembly failed", None
+
+        except Exception as e:
+            logger.error(
+                "observation_repair_error",
+                observation_id=observation_id,
+                error=str(e),
+            )
+            return False, f"Repair error: {str(e)}", None
+
     async def cleanup_stale_observations(self, session: AsyncSession) -> int:
-        """Mark all running observations as failed (for startup cleanup).
+        """Mark all running observations as failed and assemble timelapse videos.
+
+        For timelapse observations that were interrupted by a restart, this
+        attempts to assemble the captured frames into a video before marking
+        them as failed.
 
         Args:
             session: Database session
@@ -485,7 +564,57 @@ class ObservationService:
         Returns:
             Number of observations cleaned up
         """
+        from app.services.camera.timelapse import assemble_video
+
         obs_repo = ObservationRepository(session)
+
+        # Get stale observations before marking them
+        stale_observations = await obs_repo.get_stale_running()
+
+        if not stale_observations:
+            return 0
+
+        # Attempt to assemble videos for timelapse observations
+        for obs in stale_observations:
+            if obs.observation_type == "timelapse" and obs.folder_path:
+                folder_path = Path(obs.folder_path)
+                frames_dir = folder_path / "frames"
+
+                # Check if there are frames to assemble
+                if frames_dir.exists():
+                    frames = list(frames_dir.glob("frame_*.jpg"))
+                    if len(frames) >= 2:
+                        logger.info(
+                            "stale_timelapse_assembly_starting",
+                            observation_id=obs.id,
+                            frame_count=len(frames),
+                        )
+                        try:
+                            # Default to 30fps if not stored
+                            output_path = await assemble_video(
+                                timelapse_dir=frames_dir,
+                                fps=30,
+                                camera_id=obs.camera_id,
+                            )
+                            if output_path:
+                                logger.info(
+                                    "stale_timelapse_assembly_success",
+                                    observation_id=obs.id,
+                                    output_path=output_path,
+                                )
+                            else:
+                                logger.warning(
+                                    "stale_timelapse_assembly_failed",
+                                    observation_id=obs.id,
+                                )
+                        except Exception as e:
+                            logger.error(
+                                "stale_timelapse_assembly_error",
+                                observation_id=obs.id,
+                                error=str(e),
+                            )
+
+        # Now mark all as failed
         count = await obs_repo.cleanup_stale_running()
         await session.commit()
 

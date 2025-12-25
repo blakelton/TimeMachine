@@ -60,6 +60,62 @@ Track all:
 
 <!-- New entries should be added at the top, below this line -->
 
+### [2025-12-25 18:30] Plan Status: `refactor_get_observation_media`
+**Transition**: ready → completed
+**Reason**: Strategy pattern implementation already complete in media.py
+**Files**:
+- `backend/app/services/observation/media.py` - Strategy pattern with TimelapseMediaFinder, RecordingMediaFinder, StillMediaFinder
+- `backend/app/api/routes/observations/media.py` - Using find_observation_media from strategy module
+**Complexity**: Reduced from 22 to ~5 in route handler
+**Notes**: Plan was created when work was already done; verified and moved to completed
+
+### [2025-12-25 18:35] Plan Status: `improve_maintainability_index`
+**Transition**: ready → completed
+**Reason**: MI targets achieved through previous refactoring work
+**Metrics**:
+| File | Original MI | Current MI | Target | Status |
+|------|-------------|------------|--------|--------|
+| observation/service.py | 20.20 (D) | 48.10 (A) | ≥40 | ✅ |
+| camera/timelapse.py | 25.93 (C) | 100.00 (A+) | ≥40 | ✅ |
+**Notes**: Previous refactors (split_large_files, refactor_capture_loop, refactor_progress_tracker_loop) achieved all MI targets
+
+---
+
+### [2025-12-25 15:25] Bug Fix: `timelapse_video_only_2_seconds`
+**Root Cause**: Stale timelapse observations marked as "failed" during system restart cleanup did not have their videos assembled. The media finder fell back to `preview.mp4` (2-second live preview) instead of the full `frames.mp4`.
+**Fix**:
+1. Modified `cleanup_stale_observations()` to attempt video assembly before marking as failed
+2. Added `repair_observation()` service method for manual video assembly
+3. Added `POST /observations/{id}/repair` API endpoint
+4. Changed live preview from fixed 60 frames to "last 5 seconds of footage"
+**Files Changed**:
+- `backend/app/services/observation/service.py` - Added repair and assembly logic
+- `backend/app/services/observation/preview.py` - Changed to 5-second preview
+- `backend/app/api/routes/observations/lifecycle.py` - Added repair endpoint
+- `backend/app/db/repositories/observation.py` - Added get_stale_running method
+**Quality**: Evaluated - No CRITICAL issues. Medium: deprecated asyncio.get_event_loop usage noted for future fix.
+**Manual Recovery**: Assembled videos for 2 failed observations (now 117s and 124s instead of 2s)
+
+---
+
+### [2025-12-25 14:50] Feature: `inline_environment_graphs`
+**Summary**: Added inline temperature and humidity graphs with color-coded labels to timelapse overlay
+**Files Changed**:
+- `backend/app/services/camera/overlay.py` - Separate temp/humidity graphs, colored labels
+- `backend/app/services/camera/timelapse.py` - Pre-load graph history from database
+- `backend/app/db/repositories/environment_reading.py` - Added get_recent method
+- `frontend/src/components/camera/StartObservationModal.tsx` - Changed label to "Add Graphs"
+**Quality**: Evaluated - No CRITICAL/HIGH issues
+
+---
+
+### [2025-12-25 15:20] Documentation: `orchestration_rewrite`
+**Summary**: Rewrote CLAUDE.md to make orchestration non-negotiable with mandatory gates
+**Files Changed**: `.claude/CLAUDE.md`
+**Quality**: N/A (documentation)
+
+---
+
 ### [2025-12-23 22:20] Plan Status: `split_large_files`
 **Transition**: ready → completed
 **Reason**: Split 5 large files exceeding 500-line threshold into smaller focused modules

@@ -70,10 +70,12 @@ async def live_preview_loop(
                     )
 
             if should_generate:
-                # Use all frames but cap at 60 for performance
-                # Use the actual output_fps for smooth playback
+                # Use the last N seconds of footage for preview
+                # Default to 5 seconds of preview video
+                preview_seconds = 5
+                max_frames = preview_seconds * output_fps
                 success = await generate_quick_preview(
-                    frames_dir, preview_path, frames, max_frames=60, fps=output_fps
+                    frames_dir, preview_path, frames, max_frames=max_frames, fps=output_fps
                 )
                 if success:
                     last_preview_frame_count = frame_count

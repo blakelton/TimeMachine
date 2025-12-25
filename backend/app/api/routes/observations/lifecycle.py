@@ -146,3 +146,38 @@ async def get_camera_active_observation(
         has_active=observation is not None,
         observation=ObservationResponse.model_validate(observation) if observation else None,
     )
+
+
+@router.post("/{observation_id}/repair")
+async def repair_observation(
+    observation_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    """Repair a failed observation by assembling its timelapse video.
+
+    This is useful for observations that were interrupted by a system restart
+    and have captured frames but no assembled video.
+
+    Args:
+        observation_id: Observation ID to repair
+        session: Database session
+
+    Returns:
+        Repair result with success status and details
+    """
+    success, message, output_path = await observation_service.repair_observation(
+        observation_id, session
+    )
+
+    logger.info(
+        "observation_repair_requested",
+        observation_id=observation_id,
+        success=success,
+        output_path=output_path,
+    )
+
+    return {
+        "success": success,
+        "message": message,
+        "output_path": output_path,
+    }
