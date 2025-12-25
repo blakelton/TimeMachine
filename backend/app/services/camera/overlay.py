@@ -366,8 +366,7 @@ class EnvironmentOverlayService:
                 self._graph_cache_frame = frame_number
 
             # Run image processing in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None,
                 self._apply_overlay_sync,
                 image_path,

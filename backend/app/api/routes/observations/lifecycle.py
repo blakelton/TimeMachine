@@ -12,6 +12,7 @@ from app.schemas.observation import (
     ActiveObservationResponse,
     ObservationResponse,
     ObservationStatusResponse,
+    RepairObservationResponse,
     StartObservationRequest,
     StartObservationResponse,
     StopObservationRequest,
@@ -148,11 +149,11 @@ async def get_camera_active_observation(
     )
 
 
-@router.post("/{observation_id}/repair")
+@router.post("/{observation_id}/repair", response_model=RepairObservationResponse)
 async def repair_observation(
     observation_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> dict:
+) -> RepairObservationResponse:
     """Repair a failed observation by assembling its timelapse video.
 
     This is useful for observations that were interrupted by a system restart
@@ -164,6 +165,9 @@ async def repair_observation(
 
     Returns:
         Repair result with success status and details
+
+    Raises:
+        HTTPException: 422 if repair fails
     """
     success, message, output_path = await observation_service.repair_observation(
         observation_id, session
@@ -176,8 +180,14 @@ async def repair_observation(
         output_path=output_path,
     )
 
-    return {
-        "success": success,
-        "message": message,
-        "output_path": output_path,
-    }
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=message,
+        )
+
+    return RepairObservationResponse(
+        success=success,
+        message=message,
+        output_path=output_path,
+    )

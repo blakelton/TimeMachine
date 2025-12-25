@@ -210,6 +210,14 @@ class StopObservationResponse(BaseModel):
     output_path: str | None = Field(None, description="Path to output file")
 
 
+class RepairObservationResponse(BaseModel):
+    """Response after repairing an observation."""
+
+    success: bool = Field(..., description="Whether repair succeeded")
+    message: str = Field(..., description="Status message")
+    output_path: str | None = Field(None, description="Path to assembled video")
+
+
 # Completed observation browser schemas
 class CompletedObservationResponse(BaseModel):
     """Response schema for a completed observation in the browser."""
