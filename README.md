@@ -15,7 +15,7 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 - **Timelapse Overlay**: Temperature/humidity data burned into timelapse videos
 - Startup cleanup (stale jobs, orphan process handling)
 - Deployment infrastructure (systemd, nginx, installation scripts)
-- Test infrastructure (pytest with 18+ tests)
+- Test infrastructure (pytest with 59+ tests)
 
 **In Progress**:
 - Phase 2: Temperature Control (relay/heater/cooler integration)
@@ -232,6 +232,51 @@ npm run dev
 # For network access (access from other machines)
 npm run dev -- --host 0.0.0.0
 # Then access from: http://raspberrypi.local:5173
+```
+
+### Running Tests
+
+#### Backend Tests
+
+```bash
+cd backend
+
+# Install test dependencies
+pip install -r requirements-test.txt
+
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run with coverage report
+pytest --cov=app --cov-report=html
+
+# Run specific test file
+pytest tests/test_repositories.py
+
+# Run specific test class or function
+pytest tests/test_repositories.py::TestObservationRepository
+pytest tests/test_repositories.py::TestObservationRepository::test_create_observation
+```
+
+**Test files:**
+- `tests/test_repositories.py` - Database repository tests (Camera, Observation, Job)
+- `tests/test_validation_service.py` - Camera validation service tests
+- `tests/test_environment_services.py` - Environment sensor service tests
+- `tests/test_polling_service.py` - Environment polling service tests
+
+#### Frontend Tests
+
+```bash
+cd frontend
+
+# Type checking
+npm run build   # Runs tsc -b before vite build
+
+# Linting
+npm run lint
 ```
 
 ### Testing API Endpoints
