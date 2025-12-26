@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.db.repositories.camera import CameraRepository
 from app.db.repositories.observation import ObservationRepository
 from app.db.session import get_session
 from app.schemas.observation import (
@@ -131,14 +130,14 @@ async def list_completed_observations(
         List of completed observations with media URLs
     """
     obs_repo = ObservationRepository(session)
-    camera_repo = CameraRepository(session)
 
-    # Get completed observations (not running)
+    # Get completed observations with camera eagerly loaded (prevents N+1 queries)
     observations = await obs_repo.get_completed(
         camera_id=camera_id,
         observation_type=observation_type,
         limit=limit + 1,  # Fetch one extra to check if more exist
         offset=offset,
+        eager_load_camera=True,
     )
 
     # Check if there are more results
@@ -155,9 +154,8 @@ async def list_completed_observations(
     # Build response with camera names and URLs
     result_observations = []
     for obs in observations:
-        # Get camera name
-        camera = await camera_repo.get(obs.camera_id)
-        camera_name = camera.name if camera else f"Camera {obs.camera_id}"
+        # Use eagerly loaded camera (no additional query)
+        camera_name = obs.camera.name if obs.camera else f"Camera {obs.camera_id}"
 
         # Calculate duration
         if obs.completed_at and obs.started_at:

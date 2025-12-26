@@ -109,7 +109,7 @@ async def live_preview_loop(
 async def generate_quick_preview(
     frames_dir: Path,
     preview_path: Path,
-    frames: list,
+    frames: list[Path],
     max_frames: int = 30,
     fps: int = 10,
 ) -> bool:
@@ -149,18 +149,24 @@ async def generate_quick_preview(
                 f.write(f"file '{preview_frames[-1].name}'\n")
 
         # Build fast ffmpeg command (ultrafast preset, low quality for speed)
-        cmd = (
-            f"ffmpeg -y -f concat -safe 0 -i '{concat_file}' "
-            f"-vf 'scale=640:360:force_original_aspect_ratio=decrease,"
-            f"pad=640:360:(ow-iw)/2:(oh-ih)/2' "
-            f"-c:v libx264 -preset ultrafast -crf 35 "
-            f"-pix_fmt yuv420p "
-            f"-movflags +faststart "
-            f"'{temp_output}'"
-        )
+        # Use create_subprocess_exec with argument list to prevent shell injection
+        ffmpeg_args = [
+            "ffmpeg",
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(concat_file),
+            "-vf", "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "35",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(temp_output),
+        ]
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
+        proc = await asyncio.create_subprocess_exec(
+            *ffmpeg_args,
             cwd=str(frames_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -267,15 +273,27 @@ async def generate_timelapse_preview(
                 f.write(f"file '{preview_frames[-1].name}'\n")
 
         width, height = resolution
-        cmd = (
-            f"ffmpeg -y -f concat -safe 0 -i '{concat_file}' "
-            f"-vf 'scale={width}:{height}:force_original_aspect_ratio=decrease,"
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2' "
-            f"-c:v libx264 -preset ultrafast -crf 28 "
-            f"-pix_fmt yuv420p "
-            f"-movflags +faststart "
-            f"'{preview_path}'"
+        # Build video filter string
+        vf_filter = (
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
         )
+
+        # Use create_subprocess_exec with argument list to prevent shell injection
+        ffmpeg_args = [
+            "ffmpeg",
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(concat_file),
+            "-vf", vf_filter,
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(preview_path),
+        ]
 
         logger.info(
             "timelapse_preview_generating",
@@ -284,8 +302,8 @@ async def generate_timelapse_preview(
             output=str(preview_path),
         )
 
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
+        proc = await asyncio.create_subprocess_exec(
+            *ffmpeg_args,
             cwd=str(frames_dir),  # Run in frames directory for relative paths
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

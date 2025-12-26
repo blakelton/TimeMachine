@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import ObservationStatus
 from app.core.logging import get_logger
 from app.db.models.observation import Observation
 from app.db.repositories.camera import CameraRepository
@@ -132,7 +133,7 @@ async def start_timelapse_observation(
     observation = await obs_repo.create(
         camera_id=camera.id,
         observation_type="timelapse",
-        status="running",
+        status=ObservationStatus.RUNNING,
         folder_path=str(folder_path),
         config=config.model_dump(),
         progress_current=0,
@@ -266,7 +267,7 @@ async def start_recording_observation(
     observation = await obs_repo.create(
         camera_id=camera.id,
         observation_type="recording",
-        status="running",
+        status=ObservationStatus.RUNNING,
         folder_path=str(folder_path),
         config=config.model_dump(),
         progress_current=0,
@@ -369,7 +370,7 @@ async def stop_observation(
     if not observation:
         return False, f"Observation {observation_id} not found", None
 
-    if observation.status != "running":
+    if observation.status != ObservationStatus.RUNNING:
         return False, f"Observation {observation_id} is not running", None
 
     camera_id = observation.camera_id

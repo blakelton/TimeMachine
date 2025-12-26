@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.constants import JobStatus
 from app.core.logging import get_logger
 from app.core.resources import check_resources_available
 from app.db.repositories.job import JobRepository
@@ -99,7 +100,7 @@ class TimelapseService:
                 job = await job_repo.create(
                     camera_id=camera_id,
                     job_type="timelapse",
-                    status="running",
+                    status=JobStatus.RUNNING,
                     timelapse_config=config.to_dict(),
                     timelapse_progress=0,
                     timelapse_dir=str(timelapse_dir),
@@ -248,7 +249,7 @@ class TimelapseService:
         if not job:
             return False, f"Job {job_id} not found"
 
-        if job.status != "interrupted":
+        if job.status != JobStatus.INTERRUPTED:
             return False, f"Job {job_id} is not in interrupted state"
 
         if job.job_type != "timelapse":
@@ -290,7 +291,7 @@ class TimelapseService:
         timelapse_session.frame_count = existing_frames
 
         # Update job status
-        await job_repo.update(job_id, status="running")
+        await job_repo.update(job_id, status=JobStatus.RUNNING)
         await session.commit()
 
         # Start capture

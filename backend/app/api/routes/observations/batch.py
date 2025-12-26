@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import ObservationStatus
 from app.core.logging import get_logger
 from app.db.repositories.observation import ObservationRepository
 from app.db.session import get_session
@@ -44,7 +45,7 @@ async def delete_observation(
             detail=f"Observation {observation_id} not found",
         )
 
-    if observation.status == "running":
+    if observation.status == ObservationStatus.RUNNING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete running observation. Stop it first.",
@@ -117,7 +118,7 @@ async def batch_delete_observations(
             skipped.append({"id": obs_id, "reason": "Not found"})
             continue
 
-        if observation.status == "running":
+        if observation.status == ObservationStatus.RUNNING:
             skipped.append({"id": obs_id, "reason": "Still running"})
             continue
 

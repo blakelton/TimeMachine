@@ -7,11 +7,15 @@ from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, JSON, String, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+from app.core.constants import ObservationStatus
 from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.db.models.camera import Camera
     from app.db.models.job import Job
+
+# Re-export for convenience
+__all__ = ["Observation", "ObservationStatus"]
 
 
 class Observation(Base):
@@ -32,7 +36,7 @@ class Observation(Base):
     )  # "timelapse" | "recording" | "still"
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, index=True
-    )  # "running" | "completed" | "failed" | "stopped"
+    )  # See ObservationStatus enum for valid values
 
     # Folder structure
     folder_path: Mapped[str] = mapped_column(

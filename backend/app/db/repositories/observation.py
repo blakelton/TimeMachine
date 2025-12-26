@@ -4,7 +4,9 @@ from datetime import datetime
 
 from sqlalchemy import delete as sql_delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.core.constants import ObservationStatus
 from app.db.models.observation import Observation
 from app.db.repositories.base import BaseRepository
 
@@ -46,7 +48,7 @@ class ObservationRepository(BaseRepository[Observation]):
         Returns:
             List of running observations.
         """
-        query = select(Observation).where(Observation.status == "running")
+        query = select(Observation).where(Observation.status == ObservationStatus.RUNNING)
         if camera_id is not None:
             query = query.where(Observation.camera_id == camera_id)
         result = await self.session.execute(query)
@@ -64,7 +66,7 @@ class ObservationRepository(BaseRepository[Observation]):
         result = await self.session.execute(
             select(Observation).where(
                 Observation.camera_id == camera_id,
-                Observation.status == "running",
+                Observation.status == ObservationStatus.RUNNING,
             )
         )
         return result.scalar_one_or_none()
@@ -145,7 +147,7 @@ class ObservationRepository(BaseRepository[Observation]):
             Updated observation or None if not found.
         """
         update_data = {
-            "status": "completed",
+            "status": ObservationStatus.COMPLETED,
             "completed_at": datetime.now(),
         }
         if size_bytes is not None:
@@ -165,7 +167,7 @@ class ObservationRepository(BaseRepository[Observation]):
             Updated observation or None if not found.
         """
         update_data = {
-            "status": "stopped",
+            "status": ObservationStatus.STOPPED,
             "completed_at": datetime.now(),
         }
         if size_bytes is not None:
@@ -186,7 +188,7 @@ class ObservationRepository(BaseRepository[Observation]):
         """
         return await self.update(
             observation_id,
-            status="failed",
+            status=ObservationStatus.FAILED,
             completed_at=datetime.now(),
             error_message=error_message,
         )
@@ -231,7 +233,7 @@ class ObservationRepository(BaseRepository[Observation]):
             List of observations that were still running.
         """
         result = await self.session.execute(
-            select(Observation).where(Observation.status == "running")
+            select(Observation).where(Observation.status == ObservationStatus.RUNNING)
         )
         return list(result.scalars().all())
 
@@ -244,7 +246,7 @@ class ObservationRepository(BaseRepository[Observation]):
         observations = await self.get_stale_running()
 
         for obs in observations:
-            obs.status = "failed"
+            obs.status = ObservationStatus.FAILED
             obs.completed_at = datetime.now()
             obs.error_message = "Observation interrupted by system restart"
 
@@ -257,6 +259,7 @@ class ObservationRepository(BaseRepository[Observation]):
         observation_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        eager_load_camera: bool = False,
     ) -> list[Observation]:
         """Get completed observations (not running).
 
@@ -265,13 +268,22 @@ class ObservationRepository(BaseRepository[Observation]):
             observation_type: Optional type filter.
             limit: Maximum results.
             offset: Pagination offset.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of completed observations, newest first.
         """
         query = select(Observation).where(
-            Observation.status.in_(["completed", "stopped", "failed"])
+            Observation.status.in_([
+                ObservationStatus.COMPLETED,
+                ObservationStatus.STOPPED,
+                ObservationStatus.FAILED,
+            ])
         )
+
+        # Eager load camera to prevent N+1 queries
+        if eager_load_camera:
+            query = query.options(selectinload(Observation.camera))
 
         if camera_id is not None:
             query = query.where(Observation.camera_id == camera_id)
@@ -299,7 +311,11 @@ class ObservationRepository(BaseRepository[Observation]):
             Total count of completed observations.
         """
         query = select(func.count(Observation.id)).where(
-            Observation.status.in_(["completed", "stopped", "failed"])
+            Observation.status.in_([
+                ObservationStatus.COMPLETED,
+                ObservationStatus.STOPPED,
+                ObservationStatus.FAILED,
+            ])
         )
 
         if camera_id is not None:

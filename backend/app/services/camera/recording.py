@@ -7,6 +7,7 @@ from typing import Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.constants import JobStatus
 from app.core.logging import get_logger
 from app.core.resources import check_resources_available, encoder_semaphore
 from app.db.repositories.job import JobRepository
@@ -111,7 +112,7 @@ class RecordingService:
                 job = await job_repo.create(
                     camera_id=camera_id,
                     job_type="recording",
-                    status="running",
+                    status=JobStatus.RUNNING,
                     output_path=str(output_file),
                 )
                 job_id = job.id

@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import JobStatus
 from app.core.logging import get_logger
 from app.db.repositories.job import JobRepository
 from app.db.session import get_session
@@ -145,7 +146,7 @@ async def delete_job(
             detail=f"Job {job_id} not found",
         )
 
-    if job.status == "running":
+    if job.status == JobStatus.RUNNING:
         logger.warning("job_delete_running", job_id=job_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

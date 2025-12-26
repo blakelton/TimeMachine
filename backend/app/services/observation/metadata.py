@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import ObservationStatus
 from app.db.models.observation import Observation
 from app.db.repositories.observation import ObservationRepository
 from app.services.camera.recording import recording_service
@@ -104,7 +105,7 @@ async def get_observation_status(
     folder_path = Path(observation.folder_path)
 
     # Get live progress from underlying service
-    if observation.status == "running":
+    if observation.status == ObservationStatus.RUNNING:
         if observation.observation_type == "timelapse":
             progress = timelapse_service.get_timelapse_progress(observation.camera_id)
             if progress:

@@ -5,6 +5,7 @@ and stores readings in the database.
 """
 
 import asyncio
+import threading
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,9 @@ from app.db.repositories.environment_reading import EnvironmentReadingRepository
 from app.services.environment.sensors import SensorReader, SensorReading, create_sensor_reader
 
 logger = get_logger(__name__)
+
+# Lock for thread-safe access to global polling service instance
+_polling_service_lock = threading.Lock()
 
 
 class EnvironmentPollingService:
@@ -31,6 +35,7 @@ class EnvironmentPollingService:
         self._running = False
         self._task: asyncio.Task | None = None
         self._readers: dict[int, SensorReader] = {}
+        self._readers_lock = asyncio.Lock()
         self._last_readings: dict[int, SensorReading] = {}
         self._last_read_times: dict[int, datetime] = {}
         self._session_factory = None
@@ -87,14 +92,15 @@ class EnvironmentPollingService:
                 pass
             self._task = None
 
-        # Clean up all sensors
-        for reader in self._readers.values():
-            try:
-                reader.cleanup()
-            except Exception as e:
-                logger.error("sensor_cleanup_error", error=str(e))
+        # Clean up all sensors with lock to prevent race conditions
+        async with self._readers_lock:
+            for reader in self._readers.values():
+                try:
+                    reader.cleanup()
+                except Exception as e:
+                    logger.error("sensor_cleanup_error", error=str(e))
+            self._readers.clear()
 
-        self._readers.clear()
         logger.info("environment_polling_stopped")
 
     async def _poll_loop(self):
@@ -151,7 +157,7 @@ class EnvironmentPollingService:
                 return
 
         # Get or create reader for this device
-        reader = self._get_reader(device)
+        reader = await self._get_reader(device)
         if reader is None:
             return
 
@@ -190,8 +196,10 @@ class EnvironmentPollingService:
             pressure=reading.pressure
         )
 
-    def _get_reader(self, device: EnvironmentDevice) -> SensorReader | None:
+    async def _get_reader(self, device: EnvironmentDevice) -> SensorReader | None:
         """Get or create a sensor reader for a device.
+
+        Uses async lock to prevent race conditions during reader creation.
 
         Args:
             device: The device configuration.
@@ -199,7 +207,16 @@ class EnvironmentPollingService:
         Returns:
             Sensor reader or None if creation failed.
         """
-        if device.id not in self._readers:
+        # Fast path: reader already exists
+        if device.id in self._readers:
+            return self._readers.get(device.id)
+
+        # Slow path: need to create reader with lock
+        async with self._readers_lock:
+            # Double-check after acquiring lock
+            if device.id in self._readers:
+                return self._readers.get(device.id)
+
             try:
                 reader = create_sensor_reader(
                     device.device_type,
@@ -212,6 +229,7 @@ class EnvironmentPollingService:
                     device_id=device.id,
                     device_type=device.device_type
                 )
+                return reader
             except Exception as e:
                 logger.error(
                     "sensor_reader_creation_failed",
@@ -220,20 +238,21 @@ class EnvironmentPollingService:
                 )
                 return None
 
-        return self._readers.get(device.id)
-
-    def invalidate_reader(self, device_id: int):
+    async def invalidate_reader(self, device_id: int):
         """Remove a cached reader (e.g., when device config changes).
+
+        Uses async lock to prevent race conditions with reader creation.
 
         Args:
             device_id: The device ID whose reader should be removed.
         """
-        if device_id in self._readers:
-            reader = self._readers.pop(device_id)
-            try:
-                reader.cleanup()
-            except Exception:
-                pass
+        async with self._readers_lock:
+            if device_id in self._readers:
+                reader = self._readers.pop(device_id)
+                try:
+                    reader.cleanup()
+                except Exception as e:
+                    logger.debug("reader_cleanup_error", device_id=device_id, error=str(e))
 
 
 # Global service instance
@@ -241,10 +260,16 @@ _polling_service: EnvironmentPollingService | None = None
 
 
 def get_polling_service() -> EnvironmentPollingService:
-    """Get the global polling service instance."""
+    """Get the global polling service instance.
+
+    Uses double-checked locking for thread safety.
+    """
     global _polling_service
     if _polling_service is None:
-        _polling_service = EnvironmentPollingService()
+        with _polling_service_lock:
+            # Double-check after acquiring lock
+            if _polling_service is None:
+                _polling_service = EnvironmentPollingService()
     return _polling_service
 
 

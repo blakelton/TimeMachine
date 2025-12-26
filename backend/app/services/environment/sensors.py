@@ -100,7 +100,7 @@ class DHTReader:
 
         try:
             # DHT sensors are slow, run in executor to avoid blocking
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, self._read_sync)
             return result
         except Exception as e:
@@ -139,7 +139,11 @@ class BME280Reader:
         Args:
             address: I2C address as hex string (0x76 or 0x77).
         """
-        self.address = int(address, 16) if address.startswith("0x") else int(address)
+        try:
+            self.address = int(address, 16) if address.startswith("0x") else int(address)
+        except ValueError:
+            logger.error("bme280_invalid_address", address=address)
+            self.address = 0x76  # Default to standard address
         self._sensor = None
         self._initialized = False
 
@@ -177,7 +181,7 @@ class BME280Reader:
             return SensorReading(error="Sensor not initialized")
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, self._read_sync)
             return result
         except Exception as e:
@@ -240,6 +244,12 @@ class DS18B20Reader:
                 hint="Install w1thermsensor"
             )
             return False
+        except NoSensorFoundError:
+            logger.error(
+                "ds18b20_no_sensor_found",
+                device_id=self.device_id or "auto-detect"
+            )
+            return False
         except Exception as e:
             logger.error("ds18b20_init_error", error=str(e))
             return False
@@ -250,7 +260,7 @@ class DS18B20Reader:
             return SensorReading(error="Sensor not initialized")
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, self._read_sync)
             return result
         except Exception as e:

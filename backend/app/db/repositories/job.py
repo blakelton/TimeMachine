@@ -4,7 +4,9 @@ from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.core.constants import JobStatus
 from app.db.models.job import Job
 from app.db.repositories.base import BaseRepository
 
@@ -31,16 +33,21 @@ class JobRepository(BaseRepository[Job]):
         )
         return list(result.scalars().all())
 
-    async def get_running(self, camera_id: int | None = None) -> list[Job]:
+    async def get_running(
+        self, camera_id: int | None = None, eager_load_camera: bool = False
+    ) -> list[Job]:
         """Get all running jobs, optionally filtered by camera.
 
         Args:
             camera_id: Optional camera ID filter.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of running jobs.
         """
-        query = select(Job).where(Job.status == "running")
+        query = select(Job).where(Job.status == JobStatus.RUNNING)
+        if eager_load_camera:
+            query = query.options(selectinload(Job.camera))
         if camera_id is not None:
             query = query.where(Job.camera_id == camera_id)
         result = await self.session.execute(query)
@@ -80,7 +87,7 @@ class JobRepository(BaseRepository[Job]):
             select(Job).where(
                 Job.camera_id == camera_id,
                 Job.job_type == job_type,
-                Job.status == "running",
+                Job.status == JobStatus.RUNNING,
             )
         )
         return result.scalar_one_or_none()
@@ -99,7 +106,7 @@ class JobRepository(BaseRepository[Job]):
         """
         return await self.update(
             job_id,
-            status="completed",
+            status=JobStatus.COMPLETED,
             completed_at=datetime.now(),
             output_path=output_path,
         )
@@ -116,7 +123,7 @@ class JobRepository(BaseRepository[Job]):
         """
         return await self.update(
             job_id,
-            status="failed",
+            status=JobStatus.FAILED,
             completed_at=datetime.now(),
             error_message=error_message,
         )
@@ -132,7 +139,7 @@ class JobRepository(BaseRepository[Job]):
         """
         return await self.update(
             job_id,
-            status="interrupted",
+            status=JobStatus.INTERRUPTED,
             completed_at=datetime.now(),
         )
 
@@ -164,7 +171,7 @@ class JobRepository(BaseRepository[Job]):
             .where(
                 Job.camera_id == camera_id,
                 Job.job_type == "timelapse",
-                Job.status == "interrupted",
+                Job.status == JobStatus.INTERRUPTED,
             )
             .order_by(Job.started_at.desc())
             .limit(1)
@@ -178,12 +185,12 @@ class JobRepository(BaseRepository[Job]):
             Number of jobs cleaned up.
         """
         result = await self.session.execute(
-            select(Job).where(Job.status == "running")
+            select(Job).where(Job.status == JobStatus.RUNNING)
         )
         jobs = list(result.scalars().all())
 
         for job in jobs:
-            job.status = "interrupted"
+            job.status = JobStatus.INTERRUPTED
             job.completed_at = datetime.now()
             job.error_message = "Job interrupted by system restart"
 

@@ -4,6 +4,40 @@ This module centralizes magic numbers and configuration constants
 to improve maintainability and reduce duplication.
 """
 
+from enum import StrEnum
+
+
+# =============================================================================
+# STATUS ENUMS
+# =============================================================================
+
+
+class ObservationStatus(StrEnum):
+    """Status values for observations (recordings, timelapses, captures).
+
+    Lifecycle:
+        RUNNING -> COMPLETED | FAILED | STOPPED
+    """
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class JobStatus(StrEnum):
+    """Status values for background jobs.
+
+    Lifecycle:
+        PENDING -> RUNNING -> COMPLETED | FAILED | INTERRUPTED
+    """
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    INTERRUPTED = "interrupted"
+
 # =============================================================================
 # TIMING CONSTANTS (seconds unless noted)
 # =============================================================================

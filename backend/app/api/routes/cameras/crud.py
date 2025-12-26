@@ -14,11 +14,7 @@ from app.schemas.camera import (
     CameraResponse,
     CameraUpdate,
 )
-from app.services.camera import (
-    recording_service,
-    timelapse_service,
-)
-from app.services.camera.pipeline import PipelineState
+from app.services.camera.validation import require_camera_available
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -180,10 +176,7 @@ async def update_camera(
     Raises:
         HTTPException: 404 if camera not found, 409 if camera is in use
     """
-    from app.db.repositories.observation import ObservationRepository
-
     repo = CameraRepository(session)
-    obs_repo = ObservationRepository(session)
 
     # Check if camera exists first
     camera = await repo.get_by_id(camera_id)
@@ -194,36 +187,8 @@ async def update_camera(
             detail=f"Camera {camera_id} not found",
         )
 
-    # Check if camera is currently in use (has active observation)
-    active_obs = await obs_repo.get_active_by_camera(camera_id)
-    if active_obs:
-        obs_type = active_obs.observation_type
-        logger.warning(
-            "camera_update_blocked_in_use",
-            camera_id=camera_id,
-            observation_id=active_obs.id,
-            observation_type=obs_type,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot edit camera while {obs_type} is running. Stop the {obs_type} first or wait for it to complete.",
-        )
-
-    # Also check if recording or timelapse service has active session
-    # (in case observation status is out of sync)
-    if recording_service.get_recording_state(camera_id) == PipelineState.RUNNING:
-        logger.warning("camera_update_blocked_recording", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot edit camera while recording is running. Stop the recording first.",
-        )
-
-    if timelapse_service.is_running(camera_id):
-        logger.warning("camera_update_blocked_timelapse", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot edit camera while timelapse is running. Stop the timelapse first.",
-        )
+    # Check if camera is currently in use
+    await require_camera_available(camera_id, session, operation="edit camera")
 
     # Validate camera_type if provided
     if camera_data.camera_type is not None:
@@ -267,10 +232,7 @@ async def delete_camera(
     Raises:
         HTTPException: 404 if camera not found, 409 if camera is in use
     """
-    from app.db.repositories.observation import ObservationRepository
-
     repo = CameraRepository(session)
-    obs_repo = ObservationRepository(session)
 
     # Check if camera exists first
     camera = await repo.get_by_id(camera_id)
@@ -281,35 +243,8 @@ async def delete_camera(
             detail=f"Camera {camera_id} not found",
         )
 
-    # Check if camera is currently in use (has active observation)
-    active_obs = await obs_repo.get_active_by_camera(camera_id)
-    if active_obs:
-        obs_type = active_obs.observation_type
-        logger.warning(
-            "camera_delete_blocked_in_use",
-            camera_id=camera_id,
-            observation_id=active_obs.id,
-            observation_type=obs_type,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete camera while {obs_type} is running. Stop the {obs_type} first or wait for it to complete.",
-        )
-
-    # Also check if recording or timelapse service has active session
-    if recording_service.get_recording_state(camera_id) == PipelineState.RUNNING:
-        logger.warning("camera_delete_blocked_recording", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete camera while recording is running. Stop the recording first.",
-        )
-
-    if timelapse_service.is_running(camera_id):
-        logger.warning("camera_delete_blocked_timelapse", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete camera while timelapse is running. Stop the timelapse first.",
-        )
+    # Check if camera is currently in use
+    await require_camera_available(camera_id, session, operation="delete camera")
 
     deleted = await repo.delete(camera_id)
 

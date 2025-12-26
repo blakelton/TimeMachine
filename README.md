@@ -4,21 +4,21 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 
 ## Development Status
 
-**Current Phase**: Camera Services Implementation Complete
+**Current Phase**: Phase 1 Complete (Environment Monitoring)
 
 **What's Ready**:
 - Complete, production-ready web interface with real-time monitoring
 - Full camera configuration management (CRUD operations)
 - Camera operations (preview, capture, record, timelapse) with Job tracking
 - Timelapse service with resume support and video assembly
+- **Environment Monitoring**: DHT11/DHT22/BME280/DS18B20 sensor support with graphs
+- **Timelapse Overlay**: Temperature/humidity data burned into timelapse videos
 - Startup cleanup (stale jobs, orphan process handling)
 - Deployment infrastructure (systemd, nginx, installation scripts)
-- Comprehensive documentation
+- Test infrastructure (pytest with 18+ tests)
 
-**What Needs Testing**:
-- Hardware validation on Raspberry Pi 3
-- GStreamer pipeline verification with actual cameras
-- EOS handling for MP4 file finalization
+**In Progress**:
+- Phase 2: Temperature Control (relay/heater/cooler integration)
 
 **See**: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed status
 
@@ -44,6 +44,14 @@ Temperature-controlled observation chamber management system for Raspberry Pi 3+
 - **System Settings**: Camera CRUD, output configuration, notification preferences
 - **Responsive Design**: Mobile-first UI with touch-friendly controls, optimized for 800x480 touchscreens
 - **Real-time Updates**: WebSocket integration for live stats and job status
+
+### Environment Monitoring
+- **Multi-Sensor Support**: DHT11, DHT22/AM2302, BME280, DS18B20 sensors
+- **Real-time Display**: Live temperature and humidity on Environment page
+- **Historical Graphs**: Inline charts showing trends over time
+- **Timelapse Overlay**: Burn sensor data directly into timelapse videos
+- **Configurable Polling**: Adjustable sensor read intervals
+- **Mock Mode**: Development without hardware using simulated sensors
 
 ### System Management
 - **Live Statistics**: CPU, memory, disk usage, and temperature via WebSocket (2s updates)
@@ -160,6 +168,16 @@ timemachine status
 | `/jobs/running` | GET | List currently running jobs |
 | `/jobs/{id}` | GET | Get job details |
 | `/jobs/{id}` | DELETE | Delete job record |
+
+### Environment
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/environment/devices` | GET | List configured sensors |
+| `/environment/devices` | POST | Add new sensor device |
+| `/environment/devices/{id}` | PUT | Update sensor config |
+| `/environment/devices/{id}` | DELETE | Remove sensor |
+| `/environment/readings` | GET | Get sensor readings (with time range) |
+| `/environment/readings/latest` | GET | Get latest reading per device |
 
 ### System
 | Endpoint | Method | Description |

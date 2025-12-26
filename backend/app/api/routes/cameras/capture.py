@@ -1,6 +1,7 @@
 """Camera still capture endpoints."""
 
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
@@ -9,7 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.constants import ObservationStatus
 from app.core.logging import get_logger
+from app.db.models.camera import Camera
 from app.db.repositories.camera import CameraRepository
 from app.db.repositories.observation import ObservationRepository
 from app.db.repositories.output_config import OutputConfigRepository
@@ -20,6 +23,147 @@ from app.services.camera.pipeline import PipelineState
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+@dataclass
+class PreviewState:
+    """Captured preview state before stopping for capture."""
+
+    was_running: bool
+    fps: int = 10
+
+
+async def _stop_preview_for_capture(
+    camera: Camera, session: AsyncSession
+) -> PreviewState:
+    """Stop preview if running and wait for device release.
+
+    Args:
+        camera: Camera model instance
+        session: Database session for config lookup
+
+    Returns:
+        PreviewState with original state for later restoration
+    """
+    preview_state = preview_service.get_preview_state(camera.id)
+
+    if preview_state != PipelineState.RUNNING:
+        return PreviewState(was_running=False)
+
+    # Get configured FPS for restart
+    config_repo = OutputConfigRepository(session)
+    config = await config_repo.get_current()
+    fps = config.dashboard_preview_fps if config else 10
+
+    logger.info(
+        "capture_stopping_preview",
+        camera_id=camera.id,
+        camera_type=camera.camera_type,
+        device_path=camera.device_path,
+    )
+
+    await preview_service.stop_preview(camera.id)
+    await _wait_for_device_release(camera)
+
+    return PreviewState(was_running=True, fps=fps or 10)
+
+
+async def _wait_for_device_release(camera: Camera) -> None:
+    """Wait for camera device to be released after stopping preview.
+
+    Args:
+        camera: Camera model instance
+    """
+    if camera.camera_type == "usb":
+        await _wait_for_usb_device_release(camera)
+    else:
+        # CSI: libcamera needs ~1s to release pipeline
+        await asyncio.sleep(1.0)
+        logger.info("capture_csi_preview_stopped", camera_id=camera.id)
+
+
+async def _wait_for_usb_device_release(camera: Camera) -> None:
+    """Wait for USB device to be released by checking fuser.
+
+    Args:
+        camera: Camera model instance
+    """
+    max_attempts = 10  # 10 attempts × 0.5s = 5 seconds max
+    for attempt in range(max_attempts):
+        await asyncio.sleep(0.5)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "fuser", camera.device_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=2.0)
+            if not stdout.decode().strip():
+                logger.info(
+                    "capture_device_released",
+                    camera_id=camera.id,
+                    device_path=camera.device_path,
+                    attempts=attempt + 1,
+                )
+                return
+        except asyncio.TimeoutError:
+            logger.debug(
+                "capture_device_check_timeout",
+                camera_id=camera.id,
+                attempt=attempt + 1,
+            )
+        except Exception as e:
+            logger.warning(
+                "capture_device_check_failed",
+                camera_id=camera.id,
+                error=str(e),
+            )
+
+    logger.warning(
+        "capture_device_still_busy",
+        camera_id=camera.id,
+        device_path=camera.device_path,
+        message="Proceeding anyway after 5s wait",
+    )
+
+
+async def _restart_preview(camera: Camera, fps: int) -> None:
+    """Restart preview after capture with timeout protection.
+
+    Note: This function intentionally suppresses all exceptions to ensure
+    capture operations complete even if preview restart fails. Errors are
+    logged for debugging. The dashboard watchdog will attempt to restart
+    preview automatically if this fails.
+
+    Args:
+        camera: Camera model instance
+        fps: FPS setting for preview
+    """
+    try:
+        logger.info("capture_restarting_preview", camera_id=camera.id)
+        await asyncio.wait_for(
+            preview_service.start_preview(
+                camera_id=camera.id,
+                device_path=camera.device_path,
+                camera_type=camera.camera_type,
+                port=8080 + camera.id,
+                fps=fps,
+            ),
+            timeout=10.0,
+        )
+        logger.info("capture_preview_restarted", camera_id=camera.id)
+    except asyncio.TimeoutError:
+        logger.error(
+            "capture_preview_restart_timeout",
+            camera_id=camera.id,
+            message="Preview restart timed out after 10s",
+        )
+    except Exception as e:
+        logger.error(
+            "capture_preview_restart_failed",
+            camera_id=camera.id,
+            error=str(e),
+        )
 
 
 @router.post("/{camera_id}/capture", response_model=OperationResponse)
@@ -45,7 +189,6 @@ async def capture_image(
         HTTPException: 404 if camera not found
     """
     repo = CameraRepository(session)
-    obs_repo = ObservationRepository(session)
     camera = await repo.get(camera_id)
 
     if camera is None:
@@ -55,189 +198,104 @@ async def capture_image(
             detail=f"Camera {camera_id} not found",
         )
 
-    # Set capture lock to prevent dashboard watchdog from auto-starting preview
+    # Set capture lock and stop preview if running
     preview_service.set_capture_in_progress(camera_id, True)
-
-    # Stop preview if running - both USB and CSI cameras need exclusive access
-    # USB: V4L2 device exclusivity
-    # CSI: libcamera pipeline can only be used by one process at a time
-    preview_was_running = False
-    preview_fps = 10  # default
-    preview_state = preview_service.get_preview_state(camera_id)
-    if preview_state == PipelineState.RUNNING:
-        preview_was_running = True
-        # Get configured FPS from settings for restart
-        config_repo = OutputConfigRepository(session)
-        config = await config_repo.get_current()
-        if config:
-            preview_fps = config.dashboard_preview_fps or 10
-
-        logger.info(
-            "capture_stopping_preview",
-            camera_id=camera_id,
-            camera_type=camera.camera_type,
-            device_path=camera.device_path,
-        )
-
-        await preview_service.stop_preview(camera_id)
-
-        # Wait for device to be released
-        if camera.camera_type == "usb":
-            # USB: Wait for V4L2 device to be fully released by GStreamer
-            # USB devices need time for file descriptors to close and hardware to reset
-            device_released = False
-            for attempt in range(10):  # Try up to 5 seconds total
-                await asyncio.sleep(0.5)
-                # Check if any process still has the device open
-                try:
-                    check_proc = await asyncio.create_subprocess_shell(
-                        f"fuser {camera.device_path} 2>/dev/null",
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    stdout, _ = await asyncio.wait_for(check_proc.communicate(), timeout=2.0)
-                    if not stdout.decode().strip():
-                        device_released = True
-                        logger.info(
-                            "capture_device_released",
-                            camera_id=camera_id,
-                            device_path=camera.device_path,
-                            attempts=attempt + 1,
-                        )
-                        break
-                except asyncio.TimeoutError:
-                    pass
-                except Exception as e:
-                    logger.warning(
-                        "capture_device_check_failed",
-                        camera_id=camera_id,
-                        error=str(e),
-                    )
-
-            if not device_released:
-                logger.warning(
-                    "capture_device_still_busy",
-                    camera_id=camera_id,
-                    device_path=camera.device_path,
-                    message="Proceeding anyway after 5s wait",
-                )
-        else:
-            # CSI: libcamera needs time to release the camera pipeline
-            # Wait for rpicam-vid process to fully exit
-            await asyncio.sleep(1.0)
-            logger.info(
-                "capture_csi_preview_stopped",
-                camera_id=camera_id,
-            )
+    saved_preview = await _stop_preview_for_capture(camera, session)
 
     try:
-        # Create observation folder for this capture
-        now = datetime.now()  # Use local time
-        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-        folder_name = f"camera{camera_id}_{timestamp_str}_still"
-        stills_base = Path(settings.media_path) / "stills"
-        observation_folder = stills_base / folder_name
-        observation_folder.mkdir(parents=True, exist_ok=True)
-
-        # Generate filename for the capture
-        capture_filename = filename or f"capture_{timestamp_str}"
-        output_file = observation_folder / f"{capture_filename}.jpg"
-
-        logger.info(
-            "capture_starting",
-            camera_id=camera_id,
-            camera_type=camera.camera_type,
-            device_path=camera.device_path,
-            output_file=str(output_file),
+        success, message, filepath = await _execute_capture(
+            camera, session, filename
         )
-
-        # Capture image directly to observation folder
-        success, message, filepath = await capture_service.capture_image(
-            camera_id=camera_id,
-            device_path=camera.device_path,
-            camera_type=camera.camera_type,
-            output_path=str(output_file),
-        )
-
-        logger.info(
-            "capture_result",
-            camera_id=camera_id,
-            success=success,
-            message=message,
-            filepath=filepath,
-        )
-
-        # If capture succeeded, create observation record
-        if success and filepath:
-            file_size = Path(filepath).stat().st_size if Path(filepath).exists() else 0
-
-            observation = await obs_repo.create(
-                camera_id=camera_id,
-                observation_type="still",
-                status="completed",
-                folder_path=str(observation_folder),
-                config={"filename": capture_filename},
-                progress_current=1,
-                progress_total=1,
-                size_bytes=file_size,
-                started_at=now,
-                completed_at=now,
-            )
-
-            logger.info(
-                "capture_observation_created",
-                camera_id=camera_id,
-                observation_id=observation.id,
-                filepath=filepath,
-            )
     finally:
-        # Release capture lock BEFORE restarting preview
-        # This allows the preview restart to proceed
+        # Release capture lock and restart preview if needed
         preview_service.set_capture_in_progress(camera_id, False)
-
-        # Restart preview if it was running (with error handling and timeout)
-        if preview_was_running:
-            try:
-                logger.info(
-                    "capture_restarting_preview",
-                    camera_id=camera_id,
-                )
-                # Use asyncio.wait_for to prevent hanging indefinitely
-                await asyncio.wait_for(
-                    preview_service.start_preview(
-                        camera_id=camera_id,
-                        device_path=camera.device_path,
-                        camera_type=camera.camera_type,
-                        port=8080 + camera_id,
-                        fps=preview_fps,
-                    ),
-                    timeout=10.0,
-                )
-                logger.info(
-                    "capture_preview_restarted",
-                    camera_id=camera_id,
-                )
-            except asyncio.TimeoutError:
-                logger.error(
-                    "capture_preview_restart_timeout",
-                    camera_id=camera_id,
-                    message="Preview restart timed out after 10s",
-                )
-            except Exception as e:
-                logger.error(
-                    "capture_preview_restart_failed",
-                    camera_id=camera_id,
-                    error=str(e),
-                )
+        if saved_preview.was_running:
+            await _restart_preview(camera, saved_preview.fps)
 
     if success:
-        return OperationResponse(
-            success=True,
-            message=message,
-            filepath=filepath,
-        )
+        return OperationResponse(success=True, message=message, filepath=filepath)
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=message,
         )
+
+
+async def _execute_capture(
+    camera: Camera,
+    session: AsyncSession,
+    filename: str | None,
+) -> tuple[bool, str, str | None]:
+    """Execute the actual capture and create observation record.
+
+    Args:
+        camera: Camera model instance
+        session: Database session
+        filename: Optional custom filename
+
+    Returns:
+        Tuple of (success, message, filepath)
+    """
+    obs_repo = ObservationRepository(session)
+    now = datetime.now()
+    timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+
+    # Create observation folder
+    folder_name = f"camera{camera.id}_{timestamp_str}_still"
+    stills_base = Path(settings.media_path) / "stills"
+    observation_folder = stills_base / folder_name
+    observation_folder.mkdir(parents=True, exist_ok=True)
+
+    # Generate filename and output path
+    capture_filename = filename or f"capture_{timestamp_str}"
+    output_file = observation_folder / f"{capture_filename}.jpg"
+
+    logger.info(
+        "capture_starting",
+        camera_id=camera.id,
+        camera_type=camera.camera_type,
+        device_path=camera.device_path,
+        output_file=str(output_file),
+    )
+
+    # Capture image
+    success, message, filepath = await capture_service.capture_image(
+        camera_id=camera.id,
+        device_path=camera.device_path,
+        camera_type=camera.camera_type,
+        output_path=str(output_file),
+    )
+
+    logger.info(
+        "capture_result",
+        camera_id=camera.id,
+        success=success,
+        message=message,
+        filepath=filepath,
+    )
+
+    # Create observation record if successful
+    if success and filepath:
+        file_size = Path(filepath).stat().st_size if Path(filepath).exists() else 0
+
+        observation = await obs_repo.create(
+            camera_id=camera.id,
+            observation_type="still",
+            status=ObservationStatus.COMPLETED,
+            folder_path=str(observation_folder),
+            config={"filename": capture_filename},
+            progress_current=1,
+            progress_total=1,
+            size_bytes=file_size,
+            started_at=now,
+            completed_at=now,
+        )
+
+        logger.info(
+            "capture_observation_created",
+            camera_id=camera.id,
+            observation_id=observation.id,
+            filepath=filepath,
+        )
+
+    return success, message, filepath

@@ -60,6 +60,235 @@ Track all:
 
 <!-- New entries should be added at the top, below this line -->
 
+### [2025-12-26 01:35] Improvement: Test Coverage and TypeScript API Wrappers
+**Type**: Testing / Type Safety
+**Status**: COMPLETED
+**Source**: AI Evaluation Executive Report recommendations
+
+**Description**:
+Expanded backend test coverage from 18 to 59 tests, and created typed TypeScript API wrapper functions to eliminate `as any` casts throughout the frontend.
+
+**Backend Test Files Created**:
+- `backend/tests/test_repositories.py` (30 tests):
+  - CameraRepository: create, get, update, get_enabled, get_all
+  - ObservationRepository: create, get_active, mark_completed/failed/stopped, update_progress, get_completed, eager loading, cleanup_stale_running, count, delete
+  - JobRepository: get_running, mark_completed/failed/interrupted, cleanup_stale_running, timelapse_progress, filter by camera/type
+
+- `backend/tests/test_validation_service.py` (11 tests):
+  - CameraInUseResult dataclass tests
+  - check_camera_in_use: detects DB observations, recording service, timelapse service
+  - require_camera_available: raises HTTPException 409 with proper messages
+
+**Frontend TypeScript Files Created**:
+- `frontend/src/api/camera.ts` - 14 typed wrapper functions:
+  - captureImage, startPreview, stopPreview, getPreviewStatus
+  - startRecording, stopRecording, getRecordingStatus
+  - startTimelapse, stopTimelapse, getTimelapseStatus
+  - checkCameraHealth, getCamera, updateCamera, deleteCamera
+
+- `frontend/src/api/observations.ts` - 14 typed wrapper functions:
+  - startObservation, getActiveObservationByCamera, getObservation
+  - getObservationStatus, stopObservation, deleteObservation
+  - updateObservationNotes, getObservationThumbnail, getObservationPreview
+  - generateObservationPreview, getObservationMedia, batchDeleteObservations
+  - listActiveObservations, listCompletedObservations
+
+- `frontend/src/api/index.ts` - Barrel export for all API functions
+
+**Benefits**:
+- Test coverage increased 3x (18 → 59 tests)
+- Repository layer fully tested including eager loading
+- Validation service 100% test coverage
+- TypeScript wrappers provide proper typing for path-parameterized endpoints
+- Frontend code can now use typed wrapper functions instead of `as any` casts
+- All wrappers match OpenAPI spec exactly (PUT vs PATCH, query vs body params)
+
+**Quality Evaluation**:
+- CRITICAL: 0
+- HIGH: 0
+- MEDIUM: 1 (fixed - unused MagicMock import)
+- LOW: 7 (optional improvements noted)
+- 59 tests passing, frontend builds successfully
+
+---
+
+### [2025-12-25 20:15] Refactor: Extract Camera In-Use Validation to Service Layer
+**Type**: Refactor
+**Status**: COMPLETED
+**Source**: AI Evaluation Executive Report recommendation
+
+**Description**:
+Extracted duplicated camera in-use validation logic from API routes into a reusable service module.
+
+**Files Created**:
+- `backend/app/services/camera/validation.py`:
+  - `CameraInUseResult` dataclass for structured results
+  - `check_camera_in_use()` - checks database + in-memory services
+  - `require_camera_available()` - raises HTTPException if in use
+
+**Files Modified**:
+- `backend/app/api/routes/cameras/crud.py`:
+  - Removed ~60 lines of duplicated validation code from `update_camera` and `delete_camera`
+  - Now uses `require_camera_available()` single function call
+  - Removed unused imports (`recording_service`, `timelapse_service`, `PipelineState`, `ObservationRepository`)
+
+**Before (in each endpoint)**:
+```python
+# Check database
+active_obs = await obs_repo.get_active_by_camera(camera_id)
+if active_obs: raise HTTPException(...)
+
+# Check recording service
+if recording_service.get_recording_state(camera_id) == PipelineState.RUNNING:
+    raise HTTPException(...)
+
+# Check timelapse service
+if timelapse_service.is_running(camera_id):
+    raise HTTPException(...)
+```
+
+**After**:
+```python
+await require_camera_available(camera_id, session, operation="edit camera")
+```
+
+**Benefits**:
+- Single source of truth for camera validation logic
+- Consistent error messages across endpoints
+- Easier to test and maintain
+- Reduced route handler complexity
+
+**Quality**: All 18 tests passing, syntax verified
+
+---
+
+### [2025-12-25 20:00] Refactor: Reduce capture_image Endpoint Complexity
+**Type**: Refactor
+**Status**: COMPLETED
+**Source**: AI Evaluation Executive Report recommendation
+
+**Description**:
+Refactored the `capture_image` endpoint in `cameras/capture.py` to reduce cyclomatic complexity by extracting helper functions.
+
+**Extracted Functions**:
+- `PreviewState` dataclass - captures preview state for restoration
+- `_stop_preview_for_capture()` - stops preview and waits for device release
+- `_wait_for_device_release()` - dispatches to USB or CSI wait logic
+- `_wait_for_usb_device_release()` - polls fuser for device release
+- `_restart_preview()` - restarts preview with timeout protection
+- `_execute_capture()` - performs capture and creates observation record
+
+**Main Endpoint Simplification**:
+- Before: ~100 lines with nested try/finally, loops, and conditionals
+- After: ~50 lines with clear delegation to helper functions
+
+**Additional Improvements**:
+- Fixed inverted exception handling in USB device wait logic
+- Changed shell command injection risk: `create_subprocess_shell` → `create_subprocess_exec`
+- Added clear documentation that `_restart_preview()` intentionally suppresses exceptions
+- Added named constant for max USB release attempts
+
+**Quality**: All 18 tests passing, syntax verified
+
+---
+
+### [2025-12-25 19:45] Refactor: Eager Loading to Fix N+1 Queries
+**Type**: Performance / Refactor
+**Status**: COMPLETED
+**Source**: AI Evaluation Executive Report recommendation
+
+**Description**:
+Added eager loading support to repository methods to prevent N+1 database queries. The `list_completed_observations` endpoint was making 1 query per observation to fetch camera names, resulting in 51 queries for 50 observations.
+
+**Changes**:
+- `backend/app/db/repositories/observation.py`:
+  - Added `selectinload` import
+  - Added `eager_load_camera: bool = False` parameter to `get_completed()`
+  - When enabled, uses SQLAlchemy's `selectinload()` to batch-fetch camera relationships
+
+- `backend/app/db/repositories/job.py`:
+  - Added `selectinload` import
+  - Added `eager_load_camera: bool = False` parameter to `get_running()`
+
+- `backend/app/api/routes/observations/crud.py`:
+  - Updated `list_completed_observations` to use `eager_load_camera=True`
+  - Changed camera access from `await camera_repo.get(obs.camera_id)` to `obs.camera`
+  - Removed unused `CameraRepository` import
+
+**Performance Impact**:
+- Before: 51 queries (1 + N) for 50 observations
+- After: 2 queries (observations + cameras via selectinload)
+- ~96% reduction in database queries for pagination endpoint
+
+**Quality**: All 18 tests passing, syntax verified
+
+---
+
+### [2025-12-25 19:30] Refactor: Status Enums for Observations and Jobs
+**Type**: Refactor
+**Status**: COMPLETED
+**Source**: AI Evaluation Executive Report recommendation
+
+**Description**:
+Created Python `StrEnum` classes for observation and job status values to replace magic string literals throughout the codebase.
+
+**Enums Created** (in `backend/app/core/constants.py`):
+- `ObservationStatus`: RUNNING, COMPLETED, FAILED, STOPPED
+- `JobStatus`: PENDING, RUNNING, COMPLETED, FAILED, INTERRUPTED
+
+**Files Modified**:
+- `backend/app/core/constants.py` - Added enum definitions
+- `backend/app/db/models/observation.py` - Import and re-export enum
+- `backend/app/db/models/job.py` - Import and re-export enum
+- `backend/app/db/repositories/observation.py` - Use enum values
+- `backend/app/db/repositories/job.py` - Use enum values
+- `backend/app/services/observation/lifecycle.py` - Use enum values
+- `backend/app/services/observation/metadata.py` - Use enum values
+- `backend/app/services/camera/recording.py` - Use enum values
+- `backend/app/services/camera/timelapse/service.py` - Use enum values
+- `backend/app/api/routes/jobs.py` - Use enum values
+- `backend/app/api/routes/observations/batch.py` - Use enum values
+- `backend/app/api/routes/cameras/capture.py` - Use enum values
+
+**Benefits**:
+- Type-safe status comparisons (IDE autocomplete, typo prevention)
+- Centralized status definitions
+- StrEnum serializes as string for database compatibility
+- Easier refactoring if status values change
+
+**Quality**: All 18 tests passing, syntax verified
+
+---
+
+### [2025-12-25 18:50] Documentation Audit
+**Command**: /document
+**Plans Reviewed**: 14 (6 active, 7 completed, 1 master)
+**Plans Moved**: 1 to completed/
+**Changes Documented**: 0 (all recent changes already logged)
+**Docs Updated**: README.md, masterplan.md
+
+**Actions Taken**:
+1. Moved `phase1_temperature_monitoring.ready.md` → `completed/phase1_temperature_monitoring.md`
+   - Phase 1 was fully implemented as Environment Monitoring System
+   - Work documented in progress log on 2025-12-23
+2. Updated `masterplan.md`:
+   - Marked Phase 1 deliverables as complete
+   - Added completion notes with sensor types supported
+   - Updated "Last updated" timestamp
+3. Updated `README.md`:
+   - Changed status to "Phase 1 Complete (Environment Monitoring)"
+   - Added Environment Monitoring features section
+   - Added Environment API endpoints table
+   - Added test infrastructure mention
+
+**Integrity Check**:
+- [x] All active plans validated (phases 2-6 ready)
+- [x] No orphaned pause files
+- [x] Progress log current
+- [x] Documentation synced with code
+
+---
+
 ### [2025-12-25 18:30] Plan Status: `refactor_get_observation_media`
 **Transition**: ready → completed
 **Reason**: Strategy pattern implementation already complete in media.py
@@ -560,6 +789,55 @@ On startup, the system resolves each `hardware_id` to the current `/dev/videoN` 
 1. Start with Phase 0 to resolve code quality issues
 2. Then proceed to Phase 1 (Temperature Monitoring)
 3. Run `/start-work` to begin implementation
+
+---
+
+### [2025-12-25 17:00] Critical Security and Reliability Fixes
+**Type**: Bug Fix / Security
+**Status**: COMPLETED
+**Triggered By**: AI Code Evaluation results
+
+**Issues Fixed**:
+
+1. **CRITICAL: Shell Command Injection (preview.py)**
+   - Converted `create_subprocess_shell()` with f-strings to `create_subprocess_exec()` with argument lists
+   - Prevents shell metacharacter exploitation in ffmpeg commands
+   - Files: `backend/app/services/observation/preview.py`
+
+2. **CRITICAL: Race Conditions (polling.py)**
+   - Added `threading.Lock` for thread-safe singleton pattern with double-checked locking
+   - Added `asyncio.Lock` for reader cache operations
+   - Made `_get_reader()` and `invalidate_reader()` async with proper locking
+   - Fixed race condition in `stop()` method - now holds lock during reader cleanup
+   - Files: `backend/app/services/environment/polling.py`
+
+3. **CRITICAL: Deprecated asyncio API (sensors.py)**
+   - Replaced `asyncio.get_event_loop()` with `asyncio.get_running_loop()` in 3 locations
+   - Files: `backend/app/services/environment/sensors.py`
+
+4. **No Test Infrastructure**
+   - Created pytest test infrastructure with conftest.py fixtures
+   - Added tests for environment services and polling service
+   - 18 tests passing
+   - Files: `backend/tests/conftest.py`, `backend/tests/test_environment_services.py`, `backend/tests/test_polling_service.py`
+
+**Quality Evaluation**:
+- Ran quality evaluator agent after fixes
+- Fixed 1 HIGH issue (global state pollution in tests)
+- Fixed 2 MEDIUM issues (race condition in stop(), unused imports)
+- All syntax verified, 18 tests passing
+
+**Files Created**:
+- `backend/tests/__init__.py`
+- `backend/tests/conftest.py`
+- `backend/tests/test_environment_services.py`
+- `backend/tests/test_polling_service.py`
+- `backend/requirements-test.txt`
+
+**Files Modified**:
+- `backend/app/services/observation/preview.py`
+- `backend/app/services/environment/polling.py`
+- `backend/app/services/environment/sensors.py`
 
 ---
 

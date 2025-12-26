@@ -7,11 +7,15 @@ from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+from app.core.constants import JobStatus
 from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.db.models.camera import Camera
     from app.db.models.observation import Observation
+
+# Re-export for convenience
+__all__ = ["Job", "JobStatus"]
 
 
 class Job(Base):
@@ -28,7 +32,7 @@ class Job(Base):
     )  # "recording", "timelapse", "capture"
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, index=True
-    )  # "pending", "running", "completed", "failed", "interrupted"
+    )  # See JobStatus enum for valid values
 
     # Timelapse-specific fields
     timelapse_config: Mapped[dict | None] = mapped_column(
