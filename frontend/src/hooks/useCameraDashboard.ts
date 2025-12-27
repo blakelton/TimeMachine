@@ -202,8 +202,10 @@ export function useCameraDashboard(
         return;
       }
 
-      // Preview is idle or error - try to start it
-      if (camera.preview_state === "idle" || camera.preview_state === "error") {
+      // Preview is not running - try to start it
+      // Handle all non-running states: idle, error, crashed, stopped
+      const nonRunningStates = ["idle", "error", "crashed", "stopped"];
+      if (nonRunningStates.includes(camera.preview_state)) {
         await tryStartPreview(camera.camera_id, previewSettings.fps);
       }
     };

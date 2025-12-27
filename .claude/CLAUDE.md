@@ -322,6 +322,50 @@ The following are orchestration violations that invalidate your work:
 
 ---
 
+## DEPLOYMENT - CRITICAL PATH INFORMATION
+
+### Backend Deployment
+
+**IMPORTANT**: The backend runs from `/opt/timemachine/backend/app/`, NOT `/opt/timemachine/app/`.
+
+Use the deploy script to avoid permission issues:
+
+```bash
+./scripts/deploy-backend.sh
+```
+
+Or manually:
+
+```bash
+# Stop service
+sudo systemctl stop timemachine
+
+# Deploy with correct permissions
+sudo rsync -av --delete backend/app/ /opt/timemachine/backend/app/
+sudo chown -R timemachine:timemachine /opt/timemachine/backend/app
+
+# Start service
+sudo systemctl restart timemachine
+```
+
+### Frontend Deployment
+
+```bash
+cd frontend && npm run build
+sudo rsync -av --delete dist/ /opt/timemachine/static/
+sudo /home/blake/projects/TimeMachine/scripts/refresh-kiosk.sh  # If kiosk is running
+```
+
+### Common Deployment Issues
+
+| Issue | Solution |
+|-------|----------|
+| Service fails with permission error | Run `sudo chown -R timemachine:timemachine /opt/timemachine/backend/app` |
+| Code changes not taking effect | Check you deployed to `/opt/timemachine/backend/app/` not `/opt/timemachine/app/` |
+| Stale bytecode | Delete `__pycache__` dirs before deploying |
+
+---
+
 ## REMEMBER
 
 ```

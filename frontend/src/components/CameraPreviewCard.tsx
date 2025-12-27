@@ -15,6 +15,11 @@ import "./CameraPreviewCard.css";
 
 interface CameraPreviewCardProps {
   camera: CameraDashboardItem;
+  /**
+   * Optional key to force LiveThumbnail refresh after navigation.
+   * Pass the dashboard timestamp to reset streams when data refreshes.
+   */
+  refreshKey?: string | null;
 }
 
 /**
@@ -26,7 +31,7 @@ interface CameraPreviewCardProps {
  * - Observation active: Shows progress bar and preview.mp4 if available
  * - Disabled: Muted appearance
  */
-export function CameraPreviewCard({ camera }: CameraPreviewCardProps) {
+export function CameraPreviewCard({ camera, refreshKey }: CameraPreviewCardProps) {
   const {
     camera_id,
     name,
@@ -37,6 +42,7 @@ export function CameraPreviewCard({ camera }: CameraPreviewCardProps) {
     has_active_observation,
     observation,
   } = camera;
+
 
   // Track video preview timestamp for cache-busting
   // Refresh the video URL when frame count changes significantly
@@ -121,11 +127,13 @@ export function CameraPreviewCard({ camera }: CameraPreviewCardProps) {
             playsInline
           />
         ) : preview_state === "running" && preview_url ? (
-          // Live MJPEG stream
+          // Live MJPEG stream - key forces remount, refreshKey triggers state reset
           <LiveThumbnail
+            key={`live-${camera_id}-${refreshKey ?? "default"}`}
             streamUrl={preview_url}
             alt={`${name} live preview`}
             fallbackIcon="📷"
+            refreshKey={refreshKey ?? undefined}
           />
         ) : (
           // No preview available - show placeholder
@@ -133,8 +141,11 @@ export function CameraPreviewCard({ camera }: CameraPreviewCardProps) {
             <span className="preview-placeholder-icon">
               {camera_type === "csi" ? "🎥" : "📷"}
             </span>
-            {preview_state === "error" && (
+            {(preview_state === "error" || preview_state === "crashed") && (
               <span className="preview-error-text">Preview error</span>
+            )}
+            {preview_state === "starting" && (
+              <span className="preview-error-text">Starting...</span>
             )}
           </div>
         )}

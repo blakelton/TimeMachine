@@ -7,6 +7,7 @@
  * - System resource monitoring
  */
 
+import { useLocation } from "react-router-dom";
 import { SystemStats } from "../components/SystemStats";
 import { CameraPreviewCard } from "../components/CameraPreviewCard";
 import { useCameraDashboard } from "../hooks/useCameraDashboard";
@@ -14,6 +15,11 @@ import { useDashboardSettings } from "../hooks/useDashboardSettings";
 import "./HomePage.css";
 
 export function HomePage() {
+  // Use location.key from react-router - it changes on EVERY navigation,
+  // including back button, ensuring LiveThumbnail components remount
+  const location = useLocation();
+  const navigationKey = location.key || "default";
+
   // Fetch dashboard preview settings
   const { settings: previewSettings } = useDashboardSettings();
 
@@ -49,7 +55,11 @@ export function HomePage() {
         {cameras.length > 0 && (
           <div className="cameras-grid">
             {cameras.map((camera) => (
-              <CameraPreviewCard key={camera.camera_id} camera={camera} />
+              <CameraPreviewCard
+                key={`${camera.camera_id}-${navigationKey}`}
+                camera={camera}
+                refreshKey={navigationKey}
+              />
             ))}
           </div>
         )}

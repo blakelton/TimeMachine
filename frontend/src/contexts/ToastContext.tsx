@@ -9,6 +9,7 @@ import {
   useCallback,
   useRef,
   useEffect,
+  useMemo,
 } from "react";
 import type { ReactNode } from "react";
 
@@ -108,15 +109,20 @@ export function ToastProvider({ children }: ToastProviderProps) {
     [addToast]
   );
 
-  const value: ToastContextValue = {
-    toasts,
-    addToast,
-    removeToast,
-    success,
-    error,
-    warning,
-    info,
-  };
+  // Memoize the context value to prevent unnecessary re-renders
+  // and effect re-runs in consumers that depend on toast functions
+  const value = useMemo<ToastContextValue>(
+    () => ({
+      toasts,
+      addToast,
+      removeToast,
+      success,
+      error,
+      warning,
+      info,
+    }),
+    [toasts, addToast, removeToast, success, error, warning, info]
+  );
 
   return (
     <ToastContext.Provider value={value}>{children}</ToastContext.Provider>

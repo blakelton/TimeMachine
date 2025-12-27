@@ -64,6 +64,10 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
   const mountedRef = useRef(true);
   const toast = useToast();
 
+  // Ref to hold the latest startPreviewWithRetry function
+  // This avoids including it in effect dependencies which would cause re-runs
+  const startPreviewRef = useRef<((showToast: boolean) => Promise<void>) | null>(null);
+
   // Track mounted state for async operations
   useEffect(() => {
     mountedRef.current = true;
@@ -90,27 +94,6 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
     const delay = RETRY_CONFIG.initialDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
     return Math.min(delay, RETRY_CONFIG.maxDelayMs);
   }, []);
-
-  /**
-   * Check if camera has an active observation (recording or timelapse).
-   * Returns true if there's an active job for this camera.
-   */
-  const checkForActiveObservation = useCallback(async (): Promise<boolean> => {
-    try {
-      const { data, error } = await apiClient.GET("/api/v1/jobs/running", {
-        params: { query: { camera_id: cameraId } },
-      });
-      if (error || !data) return false;
-
-      // Check if any running job belongs to this camera
-      const jobs = data.jobs || [];
-      return jobs.some(
-        (job) => job.status === "running" || job.status === "pending"
-      );
-    } catch {
-      return false;
-    }
-  }, [cameraId]);
 
   /**
    * Check camera health and return a user-friendly error message if unhealthy.
@@ -213,6 +196,15 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
 
       if (error) {
         const errorMsg = typeof error.detail === 'string' ? error.detail : "Failed to start preview";
+        // "Already running" is not an error - treat it as success
+        if (errorMsg.toLowerCase().includes("already running")) {
+          // Preview is already running, just display it
+          setIsPreviewActive(true);
+          setStreamKey(prev => prev + 1);
+          setIsLoading(false);
+          setIsConnecting(false);
+          return;
+        }
         throw new Error(errorMsg);
       }
 
@@ -261,6 +253,9 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
       }
     }
   }, [cameraId, waitForStreamReady, checkCameraHealth, toast]);
+
+  // Keep the ref updated with the latest function
+  startPreviewRef.current = startPreviewWithRetry;
 
   /**
    * Handle image load error with retry logic
@@ -340,25 +335,22 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
 
   // Check if preview is already running on mount, and auto-start if configured
   useEffect(() => {
-    const initializePreview = async () => {
-      const previewAlreadyActive = await checkPreviewStatus();
+    // If autoStart is enabled, immediately show the preview area and try to start
+    // Don't wait for status check - it can hang during navigation
+    if (autoStart && !autoStartAttempted) {
+      setAutoStartAttempted(true);
+      // Immediately set active to show the stream img element
+      // The img onError will handle if stream isn't actually available
+      setIsPreviewActive(true);
+      setStreamKey(prev => prev + 1);
 
-      // Auto-start logic: only attempt once per mount
-      if (autoStart && !previewAlreadyActive && !autoStartAttempted) {
-        setAutoStartAttempted(true);
-
-        // Check if there's an active observation running
-        const hasActiveObservation = await checkForActiveObservation();
-
-        if (!hasActiveObservation) {
-          // No active observation - auto-start preview (silent, no toast)
-          startPreviewWithRetry(false);
-        }
-      }
-    };
-
-    initializePreview();
-  }, [checkPreviewStatus, autoStart, autoStartAttempted, checkForActiveObservation, startPreviewWithRetry]);
+      // Also try to start in background (will succeed or return "already running")
+      startPreviewRef.current?.(false);
+    } else if (!autoStart) {
+      // If not auto-starting, check status to see if we should display
+      checkPreviewStatus();
+    }
+  }, [checkPreviewStatus, autoStart, autoStartAttempted]);
 
   // Reset state when camera changes
   useEffect(() => {
@@ -375,21 +367,15 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
     }
   }, [cameraId]);
 
-  /**
-   * Cleanup effect: Stop preview when component unmounts.
-   * This prevents orphaned preview streams from running indefinitely.
-   */
-  useEffect(() => {
-    return () => {
-      // Only attempt to stop if preview is active
-      if (isPreviewActive) {
-        // Fire-and-forget cleanup (don't await on unmount)
-        apiClient.POST("/api/v1/cameras/{camera_id}/preview/stop" as any, {
-          params: { path: { camera_id: cameraId } },
-        });
-      }
-    };
-  }, [isPreviewActive, cameraId]);
+  // NOTE: We intentionally do NOT stop previews on component unmount.
+  // Previews are a shared resource managed by the dashboard watchdog.
+  // Stopping on unmount causes the dashboard feeds to disappear when
+  // navigating between camera pages and home, since PreviewTab unmount
+  // would stop the preview that the dashboard's LiveThumbnail needs.
+  // The watchdog handles starting previews, and they run until:
+  // 1. User explicitly clicks "Stop Preview"
+  // 2. A capture/recording/timelapse operation needs the camera
+  // 3. The camera is disabled
 
   const handleStartPreview = () => {
     startPreviewWithRetry(true);

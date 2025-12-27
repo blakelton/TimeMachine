@@ -60,6 +60,193 @@ Track all:
 
 <!-- New entries should be added at the top, below this line -->
 
+### [2025-12-26 23:00] Bug Fix: Camera Preview Navigation - FINAL FIX
+**Type**: Bug Fix
+**Status**: COMPLETED
+**Source**: User report - camera previews break after navigating between pages
+
+**Root Cause (FINAL)**:
+Browser connection pooling with MJPEG streams. Browsers have ~6 connection limit per domain. MJPEG streams are long-lived HTTP connections that don't close immediately when React navigates away. Connection pool becomes exhausted with stale connections, preventing new streams from loading.
+
+**Key User Observations**:
+- Clicking browser Stop button always fixed the issue
+- Browser refresh worked fine, but React navigation broke streams
+- Issue varied between browsers/systems (connection pool behavior differs)
+
+**Final Fix Applied**:
+Added `window.stop()` to LiveThumbnail cleanup function. This mimics clicking the browser Stop button, forcefully aborting all pending HTTP requests and freeing the connection pool.
+
+**Additional Fixes During Investigation**:
+1. Component key includes `navigationKey` from `useLocation().key` for forced remounts
+2. 500ms mount delay gives browser time to close previous connections
+3. Timestamp in stream URL prevents cache reuse
+4. `imgMounted` state controls DOM presence for clean unmount/remount
+5. PreviewTab treats "already running" as success instead of error
+
+**Files Changed**:
+- `frontend/src/components/LiveThumbnail.tsx` - window.stop() cleanup, imgMounted state, mount delay
+- `frontend/src/pages/HomePage.tsx` - navigationKey in CameraPreviewCard keys
+- `frontend/src/components/CameraPreviewCard.tsx` - refreshKey prop pass-through
+- `frontend/src/components/camera/PreviewTab.tsx` - "already running" handling
+
+**Troubleshooting Documentation**:
+- `.claude/troubleshooting/camera_preview_navigation.md` - Full investigation log with 9 fix attempts documented
+
+**Quality Evaluation**:
+- CRITICAL: 0
+- HIGH: 1 - `window.stop()` is aggressive (affects all requests on page). Acknowledged as intentional - user testing confirmed browser Stop button is the only reliable fix for MJPEG connection pool exhaustion.
+- MEDIUM: 3 - Duplicate state reset logic, state during render, fragile string matching for error detection
+- LOW: 5 - Type inconsistencies, magic numbers, redundant patterns
+- Overall: No blockers. HIGH issue is intentional design decision based on user testing.
+
+---
+
+### [2025-12-26 17:50] Bug Fix: Dashboard Camera Previews Disappear After Navigation
+**Type**: Bug Fix
+**Status**: COMPLETED
+**Source**: User report - cameras not showing on kiosk, previews disappear after navigating
+
+**User Acceptance Criteria**:
+- Navigate: home → Micro 1 → Micro 2 → home → repeat
+- All video feeds should work without interruption across navigation
+
+**Root Cause Analysis**:
+1. Backend confirmed all streams were running (`preview_state: "running"`, ports listening)
+2. Nginx logs showed NO stream requests being made by frontend after navigation
+3. The `LiveThumbnail` component's error state ("No signal") persisted across navigation
+4. React preserved component instances with stale state because the component key was stable
+5. Key `live-${camera_id}` didn't change when navigating away and back to dashboard
+
+**Fix Applied**:
+1. **Modified `CameraPreviewCard.tsx`** - Changed LiveThumbnail key to include refreshKey:
+   - From: `key={live-${camera_id}}`
+   - To: `key={live-${camera_id}-${refreshKey ?? "default"}}`
+2. **Used `useMemo` in `HomePage.tsx`** - Creates unique `mountKey` on each mount:
+   - `const mountKey = useMemo(() => Date.now().toString(), [])`
+   - This key changes when user navigates away and back, forcing LiveThumbnail remount
+
+**Files Changed**:
+- `frontend/src/components/CameraPreviewCard.tsx` - Added refreshKey to LiveThumbnail key
+- `frontend/src/components/LiveThumbnail.tsx` - Removed debug console.log
+- `frontend/src/pages/HomePage.tsx` - Added mountKey generation
+
+**Test Created**:
+- `scripts/test-camera-navigation.sh` - Automated test using xdotool to navigate and verify streams
+
+**Quality Evaluation**:
+- CRITICAL: 0
+- HIGH: 0
+- MEDIUM: 0 (debug logs removed)
+- LOW: 2 (code simplification opportunities, not blockers)
+
+---
+
+### [2025-12-26 04:35] Bug Fix: Camera Preview Navigation Instability (Third Fix)
+**Type**: Bug Fix
+**Status**: COMPLETED
+**Source**: User report - preview shows "Preview not running" after navigating between cameras
+
+**User Test Case**:
+- Navigate: home → Micro 1 → Micro 2 → home → Micro 2
+- By the second visit to Micro 2, preview showed "Preview not running" despite backend reporting "running"
+
+**Root Cause Analysis**:
+1. Backend confirmed all streams were running and producing data (verified via curl and netcat)
+2. Issue isolated to frontend React component state management
+3. When navigating between cameras, React reused the PreviewTab component instance instead of remounting
+4. State from previous camera could interfere with new camera initialization
+5. React hooks order violation - `isInitializing` state was declared inside an effect block
+
+**Fixes Applied**:
+1. **Added `key={cameraIdNum}` to PreviewTab** - Forces complete unmount/remount when navigating between cameras
+2. **Fixed React hooks order** - Moved `isInitializing` state declaration to component top level with other state
+3. **Added loading state during initialization** - Shows "Checking camera..." while status API call is in flight
+4. **Cleaned up console.log statements** - Removed debug logging after validation
+
+**Files Changed**:
+- `frontend/src/components/camera/PreviewTab.tsx` - Fixed hooks order, added isInitializing state
+- `frontend/src/pages/CameraPage.tsx` - Added key prop to force remount
+
+**Quality Evaluation**:
+- CRITICAL: 0
+- HIGH: 0
+- MEDIUM: 4 (stale ref in CameraControls - pre-existing, not related to this fix)
+- LOW: 6 (console.log removed, type assertions documented)
+
+---
+
+### [2025-12-26 03:16] Bug Fix: Camera Preview Intermittent Disappearance (Second Fix)
+**Type**: Bug Fix
+**Status**: COMPLETED
+**Source**: User report - issue persisted after first fix
+
+**Discovery**:
+Initial fix (removing cleanup effect, increasing timeouts) was insufficient. Logs showed:
+- `port_ready: False` despite increased timeouts
+- Port opens immediately when GStreamer starts, but no data flows for several seconds
+- Frontend connects to open port but receives no MJPEG frames
+- The `_wait_for_port` check (socket connect) passed, but stream wasn't producing data
+
+**Root Cause Refined**:
+GStreamer's `tcpserversink` opens the TCP port immediately when pipeline starts, but actual MJPEG frame production requires full pipeline negotiation (~2-5 seconds). The socket check returned success prematurely.
+
+**Second Fix Applied**:
+1. **Renamed `_wait_for_port` → `_wait_for_stream_ready`** - Now actually connects to the stream and reads data to verify MJPEG frames are flowing
+2. **Increased timeouts** - 6s for USB, 8s for CSI to accommodate slower cameras
+3. **Improved LiveThumbnail retry logic** - Increased retries from 3 to 5, reduced delay from 2000ms to 1500ms for faster recovery
+4. **Removed unused `socket` import** - Cleanup after refactoring
+
+**Files Changed**:
+- `backend/app/services/camera/preview.py` - New `_wait_for_stream_ready()` that verifies data flow
+- `frontend/src/components/LiveThumbnail.tsx` - More retries, faster recovery
+
+**Testing Results**:
+- All cameras now show `port_ready: True` in logs
+- Stream verification takes 0.5-1.5 seconds (data actually flowing)
+- Dashboard immediately shows working previews
+
+**Quality Evaluation**:
+- CRITICAL: 0
+- HIGH: 0
+- MEDIUM: 0
+- LOW: 0
+
+---
+
+### [2025-12-26 03:06] Bug Fix: Camera Preview Intermittent Disappearance (Initial Attempt)
+**Type**: Bug Fix
+**Status**: SUPERSEDED by second fix above
+**Source**: User report - cameras show on dashboard, disappear when navigating
+
+**Root Cause**:
+Race condition between two preview management systems:
+1. PreviewTab.tsx cleanup effect stopped previews on component unmount
+2. Dashboard watchdog auto-started previews for idle cameras
+3. When navigating between pages, stop→start→stop→start cycles caused:
+   - `preview_stream_connection_refused` errors (frontend connects before port ready)
+   - `preview_stream_not_running` warnings
+   - Preview gaps of 5-7 seconds
+
+**Fix Applied**:
+1. **Removed cleanup effect from PreviewTab.tsx** - Previews are now a shared resource managed by the dashboard watchdog. They only stop when:
+   - User explicitly clicks "Stop Preview"
+   - A capture/recording/timelapse operation needs the camera
+   - The camera is disabled
+
+2. **Increased port wait timeouts in preview.py** - Backend now waits longer for GStreamer to initialize before returning success:
+   - USB cameras: 0.8s → 4.0s
+   - CSI cameras: 2.5s → 5.0s
+
+3. **Fixed deprecated asyncio API** - Changed `asyncio.get_event_loop()` to `asyncio.get_running_loop()` for Python 3.10+ compatibility
+
+**Files Changed**:
+- `frontend/src/components/camera/PreviewTab.tsx` - Removed unmount cleanup effect
+- `backend/app/services/camera/preview.py` - Increased timeouts, fixed deprecated API
+
+**Note**: This fix was insufficient - user reported issue persisting. See second fix above.
+
+---
+
 ### [2025-12-26 01:35] Improvement: Test Coverage and TypeScript API Wrappers
 **Type**: Testing / Type Safety
 **Status**: COMPLETED

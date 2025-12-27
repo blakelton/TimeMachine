@@ -12,6 +12,10 @@ echo "Stopping Chromium..."
 pkill -u "$KIOSK_USER" chromium 2>/dev/null || true
 sleep 2
 
+# Clear browser cache to ensure fresh loads - prevents stale React state
+rm -rf /home/"$KIOSK_USER"/.cache/chromium/Default/Cache/* 2>/dev/null || true
+rm -rf /home/"$KIOSK_USER"/.cache/chromium/Default/Code\ Cache/* 2>/dev/null || true
+
 echo "Starting Chromium kiosk..."
 sudo -u "$KIOSK_USER" \
     XDG_RUNTIME_DIR="/run/user/$(id -u $KIOSK_USER)" \

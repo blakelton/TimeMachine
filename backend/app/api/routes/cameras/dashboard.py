@@ -59,7 +59,8 @@ async def get_dashboard_data(
             preview_state = "error"
             preview_port = None
 
-        # Build preview URL - use the stream endpoint for proper MJPEG
+        # Build preview URL - use the FastAPI stream endpoint
+        # FastAPI handles the TCP→HTTP conversion for GStreamer's raw multipart output
         preview_url = None
         if preview_state == "running" and preview_port:
             preview_url = f"/api/v1/cameras/{camera.id}/preview/stream"

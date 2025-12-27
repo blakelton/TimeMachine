@@ -26,13 +26,20 @@ interface LiveThumbnailProps {
    */
   fallbackIcon?: string;
   /**
-   * Maximum retries before showing permanent error
+   * Maximum retries before showing permanent error.
+   * Default is 5 to handle slow-starting streams.
    */
   maxRetries?: number;
   /**
-   * Delay between retries in ms
+   * Delay between retries in ms.
+   * Default is 1500ms for faster recovery.
    */
   retryDelay?: number;
+  /**
+   * Optional key to force component reset.
+   * Change this value to reset the error state and retry loading.
+   */
+  refreshKey?: string | number;
 }
 
 type StreamState = "loading" | "connected" | "error" | "retrying";
@@ -59,34 +66,75 @@ export function LiveThumbnail({
   alt,
   className = "",
   fallbackIcon = "📷",
-  maxRetries = 3,
-  retryDelay = 2000,
+  maxRetries = 5,
+  retryDelay = 1500,
+  refreshKey,
 }: LiveThumbnailProps) {
+
   const [state, setState] = useState<StreamState>("loading");
   const [retryCount, setRetryCount] = useState(0);
+  // Controls whether img element is rendered - toggling this forces complete DOM removal/recreation
+  const [imgMounted, setImgMounted] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const retryTimeoutRef = useRef<number | null>(null);
   const prevUrlRef = useRef<string>(streamUrl);
+  const prevRefreshKeyRef = useRef<string | number | undefined>(refreshKey);
+  const mountedRef = useRef(true);
+  // Unique timestamp per mount - ensures fresh HTTP connection, prevents stale connection reuse
+  const mountTimestampRef = useRef<number>(Date.now());
 
-  // Clear any pending retry and stop MJPEG stream on unmount
+
+  // Reset state on mount, URL change, or refreshKey change
   useEffect(() => {
+    // Reset state on mount - critical for navigation recovery
+    mountedRef.current = true;
+    setState("loading");
+    setRetryCount(0);
+
+    // Generate fresh timestamp for this mount
+    mountTimestampRef.current = Date.now();
+
+    // Clear any stale timeout from previous mount
+    if (retryTimeoutRef.current !== null) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
+    // Start with img unmounted, then mount after a delay
+    // The delay gives browser time to fully close previous MJPEG connections
+    // (Browser has ~6 connection limit per domain; MJPEG streams are persistent)
+    setImgMounted(false);
+    const mountDelay = window.setTimeout(() => {
+      if (mountedRef.current) {
+        setImgMounted(true);
+      }
+    }, 500); // 500ms delay to ensure old connections are closed
+
     return () => {
+      mountedRef.current = false;
+      window.clearTimeout(mountDelay);
       // Clear retry timeout
       if (retryTimeoutRef.current !== null) {
         window.clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
-      // Stop MJPEG stream by clearing the src - critical for memory management
-      // MJPEG streams keep connections open until explicitly stopped
+      // Force-abort the img connection by clearing src
       if (imgRef.current) {
         imgRef.current.src = "";
       }
-    };
-  }, []);
+      setImgMounted(false);
 
-  // Reset state when URL changes using ref comparison (avoids setState in useEffect)
-  if (prevUrlRef.current !== streamUrl) {
+      // Call window.stop() to forcefully abort ALL pending network requests
+      // This mimics clicking the browser Stop button which reliably fixes the issue
+      window.stop();
+    };
+  }, [streamUrl, refreshKey]); // Re-run when URL or refreshKey changes to reset state
+
+  // Reset state when URL or refreshKey changes using ref comparison
+  if (prevUrlRef.current !== streamUrl || prevRefreshKeyRef.current !== refreshKey) {
     prevUrlRef.current = streamUrl;
-    // Clear existing timeout on URL change
+    prevRefreshKeyRef.current = refreshKey;
+    // Clear existing timeout on change
     if (retryTimeoutRef.current !== null) {
       window.clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -101,6 +149,9 @@ export function LiveThumbnail({
   }, []);
 
   const handleError = useCallback(() => {
+    // Don't process errors if component unmounted
+    if (!mountedRef.current) return;
+
     // Clear any existing timeout before setting a new one
     if (retryTimeoutRef.current !== null) {
       window.clearTimeout(retryTimeoutRef.current);
@@ -109,11 +160,13 @@ export function LiveThumbnail({
     if (retryCount < maxRetries) {
       setState("retrying");
       retryTimeoutRef.current = window.setTimeout(() => {
+        // Check mounted before updating state
+        if (!mountedRef.current) return;
         setRetryCount((prev) => prev + 1);
-        // Force image reload by appending timestamp
+        // Force image reload by appending fresh timestamp
         if (imgRef.current) {
           const separator = streamUrl.includes("?") ? "&" : "?";
-          imgRef.current.src = `${streamUrl}${separator}_retry=${Date.now()}`;
+          imgRef.current.src = `${streamUrl}${separator}_t=${Date.now()}`;
         }
         setState("loading");
       }, retryDelay);
@@ -143,7 +196,7 @@ export function LiveThumbnail({
 
   return (
     <div className={containerClass}>
-      {(state === "loading" || state === "retrying") && (
+      {(state === "loading" || state === "retrying" || !imgMounted) && (
         <div className="thumbnail-loading" aria-hidden="true">
           <span className="loading-icon">{fallbackIcon}</span>
           {state === "retrying" && (
@@ -153,15 +206,17 @@ export function LiveThumbnail({
           )}
         </div>
       )}
-      <img
-        ref={imgRef}
-        src={streamUrl}
-        alt={state === "connected" ? alt : `${alt} (loading)`}
-        className="thumbnail-image"
-        onLoad={handleLoad}
-        onError={handleError}
-        style={{ opacity: state === "connected" ? 1 : 0 }}
-      />
+      {imgMounted && (
+        <img
+          ref={imgRef}
+          src={`${streamUrl}${streamUrl.includes("?") ? "&" : "?"}_t=${mountTimestampRef.current}`}
+          alt={state === "connected" ? alt : `${alt} (loading)`}
+          className="thumbnail-image"
+          onLoad={handleLoad}
+          onError={handleError}
+          style={{ opacity: state === "connected" ? 1 : 0 }}
+        />
+      )}
     </div>
   );
 }

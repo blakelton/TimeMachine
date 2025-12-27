@@ -3,7 +3,6 @@
 import asyncio
 import os
 import signal
-import socket
 from typing import Dict, Optional
 
 from app.core.logging import get_logger
@@ -144,10 +143,24 @@ class PreviewService:
             # Store pipeline reference
             self._previews[camera_id] = pipeline
 
-            # Wait for port to be ready - CSI cameras need longer due to rpicam initialization
-            # USB cameras are quick (~0.5s), CSI cameras need ~2s for libcamera init
-            port_timeout = 2.5 if camera_type == "csi" else 0.8
-            port_ready = await self._wait_for_port(port, timeout=port_timeout)
+            # Wait for stream to be ready - not just port open, but data flowing
+            # USB cameras typically need 2-3 seconds, CSI cameras need 3-4 seconds
+            # This ensures the frontend won't connect before data is available
+            stream_timeout = 8.0 if camera_type == "csi" else 6.0
+            port_ready = await self._wait_for_stream_ready(port, timeout=stream_timeout)
+
+            if not port_ready:
+                # Stream didn't start producing data - kill the pipeline and report failure
+                logger.error(
+                    "preview_stream_not_ready",
+                    camera_id=camera_id,
+                    device=device_path,
+                    port=port,
+                    pid=pipeline.get_pid(),
+                )
+                # Clean up the failed pipeline
+                await self._force_cleanup_preview(camera_id)
+                return False, "Camera stream failed to produce data - device may be busy or unresponsive"
 
             logger.info(
                 "preview_started",
@@ -155,36 +168,72 @@ class PreviewService:
                 device=device_path,
                 port=port,
                 pid=pipeline.get_pid(),
-                port_ready=port_ready,
             )
             return True, f"Preview started on port {port}"
         finally:
             # Always release the lock
             self._starting_preview.discard(camera_id)
 
-    async def _wait_for_port(self, port: int, timeout: float = 3.0) -> bool:
-        """Wait for TCP port to be ready.
+    async def _wait_for_stream_ready(self, port: int, timeout: float = 3.0) -> bool:
+        """Wait for MJPEG stream to be ready (producing data).
+
+        This checks not just if the port is open, but if actual MJPEG data
+        is being produced. GStreamer opens the TCP port immediately when
+        starting, but doesn't output data until the full pipeline is negotiated.
 
         Args:
             port: Port number to check
             timeout: Maximum time to wait
 
         Returns:
-            True if port is ready, False if timeout
+            True if stream is producing data, False if timeout
         """
-        start_time = asyncio.get_event_loop().time()
-        while asyncio.get_event_loop().time() - start_time < timeout:
+        loop = asyncio.get_running_loop()
+        start_time = loop.time()
+
+        while loop.time() - start_time < timeout:
             try:
-                # Try to connect to the port
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(0.1)
-                result = sock.connect_ex(("127.0.0.1", port))
-                sock.close()
-                if result == 0:
-                    return True
-            except Exception:
+                # Try to connect and read some data
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection("127.0.0.1", port),
+                    timeout=1.0,
+                )
+
+                try:
+                    # Try to read a small amount of data with timeout
+                    # MJPEG streams should start sending data immediately
+                    data = await asyncio.wait_for(reader.read(1024), timeout=2.0)
+
+                    if data and len(data) > 0:
+                        # We got data - stream is ready
+                        logger.debug(
+                            "stream_ready_check_success",
+                            port=port,
+                            bytes_received=len(data),
+                        )
+                        return True
+                finally:
+                    writer.close()
+                    try:
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
+
+            except asyncio.TimeoutError:
+                # Connection or read timed out, try again
                 pass
-            await asyncio.sleep(0.1)
+            except ConnectionRefusedError:
+                # Port not open yet, try again
+                pass
+            except Exception as e:
+                logger.debug(
+                    "stream_ready_check_error",
+                    port=port,
+                    error=str(e),
+                )
+
+            await asyncio.sleep(0.3)
+
         return False
 
     async def stop_preview(self, camera_id: int) -> tuple[bool, str]:
@@ -212,15 +261,47 @@ class PreviewService:
     def get_preview_state(self, camera_id: int) -> Optional[PipelineState]:
         """Get preview state for a camera.
 
+        Performs a live health check to detect zombie pipelines where the
+        process has died but the state wasn't updated.
+
         Args:
             camera_id: Camera database ID
 
         Returns:
             Pipeline state or None if no preview
         """
-        if camera_id in self._previews:
-            return self._previews[camera_id].get_state()
-        return None
+        if camera_id not in self._previews:
+            return None
+
+        pipeline = self._previews[camera_id]
+        state = pipeline.get_state()
+
+        # If state claims to be RUNNING, verify the process is actually alive
+        if state == PipelineState.RUNNING:
+            pid = pipeline.get_pid()
+            if pid:
+                try:
+                    # Check if process is actually running
+                    # os.kill with signal 0 just checks existence, doesn't kill
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    # Process is dead but state wasn't updated
+                    logger.warning(
+                        "preview_zombie_detected",
+                        camera_id=camera_id,
+                        pid=pid,
+                        reported_state=state.value,
+                    )
+                    # Update state to reflect reality and remove from tracking
+                    # so the watchdog can restart it
+                    pipeline.state = PipelineState.CRASHED
+                    del self._previews[camera_id]
+                    return PipelineState.CRASHED
+                except PermissionError:
+                    # Process exists but we can't signal it (shouldn't happen for our own processes)
+                    pass
+
+        return state
 
     def get_preview_port(self, camera_id: int) -> Optional[int]:
         """Get preview port for a camera.

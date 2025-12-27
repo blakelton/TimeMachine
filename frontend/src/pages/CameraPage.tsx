@@ -126,7 +126,7 @@ export function CameraPage() {
         />
       ) : (
         <div className="camera-page__preview">
-          <PreviewTab ref={previewRef} cameraId={cameraIdNum} autoStart hideControls />
+          <PreviewTab key={cameraIdNum} ref={previewRef} cameraId={cameraIdNum} autoStart hideControls />
         </div>
       )}
 

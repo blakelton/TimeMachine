@@ -111,37 +111,26 @@ async def stop_camera_preview(
 
 
 @router.get("/{camera_id}/preview/status")
-async def get_preview_status(
-    camera_id: int, session: Annotated[AsyncSession, Depends(get_session)]
-) -> dict:
+async def get_preview_status(camera_id: int) -> dict:
     """Get preview status for a camera.
+
+    This endpoint is optimized for speed - it reads from in-memory state only,
+    without database calls. This is critical for responsive UI during navigation.
 
     Args:
         camera_id: Camera ID
-        session: Database session
 
     Returns:
-        Preview status
-
-    Raises:
-        HTTPException: 404 if camera not found
+        Preview status (state, port, url)
     """
-    repo = CameraRepository(session)
-    camera = await repo.get(camera_id)
-
-    if camera is None:
-        logger.warning("preview_status_camera_not_found", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Camera {camera_id} not found",
-        )
-
+    # Read directly from in-memory preview service - no database needed
     state = preview_service.get_preview_state(camera_id)
     port = preview_service.get_preview_port(camera_id)
+    state_value = state.value if state else "idle"
 
     return {
         "camera_id": camera_id,
-        "state": state.value if state else "idle",
+        "state": state_value,
         "port": port,
         "url": f"http://localhost:{port}" if port else None,
     }
