@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
+import { startObservation } from "../../api";
 import { Modal } from "../Modal";
 import { Button } from "../Button";
 import { TouchNumberInput } from "../TouchNumberInput";
@@ -128,42 +129,31 @@ export function StartObservationModal({
   // Mutation for starting observation
   const startMutation = useMutation({
     mutationFn: async () => {
-      const body: Record<string, unknown> = {
+      const request = {
         camera_id: cameraId,
         observation_type: observationType,
-      };
-
-      if (observationType === "timelapse") {
-        body.timelapse_config = {
+        timelapse_config: observationType === "timelapse" ? {
           interval_value: intervalValue,
           interval_unit: intervalUnit,
-          end_mode: tlEndMode,
+          end_mode: tlEndMode as "duration" | "datetime",
           duration_value: tlEndMode === "duration" ? tlDurationValue : null,
           duration_unit: tlEndMode === "duration" ? tlDurationUnit : null,
           output_fps: outputFps,
           resolution_width: 1920,
           resolution_height: 1080,
           quality: 95,
-          // Environment overlay settings
-          env_overlay_device_id: envOverlayDeviceId,
-          env_overlay_position: envOverlayDeviceId ? envOverlayPosition : "br",
-          env_overlay_show_graph: envOverlayDeviceId ? envOverlayShowGraph : false,
-        };
-      } else {
-        body.recording_config = {
-          end_mode: recEndMode,
+        } : null,
+        recording_config: observationType === "recording" ? {
+          end_mode: recEndMode as "duration" | "datetime" | "manual",
           duration_value: recEndMode === "duration" ? recDurationValue : null,
           duration_unit: recEndMode === "duration" ? recDurationUnit : null,
           bitrate_kbps: 4000,
           resolution_width: 1920,
           resolution_height: 1080,
-        };
-      }
+        } : null,
+      };
 
-      const { data, error } = await apiClient.POST(
-        "/api/v1/observations/start" as any,
-        { body }
-      );
+      const { data, error } = await startObservation(request);
 
       if (error) {
         throw new Error(

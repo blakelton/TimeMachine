@@ -17,20 +17,26 @@ class JobRepository(BaseRepository[Job]):
     def __init__(self, session: AsyncSession):
         super().__init__(Job, session)
 
-    async def get_by_camera(self, camera_id: int) -> list[Job]:
+    async def get_by_camera(
+        self, camera_id: int, eager_load_camera: bool = False
+    ) -> list[Job]:
         """Get all jobs for a camera.
 
         Args:
             camera_id: The camera ID.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of jobs for the camera.
         """
-        result = await self.session.execute(
+        query = (
             select(Job)
             .where(Job.camera_id == camera_id)
             .order_by(Job.started_at.desc())
         )
+        if eager_load_camera:
+            query = query.options(selectinload(Job.camera))
+        result = await self.session.execute(query)
         return list(result.scalars().all())
 
     async def get_running(
@@ -54,18 +60,24 @@ class JobRepository(BaseRepository[Job]):
         return list(result.scalars().all())
 
     async def get_by_type(
-        self, job_type: str, camera_id: int | None = None
+        self,
+        job_type: str,
+        camera_id: int | None = None,
+        eager_load_camera: bool = False,
     ) -> list[Job]:
         """Get jobs by type.
 
         Args:
             job_type: The job type ("recording", "timelapse", "capture").
             camera_id: Optional camera ID filter.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of jobs of the specified type.
         """
         query = select(Job).where(Job.job_type == job_type)
+        if eager_load_camera:
+            query = query.options(selectinload(Job.camera))
         if camera_id is not None:
             query = query.where(Job.camera_id == camera_id)
         result = await self.session.execute(query.order_by(Job.started_at.desc()))

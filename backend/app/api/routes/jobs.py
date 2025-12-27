@@ -40,11 +40,11 @@ async def list_jobs(
     repo = JobRepository(session)
 
     if job_type and camera_id:
-        jobs = await repo.get_by_type(job_type, camera_id)
+        jobs = await repo.get_by_type(job_type, camera_id, eager_load_camera=True)
     elif job_type:
-        jobs = await repo.get_by_type(job_type)
+        jobs = await repo.get_by_type(job_type, eager_load_camera=True)
     elif camera_id:
-        jobs = await repo.get_by_camera(camera_id)
+        jobs = await repo.get_by_camera(camera_id, eager_load_camera=True)
     else:
         jobs = await repo.get_all(skip=skip, limit=limit)
 
@@ -82,7 +82,7 @@ async def list_running_jobs(
         List of running jobs
     """
     repo = JobRepository(session)
-    jobs = await repo.get_running(camera_id)
+    jobs = await repo.get_running(camera_id, eager_load_camera=True)
 
     logger.info("running_jobs_listed", count=len(jobs), camera_id=camera_id)
 

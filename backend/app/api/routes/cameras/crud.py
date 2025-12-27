@@ -14,7 +14,7 @@ from app.schemas.camera import (
     CameraResponse,
     CameraUpdate,
 )
-from app.services.camera.validation import require_camera_available
+from app.services.camera.validation import get_camera_or_404, require_camera_available
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -178,16 +178,8 @@ async def update_camera(
     """
     repo = CameraRepository(session)
 
-    # Check if camera exists first
-    camera = await repo.get_by_id(camera_id)
-    if camera is None:
-        logger.warning("camera_update_not_found", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Camera {camera_id} not found",
-        )
-
-    # Check if camera is currently in use
+    # Check if camera exists and is available
+    await get_camera_or_404(camera_id, session, operation="update")
     await require_camera_available(camera_id, session, operation="edit camera")
 
     # Validate camera_type if provided
@@ -234,16 +226,8 @@ async def delete_camera(
     """
     repo = CameraRepository(session)
 
-    # Check if camera exists first
-    camera = await repo.get_by_id(camera_id)
-    if camera is None:
-        logger.warning("camera_delete_not_found", camera_id=camera_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Camera {camera_id} not found",
-        )
-
-    # Check if camera is currently in use
+    # Check if camera exists and is available
+    await get_camera_or_404(camera_id, session, operation="delete")
     await require_camera_available(camera_id, session, operation="delete camera")
 
     deleted = await repo.delete(camera_id)

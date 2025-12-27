@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../../api/client";
+import { captureImage } from "../../api";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
 import "./CameraActionBar.css";
@@ -32,13 +32,7 @@ export function CameraActionBar({
     setIsCapturing(true);
 
     try {
-      const { data, error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/capture" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-          body: { quality: 95 }, // Default high quality
-        }
-      );
+      const { data, error } = await captureImage(cameraId);
 
       if (error) {
         const errorMessage =

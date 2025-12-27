@@ -9,7 +9,7 @@
 import { useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "../api/client";
+import { getCamera, getActiveObservationByCamera } from "../api";
 import { PreviewTab } from "../components/camera/PreviewTab";
 import type { PreviewTabHandle } from "../components/camera/PreviewTab";
 import { CameraControls } from "../components/camera/CameraControls";
@@ -34,12 +34,7 @@ export function CameraPage() {
   const { data: camera, isLoading } = useQuery({
     queryKey: ["camera", cameraIdNum],
     queryFn: async () => {
-      const { data, error } = await apiClient.GET(
-        "/api/v1/cameras/{camera_id}",
-        {
-          params: { path: { camera_id: cameraIdNum } },
-        }
-      );
+      const { data, error } = await getCamera(cameraIdNum);
       if (error) throw error;
       return data;
     },
@@ -50,12 +45,7 @@ export function CameraPage() {
   const { data: activeObsData, refetch: refetchActiveObs } = useQuery({
     queryKey: ["activeObservation", cameraIdNum],
     queryFn: async () => {
-      const { data, error } = await apiClient.GET(
-        "/api/v1/observations/camera/{camera_id}/active" as any,
-        {
-          params: { path: { camera_id: cameraIdNum } },
-        }
-      );
+      const { data, error } = await getActiveObservationByCamera(cameraIdNum);
       if (error) throw error;
       return data as { has_active: boolean; observation: ActiveObservation | null };
     },

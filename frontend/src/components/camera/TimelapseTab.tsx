@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { apiClient } from "../../api/client";
+import { startTimelapse, stopTimelapse } from "../../api";
 import { Button } from "../Button";
 import { FormField } from "../FormField";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -214,18 +214,14 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
       // Calculate total_frames from duration and interval
       const totalFramesCalc = Math.floor(durationNum / intervalNum);
 
-      const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/timelapse/start" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-          body: {
-            config: {
-              interval_seconds: intervalNum,
-              total_frames: totalFramesCalc,
-            },
-          },
-        }
-      );
+      const { error } = await startTimelapse(cameraId, {
+        interval_seconds: intervalNum,
+        total_frames: totalFramesCalc,
+        quality: 95,
+        resolution_width: 1920,
+        resolution_height: 1080,
+        output_fps: 30,
+      });
 
       if (error) {
         const errorMessage = typeof error.detail === 'string' ? error.detail : "Failed to start timelapse";
@@ -249,12 +245,7 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
     setIsLoading(true);
 
     try {
-      const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/timelapse/stop" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-        }
-      );
+      const { error } = await stopTimelapse(cameraId);
 
       if (error) {
         const errorMessage = typeof error.detail === 'string' ? error.detail : "Failed to stop timelapse";

@@ -57,12 +57,12 @@ async def list_observations(
 
     if observation_type:
         observations = await repo.get_by_type(
-            observation_type, camera_id, status_filter
+            observation_type, camera_id, status_filter, eager_load_camera=True
         )
     elif camera_id:
-        observations = await repo.get_by_camera(camera_id, limit)
+        observations = await repo.get_by_camera(camera_id, limit, eager_load_camera=True)
     else:
-        observations = await repo.get_recent(limit, camera_id)
+        observations = await repo.get_recent(limit, camera_id, eager_load_camera=True)
 
     # Apply status filter if provided and not already filtered
     if status_filter and not observation_type:
@@ -96,7 +96,7 @@ async def list_active_observations(
         List of active observations
     """
     repo = ObservationRepository(session)
-    observations = await repo.get_active(camera_id)
+    observations = await repo.get_active(camera_id, eager_load_camera=True)
 
     logger.info("active_observations_listed", count=len(observations))
 

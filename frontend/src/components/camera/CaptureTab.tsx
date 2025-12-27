@@ -1,12 +1,11 @@
 /**
- * Capture tab - Still image capture with quality settings
+ * Capture tab - Still image capture
  */
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../../api/client";
+import { captureImage } from "../../api";
 import { Button } from "../Button";
-import { FormField } from "../FormField";
 import { useToast } from "../../contexts/ToastContext";
 import "./CaptureTab.css";
 
@@ -14,34 +13,25 @@ export interface CaptureTabProps {
   cameraId: number;
 }
 
-type QualityLevel = "low" | "medium" | "high" | "max";
+// Response type from capture endpoint
+interface CaptureResponse {
+  success: boolean;
+  message: string;
+  filepath?: string | null;
+}
 
 export function CaptureTab({ cameraId }: CaptureTabProps) {
-  const [quality, setQuality] = useState<QualityLevel>("high");
   const [isCapturing, setIsCapturing] = useState(false);
   const [lastCaptureUrl, setLastCaptureUrl] = useState<string | null>(null);
   const [lastCaptureTime, setLastCaptureTime] = useState<string | null>(null);
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const qualityValues: Record<QualityLevel, number> = {
-    low: 50,
-    medium: 75,
-    high: 90,
-    max: 100,
-  };
-
   const handleCapture = async () => {
     setIsCapturing(true);
 
     try {
-      const { data, error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/capture" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-          body: { quality: qualityValues[quality] },
-        }
-      );
+      const { data, error } = await captureImage(cameraId);
 
       if (error) {
         const errorMessage = typeof error.detail === 'string' ? error.detail : "Failed to capture image";
@@ -49,10 +39,15 @@ export function CaptureTab({ cameraId }: CaptureTabProps) {
       }
 
       if (data) {
-        // file_url is already an absolute path served by nginx (e.g., /media/stills/...)
-        const imageUrl = (data as any).file_url;
-        setLastCaptureUrl(imageUrl);
-        setLastCaptureTime(new Date((data as any).timestamp).toLocaleString());
+        const response = data as CaptureResponse;
+        // filepath is the path that can be served via nginx
+        if (response.filepath) {
+          // Convert filepath to URL (e.g., /var/lib/timemachine/... -> /media/...)
+          const filename = response.filepath.split('/').pop();
+          const imageUrl = `/media/stills/${filename}`;
+          setLastCaptureUrl(imageUrl);
+          setLastCaptureTime(new Date().toLocaleString());
+        }
         toast.success("Image captured successfully");
         // Invalidate observations list so new capture appears immediately
         queryClient.invalidateQueries({ queryKey: ["observations"] });
@@ -78,20 +73,6 @@ export function CaptureTab({ cameraId }: CaptureTabProps) {
   return (
     <div className="capture-tab">
       <div className="capture-tab__controls">
-        <FormField
-          label="Quality"
-          id="quality-select"
-          element="select"
-          value={quality}
-          onChange={(e) => setQuality(e.target.value as QualityLevel)}
-          disabled={isCapturing}
-        >
-          <option value="low">Low (50%)</option>
-          <option value="medium">Medium (75%)</option>
-          <option value="high">High (90%)</option>
-          <option value="max">Maximum (100%)</option>
-        </FormField>
-
         <Button
           variant="primary"
           onClick={handleCapture}

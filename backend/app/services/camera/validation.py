@@ -6,6 +6,8 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
+from app.db.models.camera import Camera
+from app.db.repositories.camera import CameraRepository
 from app.db.repositories.observation import ObservationRepository
 from app.services.camera.pipeline import PipelineState
 from app.services.camera.recording import recording_service
@@ -68,6 +70,37 @@ async def check_camera_in_use(
         )
 
     return CameraInUseResult(in_use=False)
+
+
+async def get_camera_or_404(
+    camera_id: int,
+    session: AsyncSession,
+    operation: str = "access",
+) -> Camera:
+    """Get camera by ID, raise HTTPException if not found.
+
+    Args:
+        camera_id: Camera ID to retrieve
+        session: Database session
+        operation: Description of operation for logging (e.g., "update", "delete")
+
+    Returns:
+        Camera object if found
+
+    Raises:
+        HTTPException: 404 NOT_FOUND if camera doesn't exist
+    """
+    repo = CameraRepository(session)
+    camera = await repo.get_by_id(camera_id)
+
+    if camera is None:
+        logger.warning(f"camera_{operation}_not_found", camera_id=camera_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera {camera_id} not found",
+        )
+
+    return camera
 
 
 async def require_camera_available(

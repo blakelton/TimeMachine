@@ -60,6 +60,59 @@ Track all:
 
 <!-- New entries should be added at the top, below this line -->
 
+### [2025-12-27 05:15] Refactor: Address High-Priority AI Evaluation Issues
+**Type**: Refactor
+**Status**: COMPLETED
+**Source**: AI Evaluation report - high-priority issues from code quality analysis
+
+**Issues Addressed**:
+
+1. **TypeScript `as any` Casts (HIGH)**
+   - 13 components were calling API endpoints with `as any` casts
+   - Typed API wrappers already existed in `/api/camera.ts` and `/api/observations.ts`
+   - Refactored all components to use the existing typed wrappers
+   - Files: CameraActionBar, CameraControls, CaptureTab, CameraPage, StartObservationModal,
+     ObservationInProgress, PreviewTab, RecordTab, TimelapseTab
+
+2. **N+1 Query Issues (HIGH)**
+   - Observation and job listing endpoints were triggering N+1 queries when accessing camera relations
+   - Added `eager_load_camera` parameter to repository methods: get_by_camera(), get_active(),
+     get_by_type(), get_recent() in ObservationRepository and JobRepository
+   - Updated routes to pass `eager_load_camera=True`
+
+3. **Duplicate Camera Validation (MEDIUM)**
+   - Camera existence check was duplicated in update_camera and delete_camera endpoints
+   - Created `get_camera_or_404()` helper function in validation.py
+   - Refactored crud.py to use the new helper
+
+**Files Changed (Frontend)**:
+- `frontend/src/components/camera/CameraActionBar.tsx` - Use captureImage() wrapper
+- `frontend/src/components/camera/CameraControls.tsx` - Use captureImage() wrapper
+- `frontend/src/components/camera/CaptureTab.tsx` - Use captureImage() wrapper, remove unused quality selector
+- `frontend/src/pages/CameraPage.tsx` - Use getCamera(), getActiveObservationByCamera() wrappers
+- `frontend/src/components/camera/StartObservationModal.tsx` - Use startObservation() wrapper
+- `frontend/src/components/camera/ObservationInProgress.tsx` - Use getObservationStatus(), stopObservation() wrappers
+- `frontend/src/components/camera/PreviewTab.tsx` - Use startPreview(), stopPreview(), checkCameraHealth() wrappers
+- `frontend/src/components/camera/RecordTab.tsx` - Use startRecording(), stopRecording() wrappers
+- `frontend/src/components/camera/TimelapseTab.tsx` - Use startTimelapse(), stopTimelapse() wrappers
+
+**Files Changed (Backend)**:
+- `backend/app/db/repositories/observation.py` - Add eager_load_camera to 4 methods
+- `backend/app/db/repositories/job.py` - Add eager_load_camera to 2 methods
+- `backend/app/api/routes/observations/crud.py` - Use eager loading
+- `backend/app/api/routes/jobs.py` - Use eager loading
+- `backend/app/services/camera/validation.py` - Add get_camera_or_404() helper
+- `backend/app/api/routes/cameras/crud.py` - Use get_camera_or_404()
+
+**Quality Evaluation**:
+- CRITICAL: 0
+- HIGH: 0
+- MEDIUM: 2 - Environment overlay settings collected but not sent (pre-existing), type cast without validation
+- LOW: 3 - Bitrate setting not used, hardcoded disk estimate, minor type concerns
+- Overall: PASS - All changes verified, no blockers
+
+---
+
 ### [2025-12-26 23:00] Bug Fix: Camera Preview Navigation - FINAL FIX
 **Type**: Bug Fix
 **Status**: COMPLETED

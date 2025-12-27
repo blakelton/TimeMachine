@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../../api/client";
+import { getObservationStatus, stopObservation } from "../../api";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 import { useToast } from "../../contexts/ToastContext";
@@ -60,15 +60,10 @@ export function ObservationInProgress({
   const { data: status, isError, error } = useQuery<ObservationStatus>({
     queryKey: ["observationStatus", observationId],
     queryFn: async () => {
-      const { data, error } = await apiClient.GET(
-        "/api/v1/observations/{observation_id}/status" as any,
-        {
-          params: { path: { observation_id: observationId } },
-        }
-      );
+      const { data, error } = await getObservationStatus(observationId);
       if (error) throw error;
 
-      const result = data as ObservationStatus;
+      const result = data as unknown as ObservationStatus;
 
       // Update preview timestamp when has_preview becomes true (initial preview)
       // or periodically (every 10 seconds) when preview already exists
@@ -101,13 +96,7 @@ export function ObservationInProgress({
   // Stop mutation
   const stopMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await apiClient.POST(
-        "/api/v1/observations/{observation_id}/stop" as any,
-        {
-          params: { path: { observation_id: observationId } },
-          body: { assemble_video: true },
-        }
-      );
+      const { data, error } = await stopObservation(observationId, true);
       if (error) throw error;
       return data;
     },

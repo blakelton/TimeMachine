@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
-import { apiClient } from "../../api/client";
+import { startPreview, stopPreview, checkCameraHealth as checkCameraHealthApi } from "../../api";
 import { Button } from "../Button";
 import { useToast } from "../../contexts/ToastContext";
 import "./PreviewTab.css";
@@ -100,12 +100,7 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
    */
   const checkCameraHealth = useCallback(async (): Promise<string | null> => {
     try {
-      const { data, error } = await apiClient.GET(
-        "/api/v1/cameras/{camera_id}/health",
-        {
-          params: { path: { camera_id: cameraId } },
-        }
-      );
+      const { data, error } = await checkCameraHealthApi(cameraId);
 
       if (error || !data) {
         return null; // Can't determine health, continue anyway
@@ -187,12 +182,7 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
 
     try {
       // Start the preview pipeline
-      const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/preview/start" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-        }
-      );
+      const { error } = await startPreview(cameraId);
 
       if (error) {
         const errorMsg = typeof error.detail === 'string' ? error.detail : "Failed to start preview";
@@ -391,12 +381,7 @@ export const PreviewTab = forwardRef<PreviewTabHandle, PreviewTabProps>(function
     }
 
     try {
-      const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/preview/stop" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-        }
-      );
+      const { error } = await stopPreview(cameraId);
 
       if (error) {
         const errorMessage = typeof error.detail === 'string' ? error.detail : "Failed to stop preview";

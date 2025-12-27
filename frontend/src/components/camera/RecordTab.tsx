@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { apiClient } from "../../api/client";
+import { startRecording, stopRecording } from "../../api";
 import { Button } from "../Button";
 import { FormField } from "../FormField";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -109,15 +109,7 @@ export function RecordTab({ cameraId }: RecordTabProps) {
     setIsLoading(true);
 
     try {
-      const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/recording/start" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-          body: {
-            duration_seconds: durationNum,
-          },
-        }
-      );
+      const { error } = await startRecording(cameraId, durationNum);
 
       if (error) {
         const errorMessage = typeof error.detail === 'string' ? error.detail : "Failed to start recording";
@@ -142,12 +134,7 @@ export function RecordTab({ cameraId }: RecordTabProps) {
     setIsLoading(true);
 
     try {
-      const { error } = await apiClient.POST(
-        "/api/v1/cameras/{camera_id}/recording/stop" as any,
-        {
-          params: { path: { camera_id: cameraId } },
-        }
-      );
+      const { error } = await stopRecording(cameraId);
 
       if (error) {
         const errorMessage = typeof error.detail === 'string' ? error.detail : "Failed to stop recording";

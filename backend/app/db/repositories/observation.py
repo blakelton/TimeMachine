@@ -18,13 +18,17 @@ class ObservationRepository(BaseRepository[Observation]):
         super().__init__(Observation, session)
 
     async def get_by_camera(
-        self, camera_id: int, limit: int | None = None
+        self,
+        camera_id: int,
+        limit: int | None = None,
+        eager_load_camera: bool = False,
     ) -> list[Observation]:
         """Get observations for a camera.
 
         Args:
             camera_id: The camera ID.
             limit: Optional limit on number of results.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of observations for the camera.
@@ -34,21 +38,28 @@ class ObservationRepository(BaseRepository[Observation]):
             .where(Observation.camera_id == camera_id)
             .order_by(Observation.started_at.desc())
         )
+        if eager_load_camera:
+            query = query.options(selectinload(Observation.camera))
         if limit:
             query = query.limit(limit)
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_active(self, camera_id: int | None = None) -> list[Observation]:
+    async def get_active(
+        self, camera_id: int | None = None, eager_load_camera: bool = False
+    ) -> list[Observation]:
         """Get all active (running) observations.
 
         Args:
             camera_id: Optional camera ID filter.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of running observations.
         """
         query = select(Observation).where(Observation.status == ObservationStatus.RUNNING)
+        if eager_load_camera:
+            query = query.options(selectinload(Observation.camera))
         if camera_id is not None:
             query = query.where(Observation.camera_id == camera_id)
         result = await self.session.execute(query)
@@ -76,6 +87,7 @@ class ObservationRepository(BaseRepository[Observation]):
         observation_type: str,
         camera_id: int | None = None,
         status: str | None = None,
+        eager_load_camera: bool = False,
     ) -> list[Observation]:
         """Get observations by type.
 
@@ -83,6 +95,7 @@ class ObservationRepository(BaseRepository[Observation]):
             observation_type: The observation type ("timelapse" or "recording").
             camera_id: Optional camera ID filter.
             status: Optional status filter.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of observations of the specified type.
@@ -90,6 +103,8 @@ class ObservationRepository(BaseRepository[Observation]):
         query = select(Observation).where(
             Observation.observation_type == observation_type
         )
+        if eager_load_camera:
+            query = query.options(selectinload(Observation.camera))
         if camera_id is not None:
             query = query.where(Observation.camera_id == camera_id)
         if status is not None:
@@ -208,18 +223,24 @@ class ObservationRepository(BaseRepository[Observation]):
         return await self.update(observation_id, notes=notes)
 
     async def get_recent(
-        self, limit: int = 10, camera_id: int | None = None
+        self,
+        limit: int = 10,
+        camera_id: int | None = None,
+        eager_load_camera: bool = False,
     ) -> list[Observation]:
         """Get recent observations.
 
         Args:
             limit: Maximum number of observations to return.
             camera_id: Optional camera ID filter.
+            eager_load_camera: If True, eagerly loads camera relationship.
 
         Returns:
             List of recent observations.
         """
         query = select(Observation).order_by(Observation.started_at.desc())
+        if eager_load_camera:
+            query = query.options(selectinload(Observation.camera))
         if camera_id is not None:
             query = query.where(Observation.camera_id == camera_id)
         query = query.limit(limit)
