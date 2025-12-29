@@ -91,7 +91,7 @@ async def get_camera_or_404(
         HTTPException: 404 NOT_FOUND if camera doesn't exist
     """
     repo = CameraRepository(session)
-    camera = await repo.get_by_id(camera_id)
+    camera = await repo.get(camera_id)
 
     if camera is None:
         logger.warning(f"camera_{operation}_not_found", camera_id=camera_id)

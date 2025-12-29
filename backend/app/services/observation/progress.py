@@ -224,7 +224,7 @@ async def progress_tracker_loop(
                 # Pipeline stopped - analyze why and handle completion
                 async with SessionFactory() as session:
                     obs_repo = ObservationRepository(session)
-                    observation = await obs_repo.get_by_id(observation_id)
+                    observation = await obs_repo.get(observation_id)
 
                     if not observation:
                         logger.error("observation_not_found", observation_id=observation_id)

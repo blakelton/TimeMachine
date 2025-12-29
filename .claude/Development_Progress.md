@@ -60,6 +60,42 @@ Track all:
 
 <!-- New entries should be added at the top, below this line -->
 
+### [2025-12-29 15:16] Bug Fix: Timelapse Progress Tracker Crash
+**Type**: Bug Fix
+**Status**: COMPLETED
+**Source**: User report - timelapses appeared to have crashed
+
+**Root Cause**:
+The progress tracker service was calling `obs_repo.get_by_id(observation_id)` but the
+ObservationRepository inherits from BaseRepository which only has a `get()` method,
+not `get_by_id()`. This caused AttributeError every 3 seconds for each active observation.
+
+Additionally, the newly added `get_camera_or_404()` helper in validation.py had the same
+issue - calling `repo.get_by_id()` instead of `repo.get()`.
+
+**Error Message**:
+```
+'ObservationRepository' object has no attribute 'get_by_id'
+```
+
+**Fix Applied**:
+- Changed `obs_repo.get_by_id(observation_id)` to `obs_repo.get(observation_id)` in progress.py
+- Changed `repo.get_by_id(camera_id)` to `repo.get(camera_id)` in validation.py
+
+**Files Changed**:
+- `backend/app/services/observation/progress.py` - Line 227
+- `backend/app/services/camera/validation.py` - Line 94
+
+**Impact**:
+The bug prevented observations 6 and 7 from being properly tracked and completed.
+When the service restarted, they were marked as "Observation interrupted by system restart".
+
+**Prevention**:
+The base repository pattern should be documented. Consider adding `get_by_id` as an alias
+for `get()` in the base repository to prevent this class of errors.
+
+---
+
 ### [2025-12-27 05:15] Refactor: Address High-Priority AI Evaluation Issues
 **Type**: Refactor
 **Status**: COMPLETED
