@@ -60,6 +60,54 @@ Track all:
 
 <!-- New entries should be added at the top, below this line -->
 
+### [2025-12-30 12:20] Bug Fix: Preview Streams Blocking Timelapse Capture
+**Type**: Bug Fix
+**Status**: COMPLETED
+**Source**: User report - Camera 1 timelapse only captured 330 frames vs Camera 4's 676 frames
+
+**Root Cause**:
+When a preview stream is running on a USB camera (gst-launch using v4l2src on /dev/videoX),
+the device becomes exclusively locked. The timelapse observation lifecycle code was:
+1. Not setting a capture lock to prevent dashboard watchdog from restarting preview
+2. Only waiting 0.5 seconds after stopping preview (insufficient for device release)
+3. Not verifying the device was actually released before starting capture
+
+This caused timelapse frame capture to fail silently with "Device busy" errors, incrementing
+`consecutive_failures` but continuing to run. Camera 1's timelapse stopped capturing ~4 hours
+before the system restart because its preview stream held the device.
+
+**Fix Applied**:
+1. Created new shared module `backend/app/services/camera/device.py` with `wait_for_device_release()`
+   - Uses `fuser` to verify USB device is no longer in use (up to 5 seconds, 10 attempts)
+   - Uses fixed 1 second delay for CSI cameras (libcamera handles access differently)
+2. Updated `lifecycle.py` to:
+   - Set capture lock via `preview_service.set_capture_in_progress(camera_id, True)` before stopping preview
+   - Use `wait_for_device_release()` instead of fixed 0.5 second sleep
+   - Release capture lock when observation stops
+3. Updated `service.py` to release capture lock in `_restart_preview_if_stopped()`
+4. Refactored `capture.py` to use the shared `wait_for_device_release()` function
+
+**Files Changed**:
+- `backend/app/services/camera/device.py` (NEW) - Shared device release utility
+- `backend/app/services/observation/lifecycle.py` - Add capture lock and proper device wait
+- `backend/app/services/observation/service.py` - Release capture lock on preview restart
+- `backend/app/api/routes/cameras/capture.py` - Use shared device.py utility
+
+**Testing**:
+- Started timelapse on Camera 1 with preview running
+- Verified: Preview stopped, device release confirmed after 1 attempt (fuser verification)
+- Verified: First frames captured successfully (no "device busy" errors)
+- Verified: Preview restarted after observation stopped
+
+**Quality Evaluation**:
+- CRITICAL: 0
+- HIGH: 0
+- MEDIUM: 3 - Return value not used at call sites, CSI handling uses fixed delay, missing package export
+- LOW: 3 - Minor documentation/code organization items
+- Overall: PASS - All functional requirements met
+
+---
+
 ### [2025-12-29 15:16] Bug Fix: Timelapse Progress Tracker Crash
 **Type**: Bug Fix
 **Status**: COMPLETED

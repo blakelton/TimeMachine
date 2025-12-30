@@ -16,6 +16,7 @@ from app.schemas.observation import (
     RecordingObservationConfig,
     TimelapseObservationConfig,
 )
+from app.services.camera.device import wait_for_device_release
 from app.services.camera.pipeline import PipelineState
 from app.services.camera.preview import preview_service
 from app.services.camera.recording import recording_service
@@ -104,6 +105,9 @@ async def start_timelapse_observation(
     # For USB cameras, stop the preview stream to free the device for capture
     # The preview will be restarted when the observation stops
     if camera.camera_type == "usb":
+        # Set capture lock to prevent dashboard watchdog from restarting preview
+        preview_service.set_capture_in_progress(camera.id, True)
+
         preview_state = preview_service.get_preview_state(camera.id)
         if preview_state == PipelineState.RUNNING:
             preview_port = preview_service.get_preview_port(camera.id)
@@ -125,8 +129,10 @@ async def start_timelapse_observation(
                 "camera_type": camera.camera_type,
                 "fps": preview_fps,
             }
-            # Give the device time to be released
-            await asyncio.sleep(0.5)
+            # Wait for device to be fully released (uses fuser to verify)
+            await wait_for_device_release(
+                camera.device_path, camera.id, camera.camera_type, "timelapse"
+            )
 
     # Create observation record first
     obs_repo = ObservationRepository(session)
@@ -238,6 +244,9 @@ async def start_recording_observation(
     # For USB cameras, stop the preview stream to free the device for recording
     # The preview will be restarted when the observation stops
     if camera.camera_type == "usb":
+        # Set capture lock to prevent dashboard watchdog from restarting preview
+        preview_service.set_capture_in_progress(camera.id, True)
+
         preview_state = preview_service.get_preview_state(camera.id)
         if preview_state == PipelineState.RUNNING:
             preview_port = preview_service.get_preview_port(camera.id)
@@ -259,8 +268,10 @@ async def start_recording_observation(
                 "camera_type": camera.camera_type,
                 "fps": preview_fps,
             }
-            # Give the device time to be released
-            await asyncio.sleep(0.5)
+            # Wait for device to be fully released (uses fuser to verify)
+            await wait_for_device_release(
+                camera.device_path, camera.id, camera.camera_type, "recording"
+            )
 
     # Create observation record
     obs_repo = ObservationRepository(session)
@@ -410,6 +421,10 @@ async def stop_observation(
     # Remove from active tracking
     if camera_id in active_observations:
         del active_observations[camera_id]
+
+    # Release capture lock for USB cameras (allows preview to restart)
+    if preview_service.is_capture_in_progress(camera_id):
+        preview_service.set_capture_in_progress(camera_id, False)
 
     # Restart preview if we stopped it for this observation
     await restart_preview_if_stopped_fn(camera_id)

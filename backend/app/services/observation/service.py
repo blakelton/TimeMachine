@@ -211,13 +211,19 @@ class ObservationService:
     async def _restart_preview_if_stopped(self, camera_id: int) -> None:
         """Restart preview stream if it was stopped for observation.
 
+        Also releases the capture lock to allow the preview to start.
+
         Args:
             camera_id: Camera ID to check and restart preview for
         """
+        from app.services.camera.preview import preview_service
+
+        # Release capture lock first (allows preview to start)
+        if preview_service.is_capture_in_progress(camera_id):
+            preview_service.set_capture_in_progress(camera_id, False)
+
         if camera_id not in self._preview_stopped_for:
             return
-
-        from app.services.camera.preview import preview_service
 
         preview_info = self._preview_stopped_for.pop(camera_id)
         try:

@@ -19,6 +19,7 @@ from app.db.repositories.output_config import OutputConfigRepository
 from app.db.session import get_session
 from app.schemas.job import OperationResponse
 from app.services.camera import capture_service, preview_service
+from app.services.camera.device import wait_for_device_release
 from app.services.camera.pipeline import PipelineState
 
 router = APIRouter()
@@ -63,68 +64,12 @@ async def _stop_preview_for_capture(
     )
 
     await preview_service.stop_preview(camera.id)
-    await _wait_for_device_release(camera)
+    # Wait for device to be fully released (uses fuser to verify for USB)
+    await wait_for_device_release(
+        camera.device_path, camera.id, camera.camera_type, "capture"
+    )
 
     return PreviewState(was_running=True, fps=fps or 10)
-
-
-async def _wait_for_device_release(camera: Camera) -> None:
-    """Wait for camera device to be released after stopping preview.
-
-    Args:
-        camera: Camera model instance
-    """
-    if camera.camera_type == "usb":
-        await _wait_for_usb_device_release(camera)
-    else:
-        # CSI: libcamera needs ~1s to release pipeline
-        await asyncio.sleep(1.0)
-        logger.info("capture_csi_preview_stopped", camera_id=camera.id)
-
-
-async def _wait_for_usb_device_release(camera: Camera) -> None:
-    """Wait for USB device to be released by checking fuser.
-
-    Args:
-        camera: Camera model instance
-    """
-    max_attempts = 10  # 10 attempts × 0.5s = 5 seconds max
-    for attempt in range(max_attempts):
-        await asyncio.sleep(0.5)
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "fuser", camera.device_path,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=2.0)
-            if not stdout.decode().strip():
-                logger.info(
-                    "capture_device_released",
-                    camera_id=camera.id,
-                    device_path=camera.device_path,
-                    attempts=attempt + 1,
-                )
-                return
-        except asyncio.TimeoutError:
-            logger.debug(
-                "capture_device_check_timeout",
-                camera_id=camera.id,
-                attempt=attempt + 1,
-            )
-        except Exception as e:
-            logger.warning(
-                "capture_device_check_failed",
-                camera_id=camera.id,
-                error=str(e),
-            )
-
-    logger.warning(
-        "capture_device_still_busy",
-        camera_id=camera.id,
-        device_path=camera.device_path,
-        message="Proceeding anyway after 5s wait",
-    )
 
 
 async def _restart_preview(camera: Camera, fps: int) -> None:
