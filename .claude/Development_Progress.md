@@ -1165,6 +1165,29 @@ On startup, the system resolves each `hardware_id` to the current `/dev/videoN` 
 
 ---
 
+### [2026-01-01 14:02] Unplanned: `fix-timelapse-completion-parameter`
+**Type**: Bug Fix
+**Files Affected**: `backend/app/services/observation/service.py`
+**Reason**: Urgent fix - observations 11 and 12 were stuck in infinite retry loop
+
+**Root Cause**:
+- `_assemble_timelapse_video()` called `stop_timelapse(..., assemble_video=True)`
+- But `TimelapseService.stop_timelapse()` expects `assemble_video_flag=True`
+- Parameter name mismatch caused TypeError every 3 seconds in progress tracker loop
+- Observations couldn't complete or assemble videos
+
+**Fix**:
+- Changed line 382: `assemble_video=True` → `assemble_video_flag=True`
+
+**Impact**:
+- Observations 11 and 12 videos now assembled (8.2M and 7.8M respectively)
+- Error spam in logs stopped
+- Future timelapse completions will work correctly
+
+**Quality Evaluation**: Syntax verified, parameter matches function signature, service health OK
+
+---
+
 ### [Initial Setup] Project Initialized
 **Type**: Setup
 **Description**: Claude orchestration boilerplate created

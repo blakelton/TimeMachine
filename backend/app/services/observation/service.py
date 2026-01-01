@@ -379,7 +379,7 @@ class ObservationService:
     ) -> None:
         """Assemble timelapse frames into video."""
         success, msg, output_path = await timelapse_service.stop_timelapse(
-            camera_id, session, assemble_video=True
+            camera_id, session, assemble_video_flag=True
         )
         log_event = "observation_timelapse_partial_assembly" if partial else "observation_timelapse_assembly_result"
         logger.info(
