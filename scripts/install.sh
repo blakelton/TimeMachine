@@ -194,11 +194,13 @@ if ! id -u timemachine &>/dev/null; then
   useradd -r -s /bin/false -d /opt/timemachine -m timemachine
   usermod -aG video timemachine
   usermod -aG gpio timemachine
+  usermod -aG render timemachine  # Required for GPU/DRI access (libcamera, MESA)
 else
   echo "✓ User timemachine already exists"
   # Ensure user is in required groups (may have been added after initial creation)
   usermod -aG video timemachine 2>/dev/null || true
   usermod -aG gpio timemachine 2>/dev/null || true
+  usermod -aG render timemachine 2>/dev/null || true  # Required for GPU/DRI access
 fi
 
 # Ensure /opt/timemachine is world-readable for nginx to serve static files

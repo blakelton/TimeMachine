@@ -8,8 +8,10 @@ Wants=network-online.target
 Type=simple
 User=timemachine
 Group=timemachine
-# Explicitly add video group for camera access (required for v4l2 devices)
-SupplementaryGroups=video
+# Explicitly add groups for camera and GPU access
+# - video: required for v4l2 devices (/dev/video*)
+# - render: required for GPU/DRI access (/dev/dri/renderD128) used by libcamera/MESA
+SupplementaryGroups=video render
 WorkingDirectory=/opt/timemachine/backend
 
 # Environment
