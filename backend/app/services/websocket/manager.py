@@ -50,9 +50,15 @@ class WebSocketManager:
 
         Failed sends are logged and the client is automatically disconnected.
 
-        Race condition fix: We snapshot clients under lock, then verify each
-        client is still active before sending. This prevents sending to
-        disconnected clients while avoiding holding the lock during I/O.
+        Threading model: We snapshot clients under lock, then release the lock
+        before I/O to avoid blocking concurrent connect/disconnect operations.
+        The check on line 75 (client not in self._clients) is technically a
+        TOCTOU race since we don't hold the lock, but this is an intentional
+        trade-off for performance:
+        - Worst case: we send to a client that disconnected mid-iteration,
+          which is caught by the exception handler and cleaned up.
+        - Benefit: We don't hold the lock during potentially slow network I/O,
+          allowing other coroutines to connect/disconnect freely.
 
         Args:
             message: Dictionary to send as JSON to all clients.
@@ -70,8 +76,7 @@ class WebSocketManager:
         disconnected = []
         for client in clients:
             try:
-                # Double-check client still active before sending
-                # (avoids sending to clients disconnected during iteration)
+                # Best-effort check if client still active (see docstring for race note)
                 if client not in self._clients:
                     continue
 

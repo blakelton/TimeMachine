@@ -285,8 +285,8 @@ class TimelapseService:
         # Check if already running (defensive - clean up stale sessions)
         camera_id = job.camera_id
         if camera_id in self._sessions:
-            session = self._sessions[camera_id]
-            if session.is_running:
+            existing_session = self._sessions[camera_id]
+            if existing_session.is_running:
                 return False, f"Timelapse already running for camera {camera_id}"
             # Session exists but not running - clean it up
             del self._sessions[camera_id]
