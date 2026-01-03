@@ -5,10 +5,13 @@ import json
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable, Optional
 
 if TYPE_CHECKING:
     from app.services.environment.polling import EnvironmentPollingService
+
+# Type alias for frame captured callback: (current_frame, total_frames, job_id) -> None
+FrameCapturedCallback = Callable[[int, Optional[int], Optional[int]], Awaitable[None]]
 
 from app.core.logging import get_logger
 from app.core.resources import check_resources_available
@@ -51,6 +54,7 @@ class TimelapseSession:
         device_resolver: Callable[[str], str | None] | None = None,
         target_end_time: datetime | None = None,
         polling_service: "EnvironmentPollingService | None" = None,
+        on_frame_captured: FrameCapturedCallback | None = None,
     ):
         self.config = config
         self.device_path = device_path
@@ -65,6 +69,7 @@ class TimelapseSession:
         self._stop_event = asyncio.Event()
         self._capture_task: asyncio.Task | None = None
         self._capture_service = CaptureService()
+        self._on_frame_captured = on_frame_captured  # Callback for WebSocket progress updates
 
         # Recovery tracking
         self._consecutive_failures = 0
@@ -405,6 +410,21 @@ class TimelapseSession:
             frame=self.frame_count,
             filepath=filepath,
         )
+
+        # Notify callback for WebSocket progress updates
+        if self._on_frame_captured:
+            try:
+                await self._on_frame_captured(
+                    self.frame_count,
+                    self.config.total_frames,
+                    self.job_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "timelapse_frame_callback_error",
+                    camera_id=self.config.camera_id,
+                    error=str(e),
+                )
 
     def _handle_capture_failure(self, message: str) -> None:
         """Handle failed frame capture."""

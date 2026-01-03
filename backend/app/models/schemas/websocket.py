@@ -38,11 +38,17 @@ class WSJobUpdate(BaseModel):
     job_id: int = Field(..., description="Job database ID")
     camera_id: int = Field(..., description="Camera database ID")
     job_type: str = Field(..., description="Job type (capture, record, timelapse)")
-    status: Literal["pending", "running", "completed", "failed"] = Field(
+    status: Literal["pending", "running", "completed", "failed", "interrupted"] = Field(
         ..., description="Job status"
     )
     progress: Optional[float] = Field(
         None, ge=0, le=100, description="Progress percentage (0-100)"
+    )
+    current_frame: Optional[int] = Field(
+        None, ge=0, description="Current frame count (for timelapse jobs)"
+    )
+    total_frames: Optional[int] = Field(
+        None, ge=0, description="Total expected frames (for timelapse jobs, None=unlimited)"
     )
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 

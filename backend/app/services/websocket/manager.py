@@ -2,7 +2,8 @@
 
 import asyncio
 import json
-from typing import Set
+from datetime import datetime
+from typing import Optional, Set
 
 import structlog
 from fastapi import WebSocket
@@ -117,6 +118,44 @@ class WebSocketManager:
             Number of active WebSocket connections.
         """
         return len(self._clients)
+
+    async def broadcast_job_update(
+        self,
+        job_id: int,
+        camera_id: int,
+        job_type: str,
+        status: str,
+        progress: Optional[float] = None,
+        current_frame: Optional[int] = None,
+        total_frames: Optional[int] = None,
+    ) -> None:
+        """Broadcast a job update to all connected clients.
+
+        Args:
+            job_id: Job database ID
+            camera_id: Camera database ID
+            job_type: Job type (capture, record, timelapse)
+            status: Job status (pending, running, completed, failed, interrupted)
+            progress: Progress percentage (0-100), auto-calculated from frames if not provided
+            current_frame: Current frame count (for timelapse jobs)
+            total_frames: Total expected frames (for timelapse jobs, None=unlimited)
+        """
+        # Auto-calculate progress from frames if not provided
+        if progress is None and current_frame is not None and total_frames:
+            progress = (current_frame / total_frames) * 100
+
+        message = {
+            "type": "job_update",
+            "job_id": job_id,
+            "camera_id": camera_id,
+            "job_type": job_type,
+            "status": status,
+            "progress": progress,
+            "current_frame": current_frame,
+            "total_frames": total_frames,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        await self.broadcast(message)
 
 
 # Global singleton instance

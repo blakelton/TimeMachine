@@ -35,6 +35,8 @@ export interface WSJobUpdate {
   job_type: string;
   status: "pending" | "running" | "completed" | "failed" | "interrupted";
   progress?: number | null; // 0-100
+  current_frame?: number | null; // Current frame count (for timelapse jobs)
+  total_frames?: number | null; // Total expected frames (null = unlimited)
   timestamp: string;
 }
 

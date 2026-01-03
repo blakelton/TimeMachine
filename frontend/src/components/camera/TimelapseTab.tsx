@@ -48,13 +48,12 @@ export function TimelapseTab({ cameraId }: TimelapseTabProps) {
     if (message.camera_id === cameraId && message.job_type === "timelapse") {
       if (message.status === "running") {
         setIsRunning(true);
-        if (message.progress !== null && message.progress !== undefined) {
-          // Progress is 0-100, convert to frames
-          const totalFramesEstimate = totalFrames || 100;
-          const capturedFrames = Math.floor(
-            (message.progress / 100) * totalFramesEstimate
-          );
-          setFramesCaptured(capturedFrames);
+        // Use frame counts directly if available (preferred)
+        if (message.current_frame !== null && message.current_frame !== undefined) {
+          setFramesCaptured(message.current_frame);
+        }
+        if (message.total_frames !== null && message.total_frames !== undefined) {
+          setTotalFrames(message.total_frames);
         }
       } else if (message.status === "completed" || message.status === "failed" || message.status === "interrupted") {
         setIsRunning(false);

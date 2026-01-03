@@ -8,6 +8,9 @@ from app.core.resources import encoder_semaphore
 
 logger = get_logger(__name__)
 
+# Minimum valid MP4 file size (1KB - even a 1-frame video should be larger)
+MIN_VIDEO_SIZE_BYTES = 1024
+
 
 async def assemble_video(
     timelapse_dir: Path,
@@ -67,7 +70,25 @@ async def assemble_video(
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600.0)
 
         if proc.returncode == 0 and output_file.exists():
-            file_size_mb = output_file.stat().st_size / (1024 * 1024)
+            file_size = output_file.stat().st_size
+            file_size_mb = file_size / (1024 * 1024)
+
+            # Validate minimum file size to catch empty/corrupted files
+            if file_size < MIN_VIDEO_SIZE_BYTES:
+                logger.error(
+                    "timelapse_assembly_invalid_output",
+                    camera_id=camera_id,
+                    output=str(output_file),
+                    size_bytes=file_size,
+                    reason="File too small, likely corrupted or empty",
+                )
+                # Clean up invalid file
+                try:
+                    output_file.unlink()
+                except Exception:
+                    pass
+                return None
+
             logger.info(
                 "timelapse_assembly_success",
                 camera_id=camera_id,

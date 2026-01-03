@@ -10,7 +10,7 @@ Features:
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from app.services.environment.polling import EnvironmentPollingService
@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.constants import JobStatus
 from app.core.logging import get_logger
+from app.core.paths import media_paths
 from app.core.resources import check_resources_available
 from app.db.repositories.job import JobRepository
 
@@ -91,7 +92,7 @@ class TimelapseService:
                 timelapse_dir.mkdir(parents=True, exist_ok=True)
             else:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                timelapse_dir = Path(settings.media_path) / "timelapses" / f"camera{camera_id}_{timestamp}"
+                timelapse_dir = media_paths.timelapse_dir(camera_id, timestamp)
                 timelapse_dir.mkdir(parents=True, exist_ok=True)
 
             # Create Job record if session provided
@@ -111,6 +112,25 @@ class TimelapseService:
             # Import resolver for recovery (lazy import to avoid circular deps)
             from app.services.camera.resolver import resolve_hardware_id
 
+            # Create callback for WebSocket progress updates
+            async def on_frame_captured(
+                current_frame: int,
+                total_frames: Optional[int],
+                job_id: Optional[int],
+            ) -> None:
+                """Broadcast frame capture progress via WebSocket."""
+                if job_id is None:
+                    return
+                from app.services.websocket.manager import ws_manager
+                await ws_manager.broadcast_job_update(
+                    job_id=job_id,
+                    camera_id=camera_id,
+                    job_type="timelapse",
+                    status="running",
+                    current_frame=current_frame,
+                    total_frames=total_frames,
+                )
+
             # Create and start session with recovery support for USB cameras
             timelapse_session = TimelapseSession(
                 config=config,
@@ -122,6 +142,7 @@ class TimelapseService:
                 device_resolver=resolve_hardware_id if camera_type == "usb" and hardware_id else None,
                 target_end_time=target_end_time,
                 polling_service=polling_service,
+                on_frame_captured=on_frame_captured,
             )
 
             # Pre-load graph history from database if overlay with graph is configured
@@ -208,6 +229,8 @@ class TimelapseService:
             )
 
         # Update job status
+        # User intentionally stopped the timelapse, so mark as completed (not interrupted)
+        # Interrupted status is reserved for system crashes/unexpected termination
         if session and job_id:
             job_repo = JobRepository(session)
             if output_path:
@@ -215,7 +238,8 @@ class TimelapseService:
             elif frame_count > 0:
                 await job_repo.mark_completed(job_id, str(timelapse_dir))
             else:
-                await job_repo.mark_interrupted(job_id)
+                # User stopped with 0 frames - still mark as completed with no output
+                await job_repo.mark_completed(job_id, None)
             await session.commit()
 
         if output_path:
@@ -258,20 +282,44 @@ class TimelapseService:
         if not job.timelapse_dir:
             return False, "Job has no timelapse directory"
 
-        # Check if already running
+        # Check if already running (defensive - clean up stale sessions)
         camera_id = job.camera_id
-        if camera_id in self._sessions and self._sessions[camera_id].is_running:
-            return False, f"Timelapse already running for camera {camera_id}"
+        if camera_id in self._sessions:
+            session = self._sessions[camera_id]
+            if session.is_running:
+                return False, f"Timelapse already running for camera {camera_id}"
+            # Session exists but not running - clean it up
+            del self._sessions[camera_id]
 
         # Restore config
         config = TimelapseConfig.from_dict(camera_id, job.timelapse_config or {})
 
-        # Count existing frames
+        # Count existing frames by finding highest frame number
+        # This handles gaps in sequence (if frames were deleted)
         timelapse_dir = Path(job.timelapse_dir)
         if not timelapse_dir.exists():
             return False, "Timelapse directory no longer exists"
 
-        existing_frames = len(list(timelapse_dir.glob("frame_*.jpg")))
+        frame_files = sorted(timelapse_dir.glob("frame_*.jpg"))
+        if frame_files:
+            # Extract frame number from last file: frame_000042.jpg -> 43 (next frame)
+            last_frame_name = frame_files[-1].stem  # "frame_000042"
+            try:
+                existing_frames = int(last_frame_name.split("_")[1]) + 1
+            except (IndexError, ValueError):
+                # Fallback to count if parsing fails
+                existing_frames = len(frame_files)
+        else:
+            existing_frames = 0
+
+        logger.debug(
+            "timelapse_resume_frame_count",
+            camera_id=camera_id,
+            job_id=job_id,
+            directory=str(timelapse_dir),
+            existing_frames=existing_frames,
+            frame_files_count=len(frame_files) if frame_files else 0,
+        )
 
         # Adjust remaining frames
         if config.total_frames:
@@ -280,6 +328,25 @@ class TimelapseService:
                 return False, "Timelapse already completed"
             config.total_frames = remaining
 
+        # Create callback for WebSocket progress updates
+        async def on_frame_captured(
+            current_frame: int,
+            total_frames: Optional[int],
+            cb_job_id: Optional[int],
+        ) -> None:
+            """Broadcast frame capture progress via WebSocket."""
+            if cb_job_id is None:
+                return
+            from app.services.websocket.manager import ws_manager
+            await ws_manager.broadcast_job_update(
+                job_id=cb_job_id,
+                camera_id=camera_id,
+                job_type="timelapse",
+                status="running",
+                current_frame=current_frame,
+                total_frames=total_frames,
+            )
+
         # Create new session starting from existing frame count
         timelapse_session = TimelapseSession(
             config=config,
@@ -287,6 +354,7 @@ class TimelapseService:
             camera_type=camera_type,
             job_id=job_id,
             timelapse_dir=timelapse_dir,
+            on_frame_captured=on_frame_captured,
         )
         timelapse_session.frame_count = existing_frames
 
